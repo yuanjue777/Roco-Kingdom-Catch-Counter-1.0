@@ -1,0 +1,60 @@
+# 抓捕计数器配置文件（key=value）
+# 修改后重启程序生效
+
+# ===== 图像检测（捏球判定） =====
+TEMPLATE_FILE=1.png                  # 区域1模板文件名
+TARGET_CENTER_X=1852                 # 区域1中心X坐标
+TARGET_CENTER_Y=969                  # 区域1中心Y坐标
+VISUAL_THRESHOLD=0.30                # 区域1匹配阈值（越高越严格）
+
+# ===== 图像检测（抓到精灵判定） =====
+CAPTURE_TEMPLATE_FILE=2.png          # 区域2模板文件名
+CAPTURE_CENTER_X=188                 # 区域2中心X坐标
+CAPTURE_CENTER_Y=99                  # 区域2中心Y坐标
+CAPTURE_VISUAL_THRESHOLD=0.40        # 区域2匹配阈值（越高越严格）
+CAPTURE_COOLDOWN_SEC=0.8             # 抓到事件冷却秒数
+
+# ===== OCR星光区域 =====
+STAR_OCR_X1=204                      # OCR区域左上X
+STAR_OCR_Y1=87                       # OCR区域左上Y
+STAR_OCR_X2=255                      # OCR区域右下X
+STAR_OCR_Y2=113                      # OCR区域右下Y
+STAR_METER_MAX=700.0                 # 计量表满值
+STAR_OCR_MIN=1                       # OCR最小有效值
+STAR_OCR_MAX=999                     # OCR最大有效值
+
+# ===== 音频检测 =====
+HIT_AUDIO_FILES=hit1.wav,hit2.wav,hit3.wav   # 命中模板音频（逗号分隔）
+AUDIO_THRESHOLD=0.50                 # 音频判定阈值（越高越严格）
+THROW_DETECT_WINDOW_SEC=2.5          # 丢球检测窗口（秒）
+BUFFER_SEC=3                         # 音频缓冲区长度（秒）
+SEARCH_MARGIN_SEC=0.35               # 音频搜索余量（秒）
+
+# ===== 调试参数 =====
+DEBUG_MIN_SCORE=0.20                 # 输出DEBUG日志的最低分数
+DEBUG_LOG_COOLDOWN=0.35              # DEBUG日志冷却秒数
+
+# ===== 设备筛选 =====
+DEVICE_KEYWORDS=CABLE Output,VB-Audio,Loopback,立体声混音,Stereo Mix   # 输入设备关键字（逗号分隔）
+
+# ===== 热键（Windows Virtual-Key） =====
+HOTKEY_CLEAR_VK=0x6B                 # 清空污染计量表并总污染计数+1（默认Num+）
+HOTKEY_FADED_VK=0x6D                 # 褪色污染计数+1（默认Num-，不增加总污染计数）
+
+# ===== 界面参数 =====
+UI_BG=#1e1e1e                        # 主背景色
+TRANSPARENT_KEY=#010203              # 简化模式透明键色
+
+# ===== 热键值速查表 =====
+# 说明：支持十六进制(0x??)和十进制；推荐使用 0x 形式
+#
+# 英文字母（A-Z）
+# A=0x41  B=0x42  C=0x43  D=0x44  E=0x45  F=0x46  G=0x47
+# H=0x48  I=0x49  J=0x4A  K=0x4B  L=0x4C  M=0x4D  N=0x4E
+# O=0x4F  P=0x50  Q=0x51  R=0x52  S=0x53  T=0x54  U=0x55
+# V=0x56  W=0x57  X=0x58  Y=0x59  Z=0x5A
+#
+# 小键盘（Numpad）
+# Num0=0x60  Num1=0x61  Num2=0x62  Num3=0x63  Num4=0x64
+# Num5=0x65  Num6=0x66  Num7=0x67  Num8=0x68  Num9=0x69
+# Num*=0x6A  Num+=0x6B  Num-=0x6D  Num.=0x6E  Num/=0x6F
