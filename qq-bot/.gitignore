@@ -1,0 +1,15 @@
+# 环境配置（含 token，绝不提交）
+.env.dev
+.env.prod
+.env.local
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+*.log
+logs/
+data/

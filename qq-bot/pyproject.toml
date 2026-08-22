@@ -1,0 +1,42 @@
+[project]
+name = "qq-bot"
+version = "0.1.0"
+description = "基于 NoneBot2 + OneBot v11 的 QQ 机器人"
+requires-python = ">=3.10"
+dependencies = [
+    "nonebot2[fastapi,websockets]>=2.3.0",
+    "nonebot-adapter-onebot>=2.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+# NoneBot2 的项目配置，bot.py 通过 load_from_toml 读取这一段
+[tool.nonebot]
+adapters = [
+    { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" },
+]
+# 本项目自己的插件放在 src/plugins/ 下，会被自动加载
+plugin_dirs = ["src/plugins"]
+
+# 第三方插件（pip 安装的）写在这里，例如：
+# default = ["nonebot_plugin_apscheduler"]
+[tool.nonebot.plugins]
+default = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# 文档里的代码块是示例片段，不参与格式检查
+exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# NoneBot 的依赖注入（CommandArg() 等）本就写在参数默认值里
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

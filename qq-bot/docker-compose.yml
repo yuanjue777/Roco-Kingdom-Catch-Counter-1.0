@@ -1,0 +1,28 @@
+services:
+  # QQ 客户端：负责登录 QQ 并把消息按 OneBot v11 协议转发给 bot
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    container_name: napcat
+    restart: unless-stopped
+    environment:
+      # 首次启动后执行 `docker compose logs -f napcat` 查看登录二维码
+      - NAPCAT_UID=1000
+      - NAPCAT_GID=1000
+    ports:
+      - "6099:6099"   # WebUI，用于配置反向 WebSocket 指向 ws://bot:8080/onebot/v11/ws
+    volumes:
+      - ./data/napcat/config:/app/napcat/config
+      - ./data/napcat/qq:/app/.config/QQ
+
+  bot:
+    build: .
+    container_name: qq-bot
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      - ENVIRONMENT=prod
+    ports:
+      - "8080:8080"
+    depends_on:
+      - napcat
