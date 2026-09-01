@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>校园 · M0 潜行原型</title>
+<!--STYLE-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow: hidden; background: #0a0c12;
+         font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #e8ecf2; }
+  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #hud { pointer-events: none; }
+  #dbg { display: none; }
+  #startHint { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+               justify-content: center; gap: 14px; background: rgba(6,8,14,0.86); z-index: 5; text-align: center; padding: 24px; }
+  #startHint h1 { font-size: 26px; margin: 0; letter-spacing: 2px; font-weight: 600; }
+  #startHint p { margin: 0; color: #9fb0c4; max-width: 620px; line-height: 1.7; font-size: 13.5px; }
+  #startHint .go { margin-top: 6px; padding: 10px 26px; border: 1px solid #47607d; border-radius: 4px; color: #cfe4ff; }
+  kbd { background: #1d2530; border: 1px solid #33414f; border-bottom-width: 2px; border-radius: 3px;
+        padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d7e3ef; }
+  table.keys { border-collapse: collapse; font-size: 12.5px; color: #a9bccd; }
+  table.keys td { padding: 3px 10px; }
+  table.keys td:first-child { text-align: right; white-space: nowrap; }
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 26px; z-index: 4;
+           background: rgba(8,12,20,0.82); border: 1px solid #2b3a4a; border-radius: 4px;
+           padding: 8px 16px; font-size: 13px; color: #cfe0f0; opacity: 0; transition: opacity .5s; pointer-events: none; }
+  #tuner { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 6; overflow-y: auto;
+           background: rgba(10,14,20,0.95); border-left: 1px solid #26313e; padding: 14px 16px;
+           transform: translateX(100%); transition: transform .18s; font-size: 12px; }
+  #tuner.open { transform: none; }
+  #tuner h3 { margin: 4px 0 14px; font-size: 14px; }
+  #tuner h3 small { font-weight: 400; color: #7d8fa1; font-size: 11px; }
+  .tune-row { display: grid; grid-template-columns: 116px 1fr 42px; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .tune-row span { color: #9fb0c4; }
+  .tune-row b { text-align: right; font-family: ui-monospace, monospace; color: #ffd479; font-weight: 500; }
+  .tune-row input { width: 100%; }
+  #tuner button { margin-top: 14px; width: 100%; padding: 7px; background: #1b2531; color: #cfe0f0;
+                  border: 1px solid #33414f; border-radius: 4px; cursor: pointer; }
+</style>
+<!--/STYLE-->
+</head>
+<body>
+<!--CONTENT-->
+<canvas id="view"></canvas>
+<canvas id="hud"></canvas>
+<canvas id="dbg"></canvas>
+<div id="toast"></div>
+<div id="tuner"></div>
+<div id="startHint">
+  <h1>校 园 · M0 潜行原型</h1>
+  <p>你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
+     楼里有三只游荡者和一只蜷伏者，没有武器，没有战斗 —— 只有声音。</p>
+  <p style="color:#7d8fa1">这是《校园》设计文档 M0 里程碑的可玩验证：完整的声音传播（Dijkstra 绕行 + Portal 衰减）、
+     丧尸的余量反应曲线、屏息声纹、投石引怪。<kbd>Tab</kbd> 打开俯视调试图看声音怎么传的，
+     <kbd>P</kbd> 打开实时调参。</p>
+  <table class="keys">
+    <tr><td><kbd>W A S D</kbd></td><td>移动</td><td><kbd>Shift</kbd></td><td>奔跑（响度 45）</td></tr>
+    <tr><td><kbd>Ctrl</kbd>/<kbd>C</kbd></td><td>蹲行（响度 10）</td><td><kbd>V</kbd></td><td>贴墙（响度 14）</td></tr>
+    <tr><td><kbd>Q</kbd> <kbd>E</kbd></td><td>左右探头（被发现半径 ×0.35）</td><td><kbd>Space</kbd></td><td>屏息（阈值 25→8，出声纹）</td></tr>
+    <tr><td><kbd>F</kbd></td><td>轻点=快速开关门　按住=缓慢</td><td><kbd>G</kbd></td><td>按住蓄力，松开投石</td></tr>
+    <tr><td><kbd>L</kbd></td><td>手电</td><td><kbd>X</kbd></td><td>看手表</td></tr>
+    <tr><td><kbd>N</kbd></td><td>切换昼夜</td><td><kbd>T</kbd></td><td>时间流速</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>声音调试俯视图</td><td><kbd>P</kbd></td><td>实时调参面板</td></tr>
+  </table>
+  <div class="go">点击画面开始（会锁定鼠标，<kbd>Esc</kbd> 退出锁定）</div>
+</div>
+<!--/CONTENT-->
+<!-- 本地开发用 vendor 副本；build.js 生成的发布版改用 cdnjs（Artifact 的 CSP 只放行 cdnjs） -->
+<script src="vendor/three.min.js"></script>
+<!--SCRIPTS-->
+<script src="src/03-math.js"></script>
+<script src="src/00-config.js"></script>
+<script src="src/01-eventbus.js"></script>
+<script src="src/02-modifiers.js"></script>
+<script src="src/04-soundgraph.js"></script>
+<script src="src/05-soundsystem.js"></script>
+<script src="src/06-hearing.js"></script>
+<script src="src/07-time.js"></script>
+<script src="src/08-level.js"></script>
+<script src="src/09-collision.js"></script>
+<script src="src/10-player.js"></script>
+<script src="src/11-zombie.js"></script>
+<script src="src/12-render.js"></script>
+<script src="src/13-audio.js"></script>
+<script src="src/14-hud.js"></script>
+<script src="src/15-debug.js"></script>
+<script src="src/16-main.js"></script>
+<!--/SCRIPTS-->
+</body>
+</html>

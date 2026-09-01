@@ -1,0 +1,2918 @@
+<title>校园 · M0 潜行原型</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow: hidden; background: #0a0c12;
+         font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #e8ecf2; }
+  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #hud { pointer-events: none; }
+  #dbg { display: none; }
+  #startHint { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+               justify-content: center; gap: 14px; background: rgba(6,8,14,0.86); z-index: 5; text-align: center; padding: 24px; }
+  #startHint h1 { font-size: 26px; margin: 0; letter-spacing: 2px; font-weight: 600; }
+  #startHint p { margin: 0; color: #9fb0c4; max-width: 620px; line-height: 1.7; font-size: 13.5px; }
+  #startHint .go { margin-top: 6px; padding: 10px 26px; border: 1px solid #47607d; border-radius: 4px; color: #cfe4ff; }
+  kbd { background: #1d2530; border: 1px solid #33414f; border-bottom-width: 2px; border-radius: 3px;
+        padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d7e3ef; }
+  table.keys { border-collapse: collapse; font-size: 12.5px; color: #a9bccd; }
+  table.keys td { padding: 3px 10px; }
+  table.keys td:first-child { text-align: right; white-space: nowrap; }
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 26px; z-index: 4;
+           background: rgba(8,12,20,0.82); border: 1px solid #2b3a4a; border-radius: 4px;
+           padding: 8px 16px; font-size: 13px; color: #cfe0f0; opacity: 0; transition: opacity .5s; pointer-events: none; }
+  #tuner { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 6; overflow-y: auto;
+           background: rgba(10,14,20,0.95); border-left: 1px solid #26313e; padding: 14px 16px;
+           transform: translateX(100%); transition: transform .18s; font-size: 12px; }
+  #tuner.open { transform: none; }
+  #tuner h3 { margin: 4px 0 14px; font-size: 14px; }
+  #tuner h3 small { font-weight: 400; color: #7d8fa1; font-size: 11px; }
+  .tune-row { display: grid; grid-template-columns: 116px 1fr 42px; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .tune-row span { color: #9fb0c4; }
+  .tune-row b { text-align: right; font-family: ui-monospace, monospace; color: #ffd479; font-weight: 500; }
+  .tune-row input { width: 100%; }
+  #tuner button { margin-top: 14px; width: 100%; padding: 7px; background: #1b2531; color: #cfe0f0;
+                  border: 1px solid #33414f; border-radius: 4px; cursor: pointer; }
+</style>
+<canvas id="view"></canvas>
+<canvas id="hud"></canvas>
+<canvas id="dbg"></canvas>
+<div id="toast"></div>
+<div id="tuner"></div>
+<div id="startHint">
+  <h1>校 园 · M0 潜行原型</h1>
+  <p>你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
+     楼里有三只游荡者和一只蜷伏者，没有武器，没有战斗 —— 只有声音。</p>
+  <p style="color:#7d8fa1">这是《校园》设计文档 M0 里程碑的可玩验证：完整的声音传播（Dijkstra 绕行 + Portal 衰减）、
+     丧尸的余量反应曲线、屏息声纹、投石引怪。<kbd>Tab</kbd> 打开俯视调试图看声音怎么传的，
+     <kbd>P</kbd> 打开实时调参。</p>
+  <table class="keys">
+    <tr><td><kbd>W A S D</kbd></td><td>移动</td><td><kbd>Shift</kbd></td><td>奔跑（响度 45）</td></tr>
+    <tr><td><kbd>Ctrl</kbd>/<kbd>C</kbd></td><td>蹲行（响度 10）</td><td><kbd>V</kbd></td><td>贴墙（响度 14）</td></tr>
+    <tr><td><kbd>Q</kbd> <kbd>E</kbd></td><td>左右探头（被发现半径 ×0.35）</td><td><kbd>Space</kbd></td><td>屏息（阈值 25→8，出声纹）</td></tr>
+    <tr><td><kbd>F</kbd></td><td>轻点=快速开关门　按住=缓慢</td><td><kbd>G</kbd></td><td>按住蓄力，松开投石</td></tr>
+    <tr><td><kbd>L</kbd></td><td>手电</td><td><kbd>X</kbd></td><td>看手表</td></tr>
+    <tr><td><kbd>N</kbd></td><td>切换昼夜</td><td><kbd>T</kbd></td><td>时间流速</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>声音调试俯视图</td><td><kbd>P</kbd></td><td>实时调参面板</td></tr>
+  </table>
+  <div class="go">点击画面开始（会锁定鼠标，<kbd>Esc</kbd> 退出锁定）</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ===== src/03-math.js ===== */
+/*
+ * 03-math.js —— 引擎无关的最小数学库
+ * 规则层与实体层只用这里的 {x,y,z} 普通对象，不碰 THREE.*，
+ * 这样第 1–3 层可以脱离渲染在 node 里跑单元测试。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const V = {
+    make: (x, y, z) => ({ x: x || 0, y: y || 0, z: z || 0 }),
+    copy: (a) => ({ x: a.x, y: a.y, z: a.z }),
+    add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }),
+    sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }),
+    scale: (a, s) => ({ x: a.x * s, y: a.y * s, z: a.z * s }),
+    len: (a) => Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+    dist: (a, b) => {
+      const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    },
+    distXZ: (a, b) => {
+      const dx = a.x - b.x, dz = a.z - b.z;
+      return Math.sqrt(dx * dx + dz * dz);
+    },
+    norm: (a) => { const l = V.len(a) || 1; return { x: a.x / l, y: a.y / l, z: a.z / l }; },
+    dot: (a, b) => a.x * b.x + a.y * b.y + a.z * b.z,
+    lerp: (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t })
+  };
+
+  const M = {
+    clamp: (v, lo, hi) => (v < lo ? lo : (v > hi ? hi : v)),
+    lerp: (a, b, t) => a + (b - a) * t,
+    smoothstep: (t) => { t = M.clamp(t, 0, 1); return t * t * (3 - 2 * t); },
+    deg2rad: Math.PI / 180,
+    rad2deg: 180 / Math.PI,
+    // 归一化到 [-PI, PI]
+    wrapAngle: (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
+  };
+
+  // 确定性随机数（支柱三：玩家应该能在脑内推演，随机必须可复现）
+  function Rng(seed) {
+    this._s = (seed >>> 0) || 1;
+  }
+  Rng.prototype.next = function () {
+    // xorshift32
+    let x = this._s;
+    x ^= x << 13; x >>>= 0;
+    x ^= x >> 17;
+    x ^= x << 5; x >>>= 0;
+    this._s = x;
+    return x / 4294967296;
+  };
+  Rng.prototype.range = function (lo, hi) { return lo + this.next() * (hi - lo); };
+  Rng.prototype.int = function (lo, hi) { return Math.floor(this.range(lo, hi + 1)); };
+  Rng.prototype.pick = function (arr) { return arr[Math.min(arr.length - 1, Math.floor(this.next() * arr.length))]; };
+
+  // 轴对齐包围盒
+  const AABB = {
+    make: (minX, minY, minZ, maxX, maxY, maxZ) => ({
+      min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ }
+    }),
+    fromCenterSize: (cx, cy, cz, sx, sy, sz) => AABB.make(
+      cx - sx / 2, cy - sy / 2, cz - sz / 2, cx + sx / 2, cy + sy / 2, cz + sz / 2),
+    contains: (b, p) => p.x >= b.min.x && p.x <= b.max.x &&
+                        p.y >= b.min.y && p.y <= b.max.y &&
+                        p.z >= b.min.z && p.z <= b.max.z,
+    containsXZ: (b, p) => p.x >= b.min.x && p.x <= b.max.x && p.z >= b.min.z && p.z <= b.max.z,
+    center: (b) => ({ x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2, z: (b.min.z + b.max.z) / 2 }),
+    // 线段与 AABB 相交（slab 法），用于视线遮挡判定
+    segmentIntersects(b, p0, p1) {
+      let tmin = 0, tmax = 1;
+      const d = V.sub(p1, p0);
+      for (const ax of ['x', 'y', 'z']) {
+        if (Math.abs(d[ax]) < 1e-8) {
+          if (p0[ax] < b.min[ax] || p0[ax] > b.max[ax]) return false;
+        } else {
+          const inv = 1 / d[ax];
+          let t1 = (b.min[ax] - p0[ax]) * inv;
+          let t2 = (b.max[ax] - p0[ax]) * inv;
+          if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+          tmin = Math.max(tmin, t1);
+          tmax = Math.min(tmax, t2);
+          if (tmin > tmax) return false;
+        }
+      }
+      return true;
+    }
+  };
+
+  C.V = V; C.M = M; C.AABB = AABB; C.Rng = Rng;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/00-config.js ===== */
+/*
+ * 00-config.js —— GameBalanceConfig
+ * 对应《游戏设计文档 v1》11.4「数据资产」。
+ * 硬约束：第三部分到第八部分出现的所有数字都必须在这里，业务代码不得硬编码。
+ * 每个字段后面标注了它在文档里的出处，改数值时先回去看那一节的设计意图。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  C.Config = {
+    // ── 时间（主文档 3.1）───────────────────────────────
+    time: {
+      secondsPerGameHour: 85,      // 1 游戏小时 = 85 秒真实
+      dayStartHour: 7,             // 白天 07:00
+      nightStartHour: 19,          // 夜晚 19:00
+      nightFactor: 0.7,            // 夜间声音系数（k 的乘数）
+      nightFadeStartHour: 19.0,    // 19:00 起 30 游戏分钟内平滑降到 0.7
+      nightFadeHours: 0.5,
+      dawnFadeStartHour: 5.5,      // 05:30 起平滑回到 1.0
+      dawnFadeHours: 0.5,
+      startHour: 9.0               // M0 默认从上午 9 点开始，方便测白天
+    },
+
+    // ── 声音传播（声音规格 3.1 / 4.3 / 9）──────────────
+    sound: {
+      kIndoor: 2.0,                // 室内每米衰减 2 点
+      kOutdoor: 1.2,               // 室外每米衰减 1.2 点
+      globalMinThreshold: 8,       // Dijkstra 剪枝下限 = 全场最低听觉阈值（屏息玩家）
+      outdoorOcclusion: 25,        // 室外同节点内被建筑遮挡时的额外扣减
+      maxExpandedNodes: 400        // 安全阀，防止图数据出错时死循环
+    },
+
+    // ── 行为响度表（声音规格 6.1 + 主文档 4.3）─────────
+    loudness: {
+      holdBreath: 0,
+      crouch: 10,
+      wallHug: 14,
+      walk: 20,
+      run: 45,
+      doorOpenSlow: 12,
+      doorOpenFast: 35,
+      doorCloseSlow: 10,           // 主文档 4.3：关门慢 10
+      doorCloseFast: 30,           // 主文档 4.3：关门快 30
+      doorSlam: 70,                // 撞门
+      stoneImpact: 45,
+      bottleImpact: 75,            // 玻璃瓶（M0 未放置，留作扩展）
+      windowClimb: 30,
+      glassBreak: 90,
+      lootFast: 40,
+      lootSlow: 15,
+      meleeHit: 55,
+      playerHurt: 60,
+      broadcast: 150,
+      zombieGrowl: 55,             // 主文档 5.4：追击低吼
+      crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
+      exhaustedBreath: 25          // 主文档 3.3：体力耗尽的喘息
+    },
+
+    // ── 连接类型衰减表（声音规格 6.2）──────────────────
+    // null 表示该类型没有这个状态（例如门洞没有 Closed）。
+    portalAttenuation: {
+      Doorway:  { Open: 0,  Closed: null, Broken: null, Blocked: 60 },
+      WoodDoor: { Open: 5,  Closed: 45,   Broken: 8,    Blocked: 75 },
+      SteelDoor:{ Open: 6,  Closed: 70,   Broken: 10,   Blocked: 95 },
+      Window:   { Open: 8,  Closed: 40,   Broken: 6,    Blocked: 70 },
+      Stairwell:{ Open: 10, Closed: null, Broken: null, Blocked: 60 },
+      Vent:     { Open: 30, Closed: null, Broken: null, Blocked: 80 },
+      OpenAir:  { Open: 0,  Closed: null, Broken: null, Blocked: null },
+      Curtain:  { Open: 20, Closed: 25,   Broken: null, Blocked: null }
+    },
+    // 哪些状态允许实体通行（声音规格 6.2：Blocked 同时阻断通行）
+    portalPassable: { Open: true, Broken: true, Closed: false, Blocked: false },
+
+    // ── 感知阈值（声音规格 6.3）────────────────────────
+    hearing: {
+      zombie: 10,
+      zombieAlert: 6,
+      crawler: 6,
+      runner: 6,
+      player: 25,
+      playerHoldBreath: 8,
+      baseAngleError: 60,          // 声纹基准方向角误差（度）
+      // 距离模糊分级的 margin 门槛（声音规格 5.4：只给很近/中等/很远）
+      distanceBands: { near: 35, mid: 12 }
+    },
+
+    // ── 丧尸反应（主文档 5.3 / 5.5，声音规格 5.2 / 5.3）
+    zombieReaction: {
+      delayBase: 3.0, delayPerMargin: 0.06, delayMin: 0.1, delayMax: 3.0,
+      errorBase: 12.0, errorPerMargin: 0.25, errorMin: 0.0, errorMax: 12.0,
+      switchTargetMarginBonus: 8,  // 已在调查时，新声音需高出 8 才切换目标
+      searchDurationMin: 8, searchDurationMax: 15,
+      loseTargetSeconds: 6,
+      growlInterval: 1.5,
+      chainMaxDepth: 2,            // 连锁最多传播 2 层
+      maxChasers: 12,              // 同时追击上限
+      visionCheckInterval: 0.2,    // 每 0.2 秒做一次视线检测
+      recognitionTime: 0.8,        // 识别条 0.8 秒
+      catchDistance: 0.9,          // 接触判定（M0 无战斗，接触即死）
+      investigateSpeedMul: 1.6     // TODO 文档只定义了游荡 1.0 与追击 3.2，调查速度未定义，此为占位
+    },
+
+    // ── 丧尸类型（主文档 5.2）──────────────────────────
+    zombieTypes: {
+      Wanderer: {
+        name: '游荡者', hp: 100, threshold: 10,
+        speedWander: 1.0, speedChase: 3.2,
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
+        breathLoudness: 0, breathInterval: 3.0
+      },
+      Crawler: {
+        name: '蜷伏者', hp: 100, threshold: 6,
+        speedWander: 1.0, speedChase: 3.2,
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        riseDistance: 8,            // 声源在 8 米内才起身
+        breathInterval: 2.5         // 呼吸声间隔（文档未给频率，此值为实测占位）
+      },
+      Runner: {                     // 第 12 天后才出现，M0 不放置，仅保留定义
+        name: '奔行者', hp: 60, threshold: 6,
+        speedWander: 1.2, speedChase: 5.4,
+        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6
+      }
+    },
+    // 视觉修正（主文档 4.5）
+    vision: {
+      nightRadiusMul: 0.5,          // 夜间半径减半
+      flashlightRadiusMul: 1.8,     // 持灯时在夜间半径基础上 ×1.8（14→7→12.6）
+      crouchDetectMul: 0.6,
+      peekDetectMul: 0.35
+    },
+
+    // ── 玩家（主文档 4.1 / 3.3）────────────────────────
+    player: {
+      speedWalk: 2.4, speedRun: 4.6, speedCrouch: 1.2, speedWallHug: 1.0,
+      holdBreathSpeedMul: 0.5,      // 屏息时为蹲行速度的 50%
+      eyeHeightStand: 1.65, eyeHeightCrouch: 1.05,
+      radius: 0.32, stepHeight: 0.36,
+      leanOffset: 0.55, leanAngle: 12,
+      peekYaw: 35,                  // 侧身探头的视角偏移
+      // 脚步事件间隔（声音规格 4.4：跑约 0.35s，走约 0.7s）
+      stepIntervalWalk: 0.7, stepIntervalRun: 0.35,
+      stepIntervalCrouch: 1.0,      // TODO 文档未给蹲行步频，此值为占位
+      stepIntervalWallHug: 1.1,     // TODO 同上
+      stamina: {
+        max: 100,
+        runCost: 8, holdBreathCost: 3, climbCost: 12, meleeCost: 6,
+        regenStand: 6, regenCrouch: 9,
+        exhaustedSpeedMul: 0.7,     // 体力归零移动速度 −30%
+        exhaustedBreathInterval: 1.5
+      },
+      weightRatio: 0.0,             // M0 无背包，用调试面板模拟负重比 r
+      weightLoudnessCoef: 0.5,      // 脚步响度 ×(1+0.5r)
+      weightStaminaCoef: 0.8,       // 体力消耗 ×(1+0.8r)
+      weightSpeedCoef: 0.25         // 奔跑速度 ×(1−0.25r)
+    },
+
+    // ── 交互（主文档 4.3）──────────────────────────────
+    interact: {
+      range: 2.2,
+      doorSlowHoldSeconds: 2.5,
+      doorCloseSlowHoldSeconds: 2.0,
+      lootFastSeconds: 4, lootSlowSeconds: 9
+    },
+
+    // ── 投掷（主文档 4.4）──────────────────────────────
+    throwing: {
+      gravity: 9.8,
+      speedMin: 7, speedMax: 19, chargeSeconds: 1.2,
+      arcSamples: 40
+    },
+
+    // ── 熟练度（主文档 8.5）：M0 只接入静步与听觉两项 ──
+    skills: {
+      quietStep: { level: 0, loudnessReduction: [0, 0.08, 0.16, 0.24, 0.32, 0.40] },
+      hearing:   { level: 0, errorReduction:    [0, 0.15, 0.30, 0.45, 0.60, 0.75] }
+    },
+
+    // ── 灰盒宿舍楼（主文档 9.3 / 9.6）─────────────────
+    level: {
+      floors: 4, roomsPerFloor: 6,
+      roomW: 4.0, roomD: 5.0, roomGap: 1.0,
+      corridorD: 2.6, floorHeight: 3.2, wallThickness: 0.2,
+      stairWellW: 6.0, stairWellD: 6.0,
+      stairStepH: 0.2, stairStepD: 0.3, stairWidth: 2.4, stairSlabThickness: 0.45,
+      spawnRoomFloor: 3,            // 0-based：第 4 层
+      spawnRoomIndex: 1             // 402 = 4 楼第 2 间
+    },
+
+    // ── 调试 ──────────────────────────────────────────
+    debug: {
+      showSoundprintAlways: false,  // 非屏息时也显示声纹（仅调试用，正式规则见 10.1）
+      soundprintLifetime: 1.6,
+      logMaxEntries: 60
+    }
+  };
+
+  // 深拷贝一份出厂值，调试面板「重置」用。
+  C.ConfigDefaults = JSON.parse(JSON.stringify(C.Config));
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/01-eventbus.js ===== */
+/*
+ * 01-eventbus.js —— 事件总线（主文档 11.2）
+ * 跨系统通信一律走这里。事件对象发出后视为不可变，处理器不得修改。
+ * 约束：处理器不得递归发出同类事件；深度超过 8 记录警告。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const handlers = new Map();   // eventType(string) -> Set<fn>
+  let depth = 0;
+  const MAX_DEPTH = 8;
+
+  C.EventBus = {
+    subscribe(type, fn) {
+      if (!handlers.has(type)) handlers.set(type, new Set());
+      handlers.get(type).add(fn);
+      return () => C.EventBus.unsubscribe(type, fn);
+    },
+    unsubscribe(type, fn) {
+      const s = handlers.get(type);
+      if (s) s.delete(fn);
+    },
+    publish(type, evt) {
+      const s = handlers.get(type);
+      if (!s || s.size === 0) return;
+      depth++;
+      if (depth > MAX_DEPTH) {
+        console.warn('[EventBus] 事件递归深度超过 ' + MAX_DEPTH + '，类型：' + type);
+        depth--;
+        return;
+      }
+      for (const fn of Array.from(s)) {
+        try { fn(evt); }
+        catch (e) { console.error('[EventBus] 处理器异常 ' + type, e); }
+      }
+      depth--;
+    },
+    clear() { handlers.clear(); depth = 0; }
+  };
+
+  // 核心事件类型名（主文档 11.2 表格）。M0 只用到其中一部分。
+  C.Events = {
+    SoundEmitted: 'SoundEmittedEvent',
+    SoundHeard: 'SoundHeardEvent',
+    PortalStateChanged: 'PortalStateChangedEvent',
+    HourPassed: 'HourPassedEvent',
+    DayPassed: 'DayPassedEvent',
+    NeedChanged: 'NeedChangedEvent',
+    PlayerDamaged: 'PlayerDamagedEvent',
+    ZombieStateChanged: 'ZombieStateChangedEvent',
+    PlayerDied: 'PlayerDiedEvent'
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/02-modifiers.js ===== */
+/*
+ * 02-modifiers.js —— 数值修正管线（主文档 11.3）
+ * 所有可变数值的唯一出口。执行顺序：全部 Additive → 全部 Multiplicative → Override。
+ * 硬约束：业务逻辑不读熟练度/负重/buff，只向本管线要最终值。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const Mode = { Additive: 'Additive', Multiplicative: 'Multiplicative', Override: 'Override' };
+  const registry = new Map();   // key -> Modifier[]
+
+  function sortByPriority(list) { list.sort((a, b) => a.priority - b.priority); }
+
+  C.ModifierMode = Mode;
+
+  C.ModifierPipeline = {
+    /**
+     * @param {string} key      形如 'sound.footstep'、'hearing.threshold'
+     * @param {object} modifier { id, priority, mode, ownerId?, apply(current, ownerId) }
+     *                          ownerId 省略或 -1 表示全局修正。
+     */
+    register(key, modifier) {
+      if (!registry.has(key)) registry.set(key, []);
+      const list = registry.get(key);
+      if (!list.some(m => m.id === modifier.id)) {
+        list.push(Object.assign({ priority: 0, mode: Mode.Multiplicative, ownerId: -1 }, modifier));
+        sortByPriority(list);
+      }
+      return modifier;
+    },
+    unregister(key, modifierOrId) {
+      const list = registry.get(key);
+      if (!list) return;
+      const id = (typeof modifierOrId === 'string') ? modifierOrId : modifierOrId.id;
+      const i = list.findIndex(m => m.id === id);
+      if (i >= 0) list.splice(i, 1);
+    },
+    has(key, id) {
+      const list = registry.get(key);
+      return !!(list && list.some(m => m.id === id));
+    },
+    query(key, baseValue, ownerId) {
+      const list = registry.get(key);
+      if (!list || list.length === 0) return baseValue;
+      let v = baseValue;
+      // 1) Additive
+      for (const m of list) {
+        if (m.mode !== Mode.Additive) continue;
+        if (m.ownerId !== -1 && m.ownerId !== ownerId) continue;
+        v = m.apply(v, ownerId);
+      }
+      // 2) Multiplicative
+      for (const m of list) {
+        if (m.mode !== Mode.Multiplicative) continue;
+        if (m.ownerId !== -1 && m.ownerId !== ownerId) continue;
+        v = m.apply(v, ownerId);
+      }
+      // 3) Override（若有多个，优先级最高的最后生效）
+      for (const m of list) {
+        if (m.mode !== Mode.Override) continue;
+        if (m.ownerId !== -1 && m.ownerId !== ownerId) continue;
+        v = m.apply(v, ownerId);
+      }
+      return v;
+    },
+    // 调试用：列出某个 key 上挂了哪些修正来源
+    inspect(key) {
+      return (registry.get(key) || []).map(m => ({ id: m.id, mode: m.mode, priority: m.priority, ownerId: m.ownerId }));
+    },
+    clear() { registry.clear(); }
+  };
+
+  // 常用简写
+  C.Mod = {
+    mul(key, id, factorFn, ownerId, priority) {
+      return C.ModifierPipeline.register(key, {
+        id, priority: priority || 0, mode: Mode.Multiplicative, ownerId: ownerId === undefined ? -1 : ownerId,
+        apply: (v) => v * (typeof factorFn === 'function' ? factorFn() : factorFn)
+      });
+    },
+    add(key, id, deltaFn, ownerId, priority) {
+      return C.ModifierPipeline.register(key, {
+        id, priority: priority || 0, mode: Mode.Additive, ownerId: ownerId === undefined ? -1 : ownerId,
+        apply: (v) => v + (typeof deltaFn === 'function' ? deltaFn() : deltaFn)
+      });
+    },
+    override(key, id, valueFn, ownerId, priority) {
+      return C.ModifierPipeline.register(key, {
+        id, priority: priority || 0, mode: Mode.Override, ownerId: ownerId === undefined ? -1 : ownerId,
+        apply: () => (typeof valueFn === 'function' ? valueFn() : valueFn)
+      });
+    },
+    remove(key, id) { C.ModifierPipeline.unregister(key, id); }
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/04-soundgraph.js ===== */
+/*
+ * 04-soundgraph.js —— 声音连通图（声音规格 2.2 / 2.3，主文档 9.5 / 9.6）
+ * 纯数据。始终全量常驻，不随场景加载卸载。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { AABB, V } = C;
+
+  const PortalType = {
+    Doorway: 'Doorway', WoodDoor: 'WoodDoor', SteelDoor: 'SteelDoor',
+    Window: 'Window', Stairwell: 'Stairwell', Vent: 'Vent',
+    OpenAir: 'OpenAir', Curtain: 'Curtain'
+  };
+  const PortalState = { Open: 'Open', Closed: 'Closed', Broken: 'Broken', Blocked: 'Blocked' };
+
+  function SoundGraph() {
+    this.nodes = [];
+    this.portals = [];
+    this._nodeById = new Map();
+    this._portalById = new Map();
+    this._nextNodeId = 0;
+    this._nextPortalId = 0;
+  }
+
+  SoundGraph.prototype.addNode = function (def) {
+    const node = {
+      id: this._nextNodeId++,
+      name: def.name || ('node' + this._nextNodeId),
+      bounds: def.bounds,
+      isOutdoor: !!def.isOutdoor,
+      buildingId: def.buildingId === undefined ? 0 : def.buildingId,
+      floor: def.floor === undefined ? 0 : def.floor,
+      kind: def.kind || 'room',       // room / corridor / stair / outdoor
+      portals: []
+    };
+    this.nodes.push(node);
+    this._nodeById.set(node.id, node);
+    return node;
+  };
+
+  SoundGraph.prototype.addPortal = function (def) {
+    const p = {
+      id: this._nextPortalId++,
+      nodeA: def.nodeA, nodeB: def.nodeB,
+      position: def.position,
+      type: def.type,
+      state: def.state || PortalState.Open,
+      // 渲染层可以把门板挂在这里，规则层不关心
+      view: null
+    };
+    this.portals.push(p);
+    this._portalById.set(p.id, p);
+    this._nodeById.get(def.nodeA).portals.push(p.id);
+    this._nodeById.get(def.nodeB).portals.push(p.id);
+    return p;
+  };
+
+  SoundGraph.prototype.getNode = function (id) { return this._nodeById.get(id); };
+  SoundGraph.prototype.getPortal = function (id) { return this._portalById.get(id); };
+
+  /* 节点归属判定：y 上界必须是开区间。
+     楼层节点的 y 范围是 [f·H, (f+1)·H]，相邻两层共用一个平面 —— 用闭区间的话，
+     一个正好站在 4 楼地板上(y=9.6)的点会先匹配到 3 楼节点(它的 max.y 也是 9.6)。
+     后果很隐蔽：丧尸低吼、石头落地这类在地板高度发出的声音会被算成从楼下发出，
+     寻路也会因此把目标定到楼下去。x/z 保持闭区间，方便站在门框上时仍能命中。 */
+  const NODE_Y_EPS = 1e-4;   // 楼层高度是浮点累加出来的（3×3.2 = 9.600000000000001），
+                             // 不给容差的话差一个 ULP 就会把声源判到楼下去
+  function containsNode(b, p) {
+    return p.x >= b.min.x && p.x <= b.max.x &&
+           p.z >= b.min.z && p.z <= b.max.z &&
+           p.y >= b.min.y - NODE_Y_EPS && p.y < b.max.y - NODE_Y_EPS;
+  }
+
+  /** 坐标 → 节点。找不到严格包含的节点时退化为最近节点，避免玩家站在门框上时查询失败。 */
+  SoundGraph.prototype.getNodeAt = function (pos, hintNodeId) {
+    if (hintNodeId !== undefined && hintNodeId !== null) {
+      const h = this._nodeById.get(hintNodeId);
+      if (h && containsNode(h.bounds, pos)) return h;
+    }
+    for (const n of this.nodes) if (containsNode(n.bounds, pos)) return n;
+    // 退化：同层里中心最近的
+    let best = null, bestD = Infinity;
+    for (const n of this.nodes) {
+      const c = AABB.center(n.bounds);
+      const inY = pos.y >= n.bounds.min.y - 0.5 && pos.y <= n.bounds.max.y + 0.5;
+      const d = V.distXZ(c, pos) + (inY ? 0 : 100);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return best;
+  };
+
+  /** 当前状态下的衰减值（声音规格 6.2）。状态不适用时回退到 Open 值。 */
+  SoundGraph.prototype.getAttenuation = function (portal) {
+    const row = C.Config.portalAttenuation[portal.type];
+    if (!row) { console.warn('[SoundGraph] 未知 Portal 类型 ' + portal.type); return 0; }
+    const v = row[portal.state];
+    if (v === null || v === undefined) return row.Open;
+    return v;
+  };
+
+  SoundGraph.prototype.isPassable = function (portal) {
+    return !!C.Config.portalPassable[portal.state];
+  };
+
+  SoundGraph.prototype.setPortalState = function (portal, state) {
+    if (portal.state === state) return;
+    const prev = portal.state;
+    portal.state = state;
+    // 状态变化必须通知，让传播缓存失效（声音规格 2.3）
+    C.EventBus.publish(C.Events.PortalStateChanged, { portalId: portal.id, prev, state });
+  };
+
+  SoundGraph.prototype.other = function (portal, nodeId) {
+    return portal.nodeA === nodeId ? portal.nodeB : portal.nodeA;
+  };
+
+  C.PortalType = PortalType;
+  C.PortalState = PortalState;
+  C.SoundGraph = SoundGraph;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/05-soundsystem.js ===== */
+/*
+ * 05-soundsystem.js —— 声音传播（声音规格 第 3 节）
+ *
+ * 到达响度 = 源响度 − k×路径长度 − Σ(路径上所有 Portal 的 attenuation)
+ * 路径长度是绕行距离，不是直线距离。图上跑 Dijkstra，代价 = 累计衰减量。
+ *
+ * 本文件不知道玩家、丧尸、UI 的存在，只认 HearingComponent。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { V, M } = C;
+
+  const SoundCategory = {
+    Footstep: 'Footstep', Impact: 'Impact', Voice: 'Voice',
+    Gunshot: 'Gunshot', Ambient: 'Ambient', Door: 'Door'
+  };
+
+  // ── 最小二叉堆 ──────────────────────────────────────
+  function Heap() { this.a = []; }
+  Heap.prototype.push = function (item) {
+    const a = this.a; a.push(item);
+    let i = a.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (a[p].cost <= a[i].cost) break;
+      const t = a[p]; a[p] = a[i]; a[i] = t; i = p;
+    }
+  };
+  Heap.prototype.pop = function () {
+    const a = this.a;
+    if (a.length === 0) return null;
+    const top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1, r = l + 1;
+        let s = i;
+        if (l < a.length && a[l].cost < a[s].cost) s = l;
+        if (r < a.length && a[r].cost < a[s].cost) s = r;
+        if (s === i) break;
+        const t = a[s]; a[s] = a[i]; a[i] = t; i = s;
+      }
+    }
+    return top;
+  };
+  Object.defineProperty(Heap.prototype, 'size', { get() { return this.a.length; } });
+
+  const SoundSystem = {
+    graph: null,
+    time: null,
+    listeners: [],
+    _seq: 0,
+    // 调试统计
+    stats: { lastMs: 0, lastExpanded: 0, eventsThisSecond: 0, peakPerSecond: 0, _bucket: 0, _acc: 0 },
+    log: [],
+    lastEvent: null,
+    lastResult: null,
+
+    init(graph, time) { this.graph = graph; this.time = time; return this; },
+
+    registerListener(hc) { if (this.listeners.indexOf(hc) < 0) this.listeners.push(hc); },
+    unregisterListener(hc) {
+      const i = this.listeners.indexOf(hc);
+      if (i >= 0) this.listeners.splice(i, 1);
+    },
+
+    /** 当前的距离衰减系数（夜晚全局 ×nightFactor，声音规格 3.1） */
+    kFor(node) {
+      const base = node && node.isOutdoor ? C.Config.sound.kOutdoor : C.Config.sound.kIndoor;
+      const nf = this.time ? this.time.getNightFactor() : 1.0;
+      return base * nf;
+    },
+
+    /**
+     * 发出一次声音。调用方不需要知道图、节点、Portal 的任何事情（声音规格 7.1）。
+     * @param {object} def {worldPosition, loudness, category, emitterId, chainDepth?, nodeIdHint?}
+     */
+    emit(def) {
+      const node = this.graph.getNodeAt(def.worldPosition, def.nodeIdHint);
+      const evt = {
+        id: this._seq++,
+        worldPosition: V.copy(def.worldPosition),
+        nodeId: node ? node.id : -1,
+        loudness: def.loudness,
+        category: def.category || SoundCategory.Impact,
+        emitterId: def.emitterId === undefined ? -1 : def.emitterId,
+        chainDepth: def.chainDepth === undefined ? 0 : def.chainDepth,
+        timestamp: this.time ? this.time.totalGameSeconds : 0,
+        label: def.label || ''
+      };
+      if (evt.nodeId < 0 || evt.loudness <= 0) return evt;
+
+      const t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+      const result = this.propagate(evt);
+      const t1 = (typeof performance !== 'undefined') ? performance.now() : 0;
+      this.stats.lastMs = t1 - t0;
+      this.stats.lastExpanded = result.size;
+      this.stats._acc++;
+
+      this.lastEvent = evt;
+      this.lastResult = result;
+
+      // 推送给所有听者（听者是被动接收方，不主动查询）
+      for (const hc of this.listeners) {
+        if (!hc.active) continue;
+        if (hc.selfEmitterId === evt.emitterId) continue;      // 过滤自己的声音（声音规格 4.5）
+        const r = this.resolveAt(result, hc.position, hc.nodeId);
+        if (!r) continue;
+        hc.deliver(evt, r);
+      }
+
+      this.log.push({ t: evt.timestamp, cat: evt.category, loud: evt.loudness, node: evt.nodeId, label: evt.label, emitter: evt.emitterId });
+      if (this.log.length > C.Config.debug.logMaxEntries) this.log.shift();
+
+      C.EventBus.publish(C.Events.SoundEmitted, evt);
+      return evt;
+    },
+
+    /**
+     * Dijkstra：代价 = 累计衰减量。
+     * @returns Map nodeId -> {arrival, entryPos, entryPortalId, pathLen}
+     */
+    propagate(evt) {
+      const g = this.graph;
+      const minT = C.Config.sound.globalMinThreshold;
+      const out = new Map();
+      const startNode = g.getNode(evt.nodeId);
+      if (!startNode) return out;
+
+      // 起始节点的入口点 = 声源位置本身，累计衰减 = 0
+      out.set(startNode.id, { arrival: evt.loudness, entryPos: V.copy(evt.worldPosition), entryPortalId: -1, pathLen: 0 });
+
+      const heap = new Heap();
+      heap.push({ cost: 0, nodeId: startNode.id });
+      const settled = new Set();
+      let guard = C.Config.sound.maxExpandedNodes;
+
+      while (heap.size > 0 && guard-- > 0) {
+        const cur = heap.pop();
+        if (settled.has(cur.nodeId)) continue;
+        settled.add(cur.nodeId);
+
+        const node = g.getNode(cur.nodeId);
+        const rec = out.get(cur.nodeId);
+        const k = this.kFor(node);
+
+        for (const pid of node.portals) {
+          const portal = g.getPortal(pid);
+          const otherId = g.other(portal, node.id);
+          if (settled.has(otherId)) continue;
+
+          const segLen = V.dist(rec.entryPos, portal.position);
+          const newCost = cur.cost + k * segLen + g.getAttenuation(portal);
+          const arrival = evt.loudness - newCost;
+
+          // 剪枝：低于全场最低阈值的传播没有意义（声音规格 3.2 第 4 步）
+          if (arrival < minT) continue;
+
+          const prev = out.get(otherId);
+          if (!prev || arrival > prev.arrival) {
+            out.set(otherId, {
+              arrival,
+              entryPos: V.copy(portal.position),
+              entryPortalId: portal.id,
+              pathLen: rec.pathLen + segLen
+            });
+            heap.push({ cost: newCost, nodeId: otherId });
+          }
+        }
+      }
+      return out;
+    },
+
+    /**
+     * 听者结算（声音规格 3.3）：加上节点内的最后一段距离。
+     * 同一房间内贴脸和隔十米不再等价。
+     */
+    resolveAt(result, pos, nodeId) {
+      const rec = result.get(nodeId);
+      if (!rec) return null;
+      const node = this.graph.getNode(nodeId);
+      const k = this.kFor(node);
+      const segLen = V.dist(rec.entryPos, pos);
+      const arrival = rec.arrival - k * segLen;
+      if (arrival <= 0) return null;
+      // 方向 = 声音传来的路径入口方向，不是声源真实方向（声音规格 5.4）
+      const dir = V.norm(V.sub(rec.entryPos, pos));
+      return {
+        arrival,
+        dir,
+        entryPortalId: rec.entryPortalId,
+        entryPos: rec.entryPos,
+        pathLen: rec.pathLen + segLen,
+        sameNode: rec.entryPortalId === -1
+      };
+    },
+
+    tickStats(dtReal) {
+      this.stats._bucket += dtReal;
+      if (this.stats._bucket >= 1) {
+        this.stats.eventsThisSecond = this.stats._acc;
+        this.stats.peakPerSecond = Math.max(this.stats.peakPerSecond, this.stats._acc);
+        this.stats._acc = 0; this.stats._bucket = 0;
+      }
+    },
+
+    reset() {
+      this.listeners.length = 0; this.log.length = 0;
+      this.lastEvent = null; this.lastResult = null; this._seq = 0;
+      this.stats.peakPerSecond = 0;
+    }
+  };
+
+  C.SoundCategory = SoundCategory;
+  C.SoundSystem = SoundSystem;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/06-hearing.js ===== */
+/*
+ * 06-hearing.js —— 听觉组件（声音规格 2.4 / 5）
+ * 丧尸和玩家共用同一个组件。这是本系统最重要的架构决策：
+ * 避免两套并行的听觉逻辑产生不一致。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  function HearingComponent(def) {
+    this.ownerId = def.ownerId;
+    this.selfEmitterId = def.selfEmitterId === undefined ? def.ownerId : def.selfEmitterId;
+    this.baseThreshold = def.baseThreshold;
+    this.baseLocalization = def.baseLocalization === undefined ? 0 : def.baseLocalization;
+    this.position = def.position || { x: 0, y: 0, z: 0 };  // 由拥有者每帧更新
+    this.nodeId = -1;                                       // 由拥有者每帧更新
+    this.active = true;
+    this.onHeard = def.onHeard || function () {};
+  }
+
+  // 阈值与精度都不写死，每次使用前向修正管线查询（声音规格 2.4）
+  HearingComponent.prototype.finalThreshold = function () {
+    return C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId);
+  };
+  HearingComponent.prototype.finalLocalization = function () {
+    return M.clamp(C.ModifierPipeline.query('hearing.localization', this.baseLocalization, this.ownerId), 0, 1);
+  };
+
+  HearingComponent.prototype.deliver = function (evt, r) {
+    const threshold = this.finalThreshold();
+    const margin = r.arrival - threshold;
+    if (margin <= 0) return;   // margin ≤ 0：完全无感，直接丢弃
+    this.onHeard({
+      evt,
+      arrival: r.arrival,
+      margin,
+      threshold,
+      dir: r.dir,
+      entryPortalId: r.entryPortalId,
+      entryPos: r.entryPos,
+      pathLen: r.pathLen,
+      sameNode: r.sameNode,
+      localization: this.finalLocalization()
+    });
+  };
+
+  /* 余量 → 反应速度与定位精度（声音规格 5.2，主文档 5.3）。
+     连续变化，不分档。近处的丧尸几乎立刻扑向准确位置，远处的迟疑几秒后走向模糊方位。 */
+  C.Reaction = {
+    delay(margin) {
+      const c = C.Config.zombieReaction;
+      return M.clamp(c.delayBase - margin * c.delayPerMargin, c.delayMin, c.delayMax);
+    },
+    localizationError(margin) {
+      const c = C.Config.zombieReaction;
+      return M.clamp(c.errorBase - margin * c.errorPerMargin, c.errorMin, c.errorMax);
+    },
+    /** 声纹的距离模糊分级（声音规格 5.4：不给精确米数） */
+    distanceBand(margin) {
+      const b = C.Config.hearing.distanceBands;
+      if (margin >= b.near) return '很近';
+      if (margin >= b.mid) return '中等';
+      return '很远';
+    }
+  };
+
+  C.HearingComponent = HearingComponent;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/07-time.js ===== */
+/*
+ * 07-time.js —— 游戏时钟（主文档 3.1）
+ * 1 游戏小时 = 85 秒真实。夜间声音系数平滑过渡，不做整点硬切换。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  function TimeSystem() {
+    const t = C.Config.time;
+    this.day = 1;
+    this.hour = t.startHour;              // 0–24 浮点
+    this.totalGameSeconds = 0;
+    this.timeScale = 1;
+    this.paused = false;
+    this._lastHourInt = Math.floor(this.hour);
+  }
+
+  TimeSystem.prototype.update = function (dtReal) {
+    if (this.paused) return;
+    const t = C.Config.time;
+    const dh = (dtReal * this.timeScale) / t.secondsPerGameHour;
+    this.hour += dh;
+    this.totalGameSeconds += dh * 3600;
+    while (this.hour >= 24) {
+      this.hour -= 24; this.day++;
+      C.EventBus.publish(C.Events.DayPassed, { day: this.day });
+    }
+    const hi = Math.floor(this.hour);
+    if (hi !== this._lastHourInt) {
+      this._lastHourInt = hi;
+      C.EventBus.publish(C.Events.HourPassed, { day: this.day, hour: hi });
+    }
+  };
+
+  /** 0.7 ~ 1.0 的当前夜间衰减乘数（声音规格 7.3 / 主文档 3.1） */
+  TimeSystem.prototype.getNightFactor = function () {
+    const t = C.Config.time;
+    const h = this.hour;
+    const nf = t.nightFactor;
+    // 19:00 → 19:30 由 1.0 平滑降到 0.7
+    if (h >= t.nightFadeStartHour && h < t.nightFadeStartHour + t.nightFadeHours) {
+      return M.lerp(1.0, nf, M.smoothstep((h - t.nightFadeStartHour) / t.nightFadeHours));
+    }
+    // 05:30 → 06:00 由 0.7 平滑回到 1.0
+    if (h >= t.dawnFadeStartHour && h < t.dawnFadeStartHour + t.dawnFadeHours) {
+      return M.lerp(nf, 1.0, M.smoothstep((h - t.dawnFadeStartHour) / t.dawnFadeHours));
+    }
+    const isNight = (h >= t.nightFadeStartHour + t.nightFadeHours) || (h < t.dawnFadeStartHour);
+    return isNight ? nf : 1.0;
+  };
+
+  /** 0（全黑）~ 1（正午）的环境亮度，渲染层用 */
+  TimeSystem.prototype.getDaylight = function () {
+    const h = this.hour;
+    if (h >= 7 && h <= 18) return 1.0;
+    if (h > 18 && h < 20) return M.lerp(1.0, 0.0, (h - 18) / 2);
+    if (h > 5 && h < 7) return M.lerp(0.0, 1.0, (h - 5) / 2);
+    return 0.0;
+  };
+
+  TimeSystem.prototype.isNight = function () { return this.getDaylight() < 0.35; };
+
+  TimeSystem.prototype.format = function () {
+    const hh = Math.floor(this.hour);
+    const mm = Math.floor((this.hour - hh) * 60);
+    return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
+  };
+
+  C.TimeSystem = TimeSystem;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/08-level.js ===== */
+/*
+ * 08-level.js —— 灰盒宿舍楼（主文档 9.3 / 9.6）
+ * 4 层 × 6 室 × 2 楼梯，程序化生成。同一份生成过程同时产出：
+ *   1) 碰撞/遮挡用的 AABB 列表
+ *   2) 声音连通图（SoundNodeVolume / SoundPortalLink 的等价物）
+ * 两者由同一份布局推导，杜绝「几何和声图对不上」这个最难查的 bug。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { AABB, V, PortalType, PortalState } = C;
+
+  /** 在一面墙上开洞：把墙拆成 左/右/下/上 若干块实体 */
+  function wallWithHoles(out, tag, axis, fixedLo, fixedHi, a0, a1, y0, y1, holes) {
+    const box = (aLo, aHi, yLo, yHi) => {
+      if (aHi - aLo < 1e-4 || yHi - yLo < 1e-4) return;
+      out.push({
+        tag,
+        box: axis === 'x'
+          ? AABB.make(aLo, yLo, fixedLo, aHi, yHi, fixedHi)   // 沿 x 延伸的墙
+          : AABB.make(fixedLo, yLo, aLo, fixedHi, yHi, aHi)   // 沿 z 延伸的墙
+      });
+    };
+    const sorted = (holes || []).slice().sort((p, q) => p.a0 - q.a0);
+    let cursor = a0;
+    for (const h of sorted) {
+      box(cursor, h.a0, y0, y1);
+      box(h.a0, h.a1, y0, h.y0);
+      box(h.a0, h.a1, h.y1, y1);
+      cursor = h.a1;
+    }
+    box(cursor, a1, y0, y1);
+  }
+
+  function buildDormitory() {
+    const L = C.Config.level;
+    const g = new C.SoundGraph();
+    const solids = [];          // 静态实体：{tag, box}
+    const doors = [];           // 门/窗：{portalId, box, kind}
+    const H = L.floorHeight, T = L.wallThickness;
+    const pitch = L.roomW + L.roomGap;
+    const corridorLen = (L.roomsPerFloor - 1) * pitch + L.roomW;   // 29m
+    const roomZ0 = L.corridorD, roomZ1 = L.corridorD + L.roomD;    // 房间 z 范围
+    const westX1 = -0.4, westX0 = westX1 - L.stairWellW;           // 西楼梯间
+    const eastX0 = corridorLen + 0.4, eastX1 = eastX0 + L.stairWellW;
+
+    // ── 室外（两片，绕楼一圈，用于验证室外 k=1.2 与开窗引怪）──
+    const outFront = g.addNode({
+      name: '楼前空地', kind: 'outdoor', isOutdoor: true, floor: -1,
+      bounds: AABB.make(westX0 - 10, -0.5, -14, eastX1 + 10, H * L.floors + 2, -0.3)
+    });
+    const outBack = g.addNode({
+      name: '楼后空地', kind: 'outdoor', isOutdoor: true, floor: -1,
+      bounds: AABB.make(westX0 - 10, -0.5, roomZ1 + 0.3, eastX1 + 10, H * L.floors + 2, roomZ1 + 16)
+    });
+    g.addPortal({ nodeA: outFront.id, nodeB: outBack.id, type: PortalType.OpenAir, state: PortalState.Open,
+                  position: V.make(westX0 - 8, 1.5, roomZ1 / 2) });
+    g.addPortal({ nodeA: outFront.id, nodeB: outBack.id, type: PortalType.OpenAir, state: PortalState.Open,
+                  position: V.make(eastX1 + 8, 1.5, roomZ1 / 2) });
+    // 室外地面
+    solids.push({ tag: 'ground', box: AABB.make(westX0 - 12, -1.0, -16, eastX1 + 12, 0, roomZ1 + 18) });
+
+    const stairNodes = [[], []];   // [楼梯间序号][层]
+    const floorsMeta = [];
+
+    for (let f = 0; f < L.floors; f++) {
+      const y0 = f * H, y1 = y0 + H;
+      const label = (f + 1) + 'F';
+      const meta = { floor: f, y0, rooms: [], corridor: null, stairs: [] };
+
+      // ── 走廊节点 ────────────────────────────────────
+      const corridor = g.addNode({
+        name: label + '走廊', kind: 'corridor', floor: f, buildingId: 1,
+        bounds: AABB.make(-0.4, y0, -0.1, corridorLen + 0.4, y1, roomZ0)
+      });
+      meta.corridor = corridor;
+
+      // 楼板 + 天花板。注意 x 范围只覆盖「走廊 + 房间」，不能盖到楼梯间上面 ——
+      // 楼梯间是贯通的竖井，盖上楼板的话上楼时会顶到天花板。
+      solids.push({ tag: 'floor', box: AABB.make(-0.4, y0 - 0.2, -0.1, corridorLen + 0.4, y0, roomZ1) });
+      if (f === L.floors - 1) solids.push({ tag: 'roof', box: AABB.make(-0.4, y1, -0.1, corridorLen + 0.4, y1 + 0.2, roomZ1) });
+
+      // 走廊南墙（带窗，通向楼前空地）
+      const corridorWindowA = corridorLen * 0.35, corridorWindowB = corridorWindowA + 1.4;
+      wallWithHoles(solids, 'wall', 'x', -T, 0, -0.4, corridorLen + 0.4, y0, y1,
+        [{ a0: corridorWindowA, a1: corridorWindowB, y0: y0 + 1.0, y1: y0 + 2.0 }]);
+      const cw = g.addPortal({
+        nodeA: corridor.id, nodeB: outFront.id, type: PortalType.Window, state: PortalState.Closed,
+        position: V.make((corridorWindowA + corridorWindowB) / 2, y0 + 1.5, -T / 2)
+      });
+      doors.push({ portalId: cw.id, kind: 'window',
+        box: AABB.make(corridorWindowA, y0 + 1.0, -T, corridorWindowB, y0 + 2.0, 0) });
+
+      // ── 房间 ───────────────────────────────────────
+      const roomHoles = [];   // 走廊北墙上的门洞
+      for (let i = 0; i < L.roomsPerFloor; i++) {
+        const rx0 = i * pitch, rx1 = rx0 + L.roomW;
+        const roomName = String((f + 1) * 100 + (i + 1));
+        const node = g.addNode({
+          name: roomName, kind: 'room', floor: f, buildingId: 1,
+          bounds: AABB.make(rx0, y0, roomZ0, rx1, y1, roomZ1)
+        });
+        meta.rooms.push(node);
+
+        // 房间左右隔墙（相邻房间之间的实心块，含 roomGap）
+        solids.push({ tag: 'wall', box: AABB.make(rx1, y0, roomZ0, rx1 + L.roomGap, y1, roomZ1) });
+        if (i === 0) solids.push({ tag: 'wall', box: AABB.make(rx0 - T, y0, roomZ0, rx0, y1, roomZ1) });
+
+        // 房间门（走廊北墙上的洞）
+        const dcx = rx0 + L.roomW * 0.5, dw = 1.0;
+        roomHoles.push({ a0: dcx - dw / 2, a1: dcx + dw / 2, y0: y0, y1: y0 + 2.1 });
+        const isSpawn = (f === L.spawnRoomFloor && i === L.spawnRoomIndex);
+        const portal = g.addPortal({
+          nodeA: corridor.id, nodeB: node.id, type: PortalType.WoodDoor,
+          state: (i % 3 === 0 && !isSpawn) ? PortalState.Open : PortalState.Closed,
+          position: V.make(dcx, y0 + 1.05, roomZ0)
+        });
+        doors.push({ portalId: portal.id, kind: 'door',
+          box: AABB.make(dcx - dw / 2, y0, roomZ0 - 0.05, dcx + dw / 2, y0 + 2.1, roomZ0 + 0.05) });
+
+        // 房间北墙（带窗，通向楼后空地）
+        const wA = rx0 + 1.2, wB = wA + 1.6;
+        wallWithHoles(solids, 'wall', 'x', roomZ1, roomZ1 + T, rx0, rx1, y0, y1,
+          [{ a0: wA, a1: wB, y0: y0 + 1.0, y1: y0 + 2.0 }]);
+        const wp = g.addPortal({
+          nodeA: node.id, nodeB: outBack.id, type: PortalType.Window, state: PortalState.Closed,
+          position: V.make((wA + wB) / 2, y0 + 1.5, roomZ1 + T / 2)
+        });
+        doors.push({ portalId: wp.id, kind: 'window',
+          box: AABB.make(wA, y0 + 1.0, roomZ1, wB, y0 + 2.0, roomZ1 + T) });
+
+        // 家具：两张上下铺 + 一张桌子（掩体，也是蜷伏者的藏身处）
+        solids.push({ tag: 'bed', box: AABB.make(rx0 + 0.15, y0, roomZ0 + 0.3, rx0 + 1.15, y0 + 0.55, roomZ0 + 2.3) });
+        solids.push({ tag: 'bed', box: AABB.make(rx1 - 1.15, y0, roomZ0 + 0.3, rx1 - 0.15, y0 + 0.55, roomZ0 + 2.3) });
+        solids.push({ tag: 'desk', box: AABB.make(rx0 + 1.3, y0, roomZ1 - 1.0, rx1 - 1.3, y0 + 0.75, roomZ1 - 0.3) });
+      }
+      // 走廊北墙（挖出 6 个门洞）
+      wallWithHoles(solids, 'wall', 'x', roomZ0 - T, roomZ0, -0.4, corridorLen + 0.4, y0, y1, roomHoles);
+
+      // ── 两个楼梯间 ──────────────────────────────────
+      [0, 1].forEach((si) => {
+        const west = si === 0;
+        const sx0 = west ? westX0 : eastX0, sx1 = west ? westX1 : eastX1;
+        const node = g.addNode({
+          name: (west ? '西' : '东') + '楼梯' + label, kind: 'stair', floor: f, buildingId: 1,
+          bounds: AABB.make(sx0, y0, -0.1, sx1, y1, L.stairWellD)
+        });
+        meta.stairs.push(node);
+        stairNodes[si].push(node);
+
+        // 走道半幅（靠走廊那一侧）
+        const walk0 = west ? sx1 - 2.9 : sx0, walk1 = west ? sx1 : sx0 + 2.9;
+        solids.push({ tag: 'floor', box: AABB.make(walk0, y0 - 0.2, -0.1, walk1, y0, L.stairWellD) });
+        node.walkCenterX = (walk0 + walk1) / 2;
+
+        const st0 = west ? sx0 + 0.3 : sx1 - 0.3 - L.stairWidth;
+        node.stairCenterX = st0 + L.stairWidth / 2;   // 寻路要走到梯段上，不能只走到节点中心
+        const steps = Math.round(H / L.stairStepH);
+        const stairZ0 = 0.5, stairZ1 = stairZ0 + steps * L.stairStepD;
+        node.stairZ1 = stairZ1;
+
+        if (f === L.floors - 1) {
+          // 顶层不再往上，整个楼梯间铺平，并封顶
+          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, L.stairWellD) });
+          solids.push({ tag: 'roof', box: AABB.make(sx0 - T, y1, -0.1, sx1 + T, y1 + 0.2, L.stairWellD + T) });
+        } else {
+          /* 梯段：沿 +z 上行，占另外半幅。
+             踏板要有厚度（挡住从侧面爬），但不能做成从楼板一直填到踏面的实心柱 ——
+             那样上一层的梯段会把这一层楼梯的头顶空间占满，爬到一半就会顶头。 */
+          for (let s = 0; s < steps; s++) {
+            const zz = stairZ0 + s * L.stairStepD;
+            const top = y0 + (s + 1) * L.stairStepH;
+            solids.push({ tag: 'stair',
+              box: AABB.make(st0, top - L.stairSlabThickness, zz, st0 + L.stairWidth, top, zz + L.stairStepD) });
+          }
+          // 梯段上下两端的平台：没有它们，上下楼的人到了梯口就无处落脚
+          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
+          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
+        }
+
+        // 楼梯间外墙
+        // 只砌远离走廊那一侧的外墙。靠走廊那一侧由下面的 wallWithHoles 砌，
+        // 因为那面墙上要留门洞 —— 两边都砌的话门洞会被这堵实心墙糊死。
+        if (west) solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, -0.1, sx0, y1, L.stairWellD) });
+        else      solids.push({ tag: 'wall', box: AABB.make(sx1, y0, -0.1, sx1 + T, y1, L.stairWellD) });
+        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, L.stairWellD, sx1 + T, y1, L.stairWellD + T) });
+        // 南墙（带楼梯间与走廊之间的门洞在东/西侧墙上，这里南面是实心）
+        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, -T, sx1 + T, y1, -0.1) });
+
+        // 楼梯间 ↔ 走廊：门洞（无门）
+        const gx = west ? westX1 : eastX0;
+        const gz0 = 0.6, gz1 = 1.8;
+        wallWithHoles(solids, 'wall', 'z', gx - T / 2, gx + T / 2, -0.1, L.stairWellD, y0, y1,
+          [{ a0: gz0, a1: gz1, y0: y0, y1: y0 + 2.1 }]);
+        g.addPortal({
+          nodeA: node.id, nodeB: corridor.id, type: PortalType.Doorway, state: PortalState.Open,
+          position: V.make(gx, y0 + 1.05, (gz0 + gz1) / 2)
+        });
+      });
+
+      floorsMeta.push(meta);
+    }
+
+    // ── 楼层之间的楼梯口 Portal ───────────────────────
+    for (let si = 0; si < 2; si++) {
+      for (let f = 0; f < L.floors - 1; f++) {
+        const a = stairNodes[si][f], b = stairNodes[si][f + 1];
+        const cx = a.stairCenterX;
+        const p = g.addPortal({
+          nodeA: a.id, nodeB: b.id, type: PortalType.Stairwell, state: PortalState.Open,
+          position: V.make(cx, (f + 1) * H, L.stairWellD - 1.0)
+        });
+        /* 寻路专用：从 nodeA 一侧上行的顺序路点（下行时整体反向）。
+           四个点缺一不可 —— 只给「梯段中点」的话，丧尸会从走道斜切过去撞在
+           梯段侧面，因为台阶侧壁高度超过 stepHeight 爬不上去。
+             ① 走道上对齐梯脚 → ② 梯脚 → ③ 梯顶 → ④ 上一层走道 */
+        const zTop = a.stairZ1 + 0.35;
+        p.waypoints = [
+          V.make(a.walkCenterX, f * H, 0.2),
+          V.make(cx, f * H, 0.2),
+          V.make(cx, (f + 1) * H, zTop),
+          V.make(b.walkCenterX, (f + 1) * H, zTop)
+        ];
+      }
+    }
+
+    // ── 出生点与丧尸布置（主文档 9.3）──────────────────
+    const spawnRoom = floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
+    const src = AABB.center(spawnRoom.bounds);
+    // 面朝房门：开局第一件事就是决定怎么开这扇门（快速还是缓慢）
+    const spawn = { x: src.x, y: L.spawnRoomFloor * H + 0.02, z: src.z, yaw: 0 };
+
+    const corridorZ = L.corridorD * 0.5;
+    const zombieSpawns = [
+      // 第一只丧尸在三楼楼梯口，玩家必须绕开（此时没有任何武器）
+      { type: 'Wanderer', pos: V.make(westX1 - 1.5, 2 * H + 0.02, 1.2), homeNode: null },
+      { type: 'Wanderer', pos: V.make(corridorLen * 0.55, 1 * H + 0.02, corridorZ) },
+      { type: 'Wanderer', pos: V.make(corridorLen * 0.75, 0 * H + 0.02, corridorZ) },
+      // 蜷伏者藏在玩家出生层的另一间宿舍里 —— 教玩家屏息侦查
+      { type: 'Crawler', pos: (() => {
+          const r = AABB.center(floorsMeta[L.spawnRoomFloor].rooms[4].bounds);
+          return V.make(r.x, L.spawnRoomFloor * H + 0.02, r.z + 1.2);
+        })() }
+    ];
+
+    return {
+      graph: g, solids, doors, spawn, zombieSpawns,
+      floorsMeta, corridorLen, roomZ0, roomZ1,
+      bounds: { minX: westX0 - 12, maxX: eastX1 + 12, minZ: -16, maxZ: roomZ1 + 18, floors: L.floors, floorHeight: H }
+    };
+  }
+
+  C.buildDormitory = buildDormitory;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/09-collision.js ===== */
+/*
+ * 09-collision.js —— 碰撞与视线（实体层的支撑设施，不含任何玩法规则）
+ * 全部是轴对齐盒。关闭的门/窗既挡人也挡视线，开着的就不挡 —— 与声音图共享同一份 Portal 状态。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { AABB, V, M } = C;
+  const CELL = 6;
+
+  function World(level) {
+    this.level = level;
+    this.graph = level.graph;
+    this.staticSolids = level.solids;
+    this.doorBoxes = new Map();           // portalId -> box
+    for (const d of level.doors) this.doorBoxes.set(d.portalId, d.box);
+    this._grid = new Map();
+    for (const s of this.staticSolids) this._insert(s.box, s);
+    this._dynamic = level.doors.map(d => ({ tag: d.kind, box: d.box, portalId: d.portalId }));
+  }
+
+  World.prototype._key = function (cx, cz) { return cx + ',' + cz; };
+  World.prototype._insert = function (box, item) {
+    const x0 = Math.floor(box.min.x / CELL), x1 = Math.floor(box.max.x / CELL);
+    const z0 = Math.floor(box.min.z / CELL), z1 = Math.floor(box.max.z / CELL);
+    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+      const k = this._key(x, z);
+      if (!this._grid.has(k)) this._grid.set(k, []);
+      this._grid.get(k).push(item);
+    }
+  };
+
+  /** 收集与给定 XZ 范围相交的所有实体（含当前不可通行的门窗） */
+  World.prototype.query = function (minX, minZ, maxX, maxZ, out) {
+    out.length = 0;
+    const seen = new Set();
+    const x0 = Math.floor(minX / CELL), x1 = Math.floor(maxX / CELL);
+    const z0 = Math.floor(minZ / CELL), z1 = Math.floor(maxZ / CELL);
+    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+      const list = this._grid.get(this._key(x, z));
+      if (!list) continue;
+      for (const it of list) { if (!seen.has(it)) { seen.add(it); out.push(it); } }
+    }
+    for (const d of this._dynamic) {
+      const p = this.graph.getPortal(d.portalId);
+      if (this.graph.isPassable(p)) continue;             // 开着/破了的门窗不挡
+      if (d.box.max.x < minX || d.box.min.x > maxX || d.box.max.z < minZ || d.box.min.z > maxZ) continue;
+      out.push(d);
+    }
+    return out;
+  };
+
+  const _tmp = [];
+
+  /** 角色水平移动 + 逐轴推出 + 台阶吸附。返回是否着地。 */
+  World.prototype.moveCharacter = function (pos, dx, dz, radius, height, stepHeight) {
+    const solve = (axis, amount) => {
+      if (amount === 0) return;
+      pos[axis] += amount;
+      const lo = pos.y + stepHeight, hi = pos.y + height;
+      this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
+      for (const s of _tmp) {
+        const b = s.box;
+        if (b.max.y <= lo || b.min.y >= hi) continue;
+        if (pos.x + radius <= b.min.x || pos.x - radius >= b.max.x) continue;
+        if (pos.z + radius <= b.min.z || pos.z - radius >= b.max.z) continue;
+        /* 推出到最近的一侧，而不是按移动方向推。
+           按移动方向推的话，一旦角色因为任何原因陷进一个大盒子里（例如顶到楼板），
+           就会被瞬间弹到盒子的另一端 —— 表现为「丧尸突然瞬移到半张地图外」。 */
+        const sideLo = (axis === 'x' ? b.min.x : b.min.z) - radius;
+        const sideHi = (axis === 'x' ? b.max.x : b.max.z) + radius;
+        const cur = pos[axis];
+        pos[axis] = (Math.abs(cur - sideLo) <= Math.abs(cur - sideHi)) ? sideLo : sideHi;
+      }
+    };
+    solve('x', dx);
+    solve('z', dz);
+    return this.snapToGround(pos, radius, stepHeight);
+  };
+
+  World.prototype.snapToGround = function (pos, radius, stepHeight) {
+    const top = this.groundY(pos, pos.y + stepHeight, radius);
+    if (top === null) { pos.y = Math.max(0, pos.y - 0.35); return false; }   // 简易重力
+    pos.y = top;
+    return true;
+  };
+
+  /** 脚下能站的最高面（不高于 maxY） */
+  World.prototype.groundY = function (pos, maxY, radius) {
+    this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
+    let best = null;
+    for (const s of _tmp) {
+      const b = s.box;
+      if (b.max.y > maxY + 0.001) continue;
+      if (pos.x < b.min.x - radius * 0.5 || pos.x > b.max.x + radius * 0.5) continue;
+      if (pos.z < b.min.z - radius * 0.5 || pos.z > b.max.z + radius * 0.5) continue;
+      if (best === null || b.max.y > best) best = b.max.y;
+    }
+    return best;
+  };
+
+  /** 视线：两点之间是否无遮挡（主文档 4.5：有遮挡则完全看不见） */
+  World.prototype.lineOfSight = function (p0, p1) {
+    const minX = Math.min(p0.x, p1.x), maxX = Math.max(p0.x, p1.x);
+    const minZ = Math.min(p0.z, p1.z), maxZ = Math.max(p0.z, p1.z);
+    this.query(minX, minZ, maxX, maxZ, _tmp);
+    for (const s of _tmp) {
+      if (s.tag === 'ground') continue;
+      if (AABB.segmentIntersects(s.box, p0, p1)) return false;
+    }
+    return true;
+  };
+
+  /** 探测最近的墙面（贴墙用）。返回 {normal, dist} 或 null */
+  World.prototype.probeWall = function (pos, height, maxDist) {
+    const dirs = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }];
+    let best = null;
+    const y = pos.y + height * 0.5;
+    for (const d of dirs) {
+      const p1 = { x: pos.x + d.x * maxDist, y, z: pos.z + d.z * maxDist };
+      const p0 = { x: pos.x, y, z: pos.z };
+      this.query(Math.min(p0.x, p1.x), Math.min(p0.z, p1.z), Math.max(p0.x, p1.x), Math.max(p0.z, p1.z), _tmp);
+      for (const s of _tmp) {
+        if (s.tag === 'ground' || s.tag === 'floor' || s.tag === 'stair') continue;
+        if (s.box.max.y < pos.y + 0.8) continue;
+        if (!AABB.segmentIntersects(s.box, p0, p1)) continue;
+        const dist = Math.max(0, (d.x !== 0)
+          ? (d.x > 0 ? s.box.min.x - pos.x : pos.x - s.box.max.x)
+          : (d.z > 0 ? s.box.min.z - pos.z : pos.z - s.box.max.z));
+        if (!best || dist < best.dist) best = { normal: { x: -d.x, y: 0, z: -d.z }, dist };
+      }
+    }
+    return best;
+  };
+
+  C.World = World;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/10-player.js ===== */
+/*
+ * 10-player.js —— 玩家控制器（主文档 4.1–4.4，3.3）
+ * 只依赖：World（碰撞）、SoundSystem（发声/听声）、ModifierPipeline（取最终值）。
+ * 不知道渲染与 UI 的存在，渲染层反过来读它的状态。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { V, M } = C;
+  const PLAYER_ID = 1;
+
+  function Player(level, world) {
+    const P = C.Config.player;
+    this.id = PLAYER_ID;
+    this.world = world;
+    this.pos = V.make(level.spawn.x, level.spawn.y, level.spawn.z);
+    this.yaw = level.spawn.yaw; this.pitch = 0;
+    this.posture = 'stand';           // stand / crouch
+    this.wallHug = false; this.wallNormal = null;
+    this.lean = 0;                    // -1 左 / 0 / +1 右
+    this.holdBreath = false;
+    this.stamina = P.stamina.max;
+    this.exhausted = false;
+    this.flashlight = false;
+    this.alive = true;
+    this.nodeId = -1;
+    this.speedNow = 0;
+    this.moving = false;
+    this._stepTimer = 0;
+    this._breathTimer = 0;
+    this._interactHeld = 0;
+    this._interactTarget = null;
+    this._interactDone = false;
+    this.charge = 0;                  // 投掷蓄力 0–1
+    this.stones = 12;
+    this.soundprints = [];            // 声纹（HUD 用）
+    this.lastAction = '';
+
+    // 听觉组件：与丧尸共用同一个类
+    this.hearing = new C.HearingComponent({
+      ownerId: PLAYER_ID, baseThreshold: C.Config.hearing.player, baseLocalization: 0,
+      onHeard: (info) => this._onHeard(info)
+    });
+    C.SoundSystem.registerListener(this.hearing);
+
+    this._registerModifiers();
+  }
+
+  /* 所有加成一律注册进管线，业务代码只向管线要最终值（主文档 11.3） */
+  Player.prototype._registerModifiers = function () {
+    const P = () => C.Config.player;
+    const wr = () => M.clamp(P().weightRatio, 0, 2);
+    // 负重（主文档 7.1）
+    C.Mod.mul('sound.footstep', 'weight', () => 1 + P().weightLoudnessCoef * wr(), PLAYER_ID, 10);
+    C.Mod.mul('stamina.run_cost', 'weight', () => 1 + P().weightStaminaCoef * wr(), PLAYER_ID, 10);
+    C.Mod.mul('move.run_speed', 'weight', () => 1 - P().weightSpeedCoef * wr(), PLAYER_ID, 10);
+    // 静步熟练度（主文档 8.5）
+    C.Mod.mul('sound.footstep', 'skill.quietStep', () => {
+      const s = C.Config.skills.quietStep;
+      return 1 - (s.loudnessReduction[M.clamp(s.level, 0, 5)] || 0);
+    }, PLAYER_ID, 0);
+    // 听觉熟练度：方向误差
+    C.Mod.add('hearing.localization', 'skill.hearing', () => {
+      const s = C.Config.skills.hearing;
+      return s.errorReduction[M.clamp(s.level, 0, 5)] || 0;
+    }, PLAYER_ID, 0);
+  };
+
+  Player.prototype._onHeard = function (info) {
+    // 方向角误差 =(1 − 听觉熟练度系数) × 基准角误差（声音规格 5.4）
+    const err = (1 - info.localization) * C.Config.hearing.baseAngleError * M.deg2rad;
+    // 误差用事件 id 做种子，同一个事件的指示方向不会每帧抖动
+    const rng = new C.Rng(info.evt.id * 2654435761 + 17);
+    const offset = (rng.next() * 2 - 1) * err;
+    const trueAngle = Math.atan2(info.dir.x, info.dir.z);
+    this.soundprints.push({
+      angle: trueAngle + offset,
+      category: info.evt.category,
+      band: C.Reaction.distanceBand(info.margin),
+      margin: info.margin,
+      born: performance.now() / 1000,
+      evtId: info.evt.id
+    });
+    if (this.soundprints.length > 24) this.soundprints.shift();
+  };
+
+  Player.prototype.eyeHeight = function () {
+    const P = C.Config.player;
+    return this.posture === 'crouch' ? P.eyeHeightCrouch : P.eyeHeightStand;
+  };
+  Player.prototype.eyePos = function () {
+    return { x: this.pos.x, y: this.pos.y + this.eyeHeight(), z: this.pos.z };
+  };
+  /** 丧尸看见玩家的半径乘数（主文档 4.5） */
+  Player.prototype.detectMultiplier = function () {
+    const v = C.Config.vision;
+    if (this.lean !== 0) return v.peekDetectMul;
+    if (this.posture === 'crouch') return v.crouchDetectMul;
+    return 1.0;
+  };
+
+  Player.prototype.baseLoudnessKey = function () {
+    if (this.holdBreath) return null;
+    if (this.wallHug) return 'wallHug';
+    if (this.posture === 'crouch') return 'crouch';
+    return this.running ? 'run' : 'walk';
+  };
+
+  Player.prototype.update = function (dt, input, time) {
+    if (!this.alive) return;
+    const P = C.Config.player, S = P.stamina;
+
+    // ── 姿态 ──────────────────────────────────────────
+    this.posture = input.crouch ? 'crouch' : 'stand';
+    this.lean = input.lean;
+    this.holdBreath = input.holdBreath && this.stamina > 0;
+    const wall = input.wallHug ? this.world.probeWall(this.pos, 1.5, 0.95) : null;
+    this.wallHug = !!wall;
+    this.wallNormal = wall ? wall.normal : null;
+    this.running = input.run && !input.crouch && !this.holdBreath && !this.wallHug && this.stamina > 0;
+
+    // ── 屏息：阈值 25→8，同时提升定位精度（声音规格 5.4）──
+    const hasHB = C.ModifierPipeline.has('hearing.threshold', 'holdBreath');
+    if (this.holdBreath && !hasHB) {
+      C.Mod.override('hearing.threshold', 'holdBreath', () => C.Config.hearing.playerHoldBreath, PLAYER_ID, 100);
+      C.Mod.add('hearing.localization', 'holdBreath', 0.35, PLAYER_ID, 5);
+    } else if (!this.holdBreath && hasHB) {
+      C.Mod.remove('hearing.threshold', 'holdBreath');
+      C.Mod.remove('hearing.localization', 'holdBreath');
+    }
+
+    // ── 速度 ──────────────────────────────────────────
+    let speed;
+    if (this.running) speed = C.ModifierPipeline.query('move.run_speed', P.speedRun, PLAYER_ID);
+    else if (this.wallHug) speed = P.speedWallHug;
+    else if (this.posture === 'crouch') speed = P.speedCrouch;
+    else speed = P.speedWalk;
+    if (this.holdBreath) speed = P.speedCrouch * P.holdBreathSpeedMul;   // 允许缓慢移动（主文档 4.2）
+    if (this.lean !== 0) speed = 0;                                       // 侧身探头时移动速度为 0
+    if (this.exhausted) speed *= S.exhaustedSpeedMul;
+
+    // ── 移动 ──────────────────────────────────────────
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    let mx = input.right * cos - input.forward * sin;
+    let mz = -input.right * sin - input.forward * cos;
+    const mlen = Math.hypot(mx, mz);
+    if (mlen > 1e-4) { mx /= mlen; mz /= mlen; } else { mx = mz = 0; }
+    if (this.wallHug && this.wallNormal) {
+      // 贴墙时把移动投影到墙面上
+      const d = mx * this.wallNormal.x + mz * this.wallNormal.z;
+      mx -= d * this.wallNormal.x; mz -= d * this.wallNormal.z;
+    }
+    this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
+    this.speedNow = this.moving ? speed : 0;
+    if (this.moving) this.world.moveCharacter(this.pos, mx * speed * dt, mz * speed * dt, P.radius, 1.7, P.stepHeight);
+    else this.world.snapToGround(this.pos, P.radius, P.stepHeight);
+
+    const node = C.SoundSystem.graph.getNodeAt(this.eyePos(), this.nodeId);
+    this.nodeId = node ? node.id : -1;
+    this.hearing.position = this.eyePos();
+    this.hearing.nodeId = this.nodeId;
+
+    // ── 体力（主文档 3.3）────────────────────────────
+    let drain = 0;
+    if (this.running && this.moving) drain += C.ModifierPipeline.query('stamina.run_cost', S.runCost, PLAYER_ID);
+    if (this.holdBreath) drain += C.ModifierPipeline.query('hold_breath.stamina_cost', S.holdBreathCost, PLAYER_ID);
+    if (drain > 0) this.stamina -= drain * dt;
+    else if (!this.moving) this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * dt;
+    this.stamina = M.clamp(this.stamina, 0, S.max);
+    this.exhausted = this.stamina <= 0.01;
+
+    // 体力耗尽的喘息：响度 25，潜行时是致命的
+    if (this.exhausted) {
+      this._breathTimer -= dt;
+      if (this._breathTimer <= 0) {
+        this._breathTimer = S.exhaustedBreathInterval;
+        this.emit(C.Config.loudness.exhaustedBreath, C.SoundCategory.Voice, '喘息');
+      }
+    }
+
+    // ── 脚步声（声音规格 4.4：每一步发一次离散事件）──
+    if (this.moving && !this.holdBreath) {
+      const interval = this.running ? P.stepIntervalRun
+        : this.wallHug ? P.stepIntervalWallHug
+        : this.posture === 'crouch' ? P.stepIntervalCrouch : P.stepIntervalWalk;
+      this._stepTimer -= dt;
+      if (this._stepTimer <= 0) {
+        this._stepTimer = interval;
+        const key = this.baseLoudnessKey();
+        const base = C.Config.loudness[key];
+        const loud = C.ModifierPipeline.query('sound.footstep', base, PLAYER_ID);
+        this.emit(loud, C.SoundCategory.Footstep, key);
+      }
+    } else this._stepTimer = 0;
+
+    this._updateInteract(dt, input);
+    this._updateThrow(dt, input);
+    this._pruneSoundprints();
+  };
+
+  Player.prototype.emit = function (loudness, category, label) {
+    return C.SoundSystem.emit({
+      worldPosition: this.pos, loudness, category,
+      emitterId: this.id, nodeIdHint: this.nodeId, label
+    });
+  };
+
+  Player.prototype._pruneSoundprints = function () {
+    const now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
+    while (this.soundprints.length && now - this.soundprints[0].born > life) this.soundprints.shift();
+  };
+
+  /** 视线前方最近的可交互门/窗 */
+  Player.prototype.findInteractable = function () {
+    const eye = this.eyePos();
+    const fwd = { x: -Math.sin(this.yaw) * Math.cos(this.pitch), y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * Math.cos(this.pitch) };
+    let best = null, bestScore = -1;
+    for (const d of this.world.level.doors) {
+      const c = C.AABB.center(d.box);
+      const to = V.sub(c, eye);
+      const dist = V.len(to);
+      if (dist > C.Config.interact.range) continue;
+      const dot = V.dot(V.norm(to), fwd);
+      if (dot < 0.5) continue;
+      if (dot > bestScore) { bestScore = dot; best = d; }
+    }
+    return best;
+  };
+
+  Player.prototype._updateInteract = function (dt, input) {
+    const I = C.Config.interact;
+    const target = this.findInteractable();
+    this.interactTarget = target;
+    if (input.interact && target) {
+      if (this._interactTarget !== target) { this._interactTarget = target; this._interactHeld = 0; this._interactDone = false; }
+      this._interactHeld += dt;
+      const portal = C.SoundSystem.graph.getPortal(target.portalId);
+      const opening = !C.SoundSystem.graph.isPassable(portal);
+      const need = opening ? I.doorSlowHoldSeconds : I.doorCloseSlowHoldSeconds;
+      this.interactProgress = M.clamp(this._interactHeld / need, 0, 1);
+      if (!this._interactDone && this._interactHeld >= need) {
+        this._doorAction(target, true);      // 缓慢版
+        this._interactDone = true;
+      }
+    } else {
+      if (this._interactTarget && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
+        this._doorAction(this._interactTarget, false);   // 轻点 = 快速版
+      }
+      this._interactTarget = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
+    }
+  };
+
+  Player.prototype._doorAction = function (door, slow) {
+    const g = C.SoundSystem.graph;
+    const portal = g.getPortal(door.portalId);
+    const opening = !g.isPassable(portal);
+    g.setPortalState(portal, opening ? C.PortalState.Open : C.PortalState.Closed);
+    const L = C.Config.loudness;
+    const loud = opening ? (slow ? L.doorOpenSlow : L.doorOpenFast)
+                         : (slow ? L.doorCloseSlow : L.doorCloseFast);
+    this.lastAction = (opening ? '开' : '关') + (door.kind === 'window' ? '窗' : '门') + (slow ? '（缓慢）' : '（快速）');
+    C.SoundSystem.emit({
+      worldPosition: C.AABB.center(door.box), loudness: loud,
+      category: C.SoundCategory.Door, emitterId: this.id, label: this.lastAction
+    });
+  };
+
+  // ── 投掷（主文档 4.4）──────────────────────────────
+  Player.prototype._updateThrow = function (dt, input) {
+    const T = C.Config.throwing;
+    if (input.throwHeld && this.stones > 0) {
+      this.charge = M.clamp(this.charge + dt / T.chargeSeconds, 0, 1);
+    } else if (this.charge > 0) {
+      if (this.stones > 0) {
+        const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
+        C.Projectiles.spawn(this.eyePos(), this.aimDir(), speed, this.id);
+        this.stones--;
+        this.lastAction = '投石';
+      }
+      this.charge = 0;
+    }
+  };
+
+  Player.prototype.aimDir = function () {
+    const cp = Math.cos(this.pitch);
+    return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
+  };
+
+  /** 落点预测弧线（按住时显示） */
+  Player.prototype.predictArc = function () {
+    const T = C.Config.throwing;
+    const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
+    return C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+  };
+
+  Player.prototype.die = function (cause) {
+    if (!this.alive) return;
+    this.alive = false;
+    C.EventBus.publish(C.Events.PlayerDied, { cause });
+  };
+
+  // ── 投掷物 ─────────────────────────────────────────
+  C.Projectiles = {
+    list: [],
+    world: null,
+    init(world) { this.world = world; this.list.length = 0; },
+    spawn(pos, dir, speed, ownerId) {
+      this.list.push({
+        pos: V.copy(pos), vel: V.scale(dir, speed), ownerId, life: 6,
+        trail: [V.copy(pos)]
+      });
+    },
+    update(dt) {
+      const g = C.Config.throwing.gravity;
+      for (let i = this.list.length - 1; i >= 0; i--) {
+        const p = this.list[i];
+        p.vel.y -= g * dt;
+        const next = V.add(p.pos, V.scale(p.vel, dt));
+        if (this._hit(p.pos, next)) {
+          C.SoundSystem.emit({
+            worldPosition: next, loudness: C.Config.loudness.stoneImpact,
+            category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
+          });
+          this.list.splice(i, 1);
+          continue;
+        }
+        p.pos = next;
+        p.trail.push(V.copy(next));
+        if (p.trail.length > 30) p.trail.shift();
+        p.life -= dt;
+        if (p.life <= 0) this.list.splice(i, 1);
+      }
+    },
+    _hit(a, b) {
+      const w = this.world, tmp = [];
+      w.query(Math.min(a.x, b.x) - 0.2, Math.min(a.z, b.z) - 0.2, Math.max(a.x, b.x) + 0.2, Math.max(a.z, b.z) + 0.2, tmp);
+      for (const s of tmp) if (C.AABB.segmentIntersects(s.box, a, b)) return true;
+      return false;
+    },
+    /** 纯预测，不产生副作用 */
+    simulate(pos, dir, speed, world, samples) {
+      const g = C.Config.throwing.gravity, dt = 0.06;
+      let p = V.copy(pos), v = V.scale(dir, speed);
+      const pts = [V.copy(p)];
+      for (let i = 0; i < samples; i++) {
+        v = { x: v.x, y: v.y - g * dt, z: v.z };
+        const n = V.add(p, V.scale(v, dt));
+        const tmp = [];
+        world.query(Math.min(p.x, n.x) - 0.2, Math.min(p.z, n.z) - 0.2, Math.max(p.x, n.x) + 0.2, Math.max(p.z, n.z) + 0.2, tmp);
+        let hit = false;
+        for (const s of tmp) if (C.AABB.segmentIntersects(s.box, p, n)) { hit = true; break; }
+        pts.push(V.copy(n));
+        p = n;
+        if (hit) break;
+      }
+      return pts;
+    }
+  };
+
+  C.Player = Player;
+  C.PLAYER_ID = PLAYER_ID;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/11-zombie.js ===== */
+/*
+ * 11-zombie.js —— 丧尸（主文档 5.2–5.5，声音规格 5.2 / 5.3）
+ *
+ * 状态机：
+ *   游荡 ──听到声音──> 警觉(转向,延迟) ──延迟结束──> 调查(走向目标点)
+ *   调查 ──到达目标点──> 搜索(原地徘徊 8~15s) ──超时──> 返回游荡
+ *   任意状态 ──看见玩家(识别条满)──> 追击 ──失去目标 6s──> 搜索
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { V, M, AABB } = C;
+
+  const State = { Wander: '游荡', Alert: '警觉', Investigate: '调查', Search: '搜索', Chase: '追击', Prone: '趴伏' };
+  let nextId = 100;
+
+  function Zombie(def, world) {
+    const T = C.Config.zombieTypes[def.type];
+    this.id = nextId++;
+    this.typeName = def.type;
+    this.def = T;
+    this.world = world;
+    this.pos = V.copy(def.pos);
+    this.yaw = 0;
+    this.hp = T.hp;
+    this.alive = true;
+    this.state = def.type === 'Crawler' ? State.Prone : State.Wander;
+    this.nodeId = -1;
+    this.homeNodeId = -1;
+    this.target = null;          // 目标点（含定位误差）
+    this.path = [];              // 路点队列
+    this.pathIndex = 0;
+    this.reactTimer = 0;
+    this.searchTimer = 0;
+    this.lostTimer = 0;
+    this.growlTimer = 0;
+    this.breathTimer = 0;
+    this.visionTimer = Math.random() * C.Config.zombieReaction.visionCheckInterval;
+    this.recognition = 0;        // 识别条 0–0.8
+    this.currentMargin = 0;
+    this.chainDepth = 0;
+    this.rng = new C.Rng(this.id * 7919 + 13);
+    this.stuckTimer = 0;
+    this.lastPos = V.copy(def.pos);
+
+    this.hearing = new C.HearingComponent({
+      ownerId: this.id, baseThreshold: T.threshold,
+      onHeard: (info) => this._onHeard(info)
+    });
+    C.SoundSystem.registerListener(this.hearing);
+  }
+
+  Zombie.prototype.eyePos = function () { return { x: this.pos.x, y: this.pos.y + this.def.eyeHeight, z: this.pos.z }; };
+  Zombie.prototype.isAlerted = function () {
+    return this.state === State.Alert || this.state === State.Investigate ||
+           this.state === State.Search || this.state === State.Chase;
+  };
+
+  Zombie.prototype._setState = function (s) {
+    if (this.state === s) return;
+    const prev = this.state;
+    this.state = s;
+    // 警觉中的丧尸阈值降到 6（声音规格 6.3）——通过管线，不写死
+    const key = 'hearing.threshold', id = 'alert.' + this.id;
+    if (this.isAlerted() && !C.ModifierPipeline.has(key, id)) {
+      C.Mod.override(key, id, () => C.Config.hearing.zombieAlert, this.id, 50);
+    } else if (!this.isAlerted()) {
+      C.Mod.remove(key, id);
+    }
+    C.EventBus.publish(C.Events.ZombieStateChanged, { id: this.id, prev, state: s });
+  };
+
+  Zombie.prototype._onHeard = function (info) {
+    if (!this.alive) return;
+    const R = C.Config.zombieReaction;
+    const evt = info.evt;
+
+    // 连锁上限：低吼属于 Voice，超过 chainMaxDepth 层不再引人（主文档 5.5）
+    if (evt.category === C.SoundCategory.Voice && evt.emitterId >= 100) {
+      if (evt.chainDepth >= R.chainMaxDepth) return;
+    }
+    if (this.state === State.Chase) return;                       // 已经看见玩家，不被声音打断
+    // 蜷伏者：只有声源在 riseDistance 内才起身（主文档 5.2）
+    if (this.state === State.Prone) {
+      if (V.dist(evt.worldPosition, this.pos) > this.def.riseDistance) return;
+    }
+    // 优先级覆盖：已在调查时，新声音必须显著更响才切目标（声音规格 5.3）
+    if (this.state === State.Alert || this.state === State.Investigate) {
+      if (info.margin < this.currentMargin + R.switchTargetMarginBonus) return;
+    }
+
+    this.currentMargin = info.margin;
+    // 目标点偏移在接收事件时确定一次并固定，不每帧重算（否则丧尸会抖）
+    const err = C.Reaction.localizationError(info.margin);
+    const ang = this.rng.next() * Math.PI * 2;
+    const rad = Math.sqrt(this.rng.next()) * err;
+    this.target = V.make(evt.worldPosition.x + Math.cos(ang) * rad, evt.worldPosition.y, evt.worldPosition.z + Math.sin(ang) * rad);
+    this.targetTrue = V.copy(evt.worldPosition);
+    this.targetError = err;
+    this.reactTimer = C.Reaction.delay(info.margin);
+    // 先停下、转头朝向声音传来的路径入口方向
+    this.faceDir = info.dir;
+    this.chainCause = (evt.category === C.SoundCategory.Voice && evt.emitterId >= 100) ? evt.chainDepth + 1 : 0;
+    this.path = []; this.pathIndex = 0;
+    this._setState(State.Alert);
+  };
+
+  Zombie.prototype.update = function (dt, player, time) {
+    if (!this.alive) return;
+    const R = C.Config.zombieReaction;
+    const g = C.SoundSystem.graph;
+
+    const node = g.getNodeAt(this.eyePos(), this.nodeId);
+    this.nodeId = node ? node.id : -1;
+    if (this.homeNodeId < 0) this.homeNodeId = this.nodeId;
+    this.hearing.position = this.eyePos();
+    this.hearing.nodeId = this.nodeId;
+
+    // 蜷伏者的呼吸声：屏息时才听得见，是屏息作为侦查工具的核心价值
+    if (this.state === State.Prone && this.def.breathInterval) {
+      this.breathTimer -= dt;
+      if (this.breathTimer <= 0) {
+        this.breathTimer = this.def.breathInterval;
+        C.SoundSystem.emit({
+          worldPosition: this.pos, loudness: C.Config.loudness.crawlerBreath,
+          category: C.SoundCategory.Ambient, emitterId: this.id, nodeIdHint: this.nodeId, label: '蜷伏者呼吸'
+        });
+      }
+    }
+
+    if (this.state !== State.Prone) this._updateVision(dt, player, time);
+
+    switch (this.state) {
+      case State.Prone: break;
+      case State.Wander: this._wander(dt); break;
+      case State.Alert:
+        if (this.faceDir) this._turnTo(Math.atan2(this.faceDir.x, this.faceDir.z), dt, 3.0);
+        this.reactTimer -= dt;
+        if (this.reactTimer <= 0) { this._pathTo(this.target); this._setState(State.Investigate); }
+        break;
+      case State.Investigate:
+        if (this._follow(dt, this._investigateSpeed())) {
+          this.searchTimer = this.rng.range(R.searchDurationMin, R.searchDurationMax);
+          this._setState(State.Search);
+        }
+        break;
+      case State.Search:
+        this.searchTimer -= dt;
+        this._wander(dt, 0.6);
+        if (this.searchTimer <= 0) { this.currentMargin = 0; this.target = null; this._setState(State.Wander); }
+        break;
+      case State.Chase: this._chase(dt, player); break;
+    }
+
+    // 卡住检测：位置几乎没变但应该在移动 → 放弃当前路径
+    if (this.state === State.Investigate || this.state === State.Chase) {
+      if (V.distXZ(this.pos, this.lastPos) < 0.02) {
+        this.stuckTimer += dt;
+        if (this.stuckTimer > 1.5) {
+          this.stuckTimer = 0;
+          this.searchTimer = 6;
+          this._setState(State.Search);
+        }
+      } else this.stuckTimer = 0;
+    }
+    this.lastPos = V.copy(this.pos);
+  };
+
+  Zombie.prototype._investigateSpeed = function () {
+    // TODO 文档只给了「游荡 1.0 / 追击 3.2」，调查速度未定义。此处为占位值，需实测。
+    return this.def.speedWander * (C.Config.zombieReaction.investigateSpeedMul || 1.6);
+  };
+
+  Zombie.prototype._updateVision = function (dt, player, time) {
+    const R = C.Config.zombieReaction, VZ = C.Config.vision;
+    this.visionTimer -= dt;
+    if (this.visionTimer > 0) return;
+    this.visionTimer = R.visionCheckInterval;
+    if (!player.alive) return;
+
+    let radius = this.def.visionRadius;
+    if (time.isNight()) {
+      radius *= VZ.nightRadiusMul;
+      if (player.flashlight) radius *= VZ.flashlightRadiusMul;   // 手电让你在夜里更显眼
+    }
+    radius *= player.detectMultiplier();                          // 蹲下 ×0.6，探头 ×0.35
+
+    const eye = this.eyePos(), pEye = player.eyePos();
+    const to = V.sub(pEye, eye);
+    const dist = V.len(to);
+    let visible = false;
+    if (dist <= radius) {
+      const fwd = { x: Math.sin(this.yaw), y: 0, z: Math.cos(this.yaw) };
+      const flat = V.norm({ x: to.x, y: 0, z: to.z });
+      const cosA = V.dot(fwd, flat);
+      const half = Math.cos((this.def.visionAngle / 2) * M.deg2rad);
+      if (cosA >= half || dist < 1.5) {
+        if (this.world.lineOfSight(eye, pEye)) visible = true;
+      }
+    }
+
+    if (visible) {
+      this.recognition += R.visionCheckInterval;                  // 0.8 秒的识别条
+      if (this.recognition >= R.recognitionTime && this.state !== State.Chase) {
+        this.chainDepth = 0;                                      // 亲眼看见玩家，是连锁的源头
+        this._setState(State.Chase);
+      }
+      this.lastSeen = V.copy(pEye);
+      this.lostTimer = 0;
+    } else {
+      this.recognition = Math.max(0, this.recognition - R.visionCheckInterval * 0.7);
+    }
+    this.visible = visible;
+  };
+
+  Zombie.prototype._chase = function (dt, player) {
+    const R = C.Config.zombieReaction;
+    if (this.visible) { this.lostTimer = 0; this.target = V.copy(player.pos); this.path = []; }
+    else {
+      this.lostTimer += dt;
+      if (this.lostTimer >= R.loseTargetSeconds) {
+        this.searchTimer = this.rng.range(R.searchDurationMin, R.searchDurationMax);
+        this._setState(State.Search);
+        return;
+      }
+    }
+    // 追击时持续发出低吼——这会引来更多丧尸
+    this.growlTimer -= dt;
+    if (this.growlTimer <= 0) {
+      this.growlTimer = R.growlInterval;
+      C.SoundSystem.emit({
+        worldPosition: this.pos, loudness: C.Config.loudness.zombieGrowl,
+        category: C.SoundCategory.Voice, emitterId: this.id,
+        nodeIdHint: this.nodeId, chainDepth: this.chainDepth, label: '低吼'
+      });
+    }
+    const goal = this.visible ? player.pos : (this.lastSeen || this.pos);
+    if (this.visible && Math.abs(goal.y - this.pos.y) < 1.0) this._steer(goal, this.def.speedChase, dt);
+    else { if (!this.path.length) this._pathTo(goal); this._follow(dt, this.def.speedChase); }
+
+    if (V.distXZ(this.pos, player.pos) < R.catchDistance && Math.abs(this.pos.y - player.pos.y) < 1.6) {
+      player.die('被' + this.def.name + '抓住');
+    }
+  };
+
+  Zombie.prototype._wander = function (dt, speedMul) {
+    if (!this.wanderTarget || V.distXZ(this.pos, this.wanderTarget) < 0.5) {
+      this.wanderPause = this.rng.range(1.5, 4.0);
+      const node = C.SoundSystem.graph.getNode(this.state === State.Search ? this.nodeId : this.homeNodeId);
+      if (node) {
+        const b = node.bounds;
+        this.wanderTarget = V.make(
+          this.rng.range(b.min.x + 0.6, b.max.x - 0.6),
+          this.pos.y,
+          this.rng.range(b.min.z + 0.6, b.max.z - 0.6));
+      }
+    }
+    if (this.wanderPause > 0) { this.wanderPause -= dt; return; }
+    if (this.wanderTarget) this._steer(this.wanderTarget, this.def.speedWander * (speedMul || 1), dt);
+  };
+
+  /** 沿路点前进。返回 true 表示已到达终点。 */
+  Zombie.prototype._follow = function (dt, speed) {
+    if (this.pathIndex >= this.path.length) return true;
+    const wp = this.path[this.pathIndex];
+    if (V.distXZ(this.pos, wp) < 0.7 && Math.abs(this.pos.y - wp.y) < 2.6) {
+      this.pathIndex++;
+      if (this.pathIndex >= this.path.length) return true;
+    }
+    this._steer(this.path[this.pathIndex], speed, dt);
+    return false;
+  };
+
+  Zombie.prototype._steer = function (goal, speed, dt) {
+    const dx = goal.x - this.pos.x, dz = goal.z - this.pos.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-3) return;
+    const nx = dx / len, nz = dz / len;
+    this._turnTo(Math.atan2(nx, nz), dt, 6.0);
+    this.world.moveCharacter(this.pos, nx * speed * dt, nz * speed * dt, 0.38, 1.7, C.Config.player.stepHeight);
+  };
+
+  Zombie.prototype._turnTo = function (targetYaw, dt, rate) {
+    this.yaw += M.clamp(M.wrapAngle(targetYaw - this.yaw), -rate * dt, rate * dt);
+  };
+
+  /** 在 Portal 图上找路。只走 passable 的连接（Closed / Blocked 挡人） */
+  Zombie.prototype._pathTo = function (goal) {
+    this.path = []; this.pathIndex = 0;
+    if (!goal) return;
+    const g = C.SoundSystem.graph;
+    const goalNode = g.getNodeAt(goal);
+    if (!goalNode) return;
+    if (goalNode.id === this.nodeId) { this.path = [V.copy(goal)]; return; }
+
+    const prev = new Map();          // nodeId -> {portal, from}
+    const queue = [this.nodeId];
+    const seen = new Set([this.nodeId]);
+    let found = false;
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur === goalNode.id) { found = true; break; }
+      const node = g.getNode(cur);
+      if (!node) continue;
+      for (const pid of node.portals) {
+        const p = g.getPortal(pid);
+        if (!g.isPassable(p)) continue;
+        const other = g.other(p, cur);
+        if (seen.has(other)) continue;
+        seen.add(other);
+        prev.set(other, { portal: p, from: cur });
+        queue.push(other);
+      }
+    }
+    if (!found) return;
+
+    const chain = [];
+    let cur = goalNode.id;
+    while (cur !== this.nodeId) {
+      const step = prev.get(cur);
+      if (!step) return;
+      chain.unshift(step);
+      cur = step.from;
+    }
+    for (const step of chain) {
+      const p = step.portal;
+      if (p.waypoints) {
+        const fwd = (p.nodeA === step.from);
+        const wps = fwd ? p.waypoints : p.waypoints.slice().reverse();
+        for (const w of wps) this.path.push(V.copy(w));
+      } else {
+        this.path.push(V.copy(p.position));
+      }
+    }
+    this.path.push(V.copy(goal));
+  };
+
+  Zombie.prototype.destroy = function () {
+    this.alive = false;
+    C.SoundSystem.unregisterListener(this.hearing);
+    C.ModifierPipeline.unregister('hearing.threshold', 'alert.' + this.id);
+  };
+
+  // ── 管理器：负责同时追击上限 ────────────────────────
+  const ZombieManager = {
+    list: [],
+    spawnAll(level, world) {
+      this.list.length = 0;
+      for (const s of level.zombieSpawns) this.list.push(new Zombie(s, world));
+      return this.list;
+    },
+    spawn(def, world) { const z = new Zombie(def, world); this.list.push(z); return z; },
+    update(dt, player, time) {
+      for (const z of this.list) z.update(dt, player, time);
+      this._enforceChaseCap(player);
+    },
+    /** 同时处于追击状态的丧尸全场上限；超过时最远的转为搜索（主文档 5.5） */
+    _enforceChaseCap(player) {
+      const cap = C.Config.zombieReaction.maxChasers;
+      const chasers = this.list.filter(z => z.alive && z.state === State.Chase);
+      if (chasers.length <= cap) return;
+      chasers.sort((a, b) => V.dist(b.pos, player.pos) - V.dist(a.pos, player.pos));
+      for (let i = 0; i < chasers.length - cap; i++) {
+        const z = chasers[i];
+        z.searchTimer = 8;
+        z._setState(State.Search);
+      }
+    },
+    countByState() {
+      const m = {};
+      for (const z of this.list) m[z.state] = (m[z.state] || 0) + 1;
+      return m;
+    },
+    reset() { for (const z of this.list) z.destroy(); this.list.length = 0; nextId = 100; }
+  };
+
+  C.ZombieState = State;
+  C.Zombie = Zombie;
+  C.ZombieManager = ZombieManager;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/12-render.js ===== */
+/*
+ * 12-render.js —— 灰盒渲染（three.js r128）
+ * 只读规则层的状态，不反向写入。静态几何用 InstancedMesh，几百个盒子一次 draw call。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const COLORS = {
+    floor: 0x5a5f6b, wall: 0x82868f, roof: 0x4c505a, stair: 0x6e7a8c,
+    bed: 0x8a6f52, desk: 0x9a7f5f, ground: 0x3f4a3c
+  };
+
+  function Renderer(canvas, level) {
+    this.level = level;
+    this.three = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.three.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x11131a);
+    this.scene.fog = new THREE.Fog(0x11131a, 12, 60);
+    this.camera = new THREE.PerspectiveCamera(78, 1, 0.05, 300);
+
+    this.hemi = new THREE.HemisphereLight(0xbdd0ff, 0x4e4e58, 0.9);
+    this.scene.add(this.hemi);
+    this.sun = new THREE.DirectionalLight(0xfff3e0, 0.55);
+    this.sun.position.set(30, 60, 20);
+    this.scene.add(this.sun);
+    this.ambient = new THREE.AmbientLight(0xffffff, 0.25);
+    this.scene.add(this.ambient);
+
+    // 手电（主文档 3.1 / 4.5）
+    this.torch = new THREE.SpotLight(0xfff0c8, 0, 26, Math.PI / 7, 0.45, 1.2);
+    this.torchTarget = new THREE.Object3D();
+    this.scene.add(this.torch, this.torchTarget);
+    this.torch.target = this.torchTarget;
+
+    this._buildStatic();
+    this._buildDoors();
+    this.zombieMeshes = new Map();
+    this.stoneMeshes = [];
+    this._arc = null;
+  }
+
+  Renderer.prototype._buildStatic = function () {
+    const byTag = new Map();
+    for (const s of this.level.solids) {
+      if (!byTag.has(s.tag)) byTag.set(s.tag, []);
+      byTag.get(s.tag).push(s.box);
+    }
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const m4 = new THREE.Matrix4();
+    for (const [tag, boxes] of byTag) {
+      const mat = new THREE.MeshLambertMaterial({ color: COLORS[tag] || 0x888888 });
+      const inst = new THREE.InstancedMesh(unit, mat, boxes.length);
+      boxes.forEach((b, i) => {
+        m4.makeTranslation((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
+        m4.scale(new THREE.Vector3(
+          Math.max(0.01, b.max.x - b.min.x),
+          Math.max(0.01, b.max.y - b.min.y),
+          Math.max(0.01, b.max.z - b.min.z)));
+        inst.setMatrixAt(i, m4);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      this.scene.add(inst);
+    }
+  };
+
+  Renderer.prototype._buildDoors = function () {
+    this.doorMeshes = [];
+    const g = this.level.graph;
+    for (const d of this.level.doors) {
+      const b = d.box;
+      const geo = new THREE.BoxGeometry(
+        Math.max(0.06, b.max.x - b.min.x), Math.max(0.06, b.max.y - b.min.y), Math.max(0.06, b.max.z - b.min.z));
+      const mat = new THREE.MeshLambertMaterial({
+        color: d.kind === 'window' ? 0x7fb4c8 : 0xa2764a,
+        transparent: d.kind === 'window', opacity: d.kind === 'window' ? 0.45 : 1
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
+      mesh.userData.portalId = d.portalId;
+      this.scene.add(mesh);
+      this.doorMeshes.push(mesh);
+    }
+    this._syncDoors();
+    C.EventBus.subscribe(C.Events.PortalStateChanged, () => this._syncDoors());
+  };
+
+  Renderer.prototype._syncDoors = function () {
+    const g = this.level.graph;
+    for (const m of this.doorMeshes) {
+      const p = g.getPortal(m.userData.portalId);
+      m.visible = !g.isPassable(p);
+    }
+  };
+
+  Renderer.prototype._zombieMesh = function (z) {
+    let m = this.zombieMeshes.get(z.id);
+    if (!m) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.15, 0.35),
+        new THREE.MeshLambertMaterial({ color: z.typeName === 'Crawler' ? 0x6b5a4a : 0x9a5555 }));
+      body.position.y = 0.75;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.3),
+        new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
+      head.position.y = 1.5;
+      // 朝向指示：眼睛方向的小片，方便玩家判断它面朝哪边
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22),
+        new THREE.MeshBasicMaterial({ color: 0x222222 }));
+      nose.position.set(0, 1.5, 0.22);
+      group.add(body, head, nose);
+      this.scene.add(group);
+      m = group;
+      this.zombieMeshes.set(z.id, m);
+    }
+    return m;
+  };
+
+  Renderer.prototype.update = function (player, time, dt) {
+    const P = C.Config.player;
+    // 相机：眼位 + 探头横向偏移 + 轻微翻滚
+    const eye = player.eyePos();
+    const lean = player.lean;
+    const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
+    this.camera.position.set(
+      eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
+    this.camera.rotation.set(0, 0, 0);
+    this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
+    this.camera.rotateX(player.pitch);
+    this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
+
+    // 光照随昼夜（主文档 3.1：19:00 后室内没有光源则接近全黑）
+    const dl = time.getDaylight();
+    this.hemi.intensity = 0.15 + dl * 0.85;
+    this.sun.intensity = dl * 0.6;
+    this.ambient.intensity = 0.10 + dl * 0.25;   // 下限抬高一点，否则天花板是纯黑的
+    this.scene.fog.far = 20 + dl * 45;
+    const bg = new THREE.Color().setHSL(0.62, 0.35, 0.03 + dl * 0.16);
+    this.scene.background = bg; this.scene.fog.color = bg;
+
+    this.torch.intensity = player.flashlight ? 2.4 : 0;
+    if (player.flashlight) {
+      const d = player.aimDir();
+      this.torch.position.copy(this.camera.position);
+      this.torchTarget.position.set(eye.x + d.x * 10, eye.y + d.y * 10, eye.z + d.z * 10);
+    }
+
+    for (const z of C.ZombieManager.list) {
+      const m = this._zombieMesh(z);
+      m.visible = z.alive;
+      m.position.set(z.pos.x, z.pos.y, z.pos.z);
+      m.rotation.y = z.yaw;
+      m.scale.y = (z.state === C.ZombieState.Prone) ? 0.35 : 1;
+    }
+
+    // 投掷物
+    while (this.stoneMeshes.length < C.Projectiles.list.length) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+      this.scene.add(s); this.stoneMeshes.push(s);
+    }
+    this.stoneMeshes.forEach((m, i) => {
+      const p = C.Projectiles.list[i];
+      m.visible = !!p;
+      if (p) m.position.set(p.pos.x, p.pos.y, p.pos.z);
+    });
+
+    // 蓄力时的落点预测弧线
+    if (this._arc) { this.scene.remove(this._arc); this._arc.geometry.dispose(); this._arc = null; }
+    if (player.charge > 0) {
+      const pts = player.predictArc().map(p => new THREE.Vector3(p.x, p.y, p.z));
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      this._arc = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffd479 }));
+      this.scene.add(this._arc);
+    }
+  };
+
+  Renderer.prototype.resize = function (w, h) {
+    this.three.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  };
+  Renderer.prototype.render = function () { this.three.render(this.scene, this.camera); };
+
+  C.Renderer = Renderer;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/13-audio.js ===== */
+/*
+ * 13-audio.js —— 程序化音效（WebAudio，不用任何素材）
+ * 只做一件事：把「听觉组件算出来的 margin 和方向」变成耳朵能感知的东西。
+ * 音量来自 margin，声像来自路径入口方向 —— 所以你在游戏里听到的，
+ * 就是规则层算出来的，两者不会各说各话。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const Audio = {
+    ctx: null, master: null, enabled: false,
+    init() {
+      if (this.ctx) return;
+      const AC = root.AudioContext || root.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.5;
+      this.master.connect(this.ctx.destination);
+      this.enabled = true;
+      this._noise = this._makeNoise();
+    },
+    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+    _makeNoise() {
+      const len = this.ctx.sampleRate * 0.5;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      return buf;
+    },
+    _voice(gain, pan) {
+      const g = this.ctx.createGain();
+      const p = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+      g.gain.value = 0;
+      if (p) { p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); p.connect(this.master); }
+      else g.connect(this.master);
+      return g;
+    },
+    /** category → 一段合成音 */
+    play(category, gain, pan) {
+      if (!this.enabled || gain <= 0.001) return;
+      const t = this.ctx.currentTime, g = this._voice(gain, pan);
+      const spec = {
+        Footstep: { type: 'noise', f: 900, q: 1.2, dur: 0.09, atk: 0.004 },
+        Door:     { type: 'noise', f: 420, q: 3.0, dur: 0.35, atk: 0.01 },
+        Impact:   { type: 'noise', f: 240, q: 1.0, dur: 0.22, atk: 0.002 },
+        Ambient:  { type: 'noise', f: 600, q: 0.7, dur: 0.55, atk: 0.12 },
+        Voice:    { type: 'tone',  f: 82,  dur: 0.9,  atk: 0.06 },
+        Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 }
+      }[category] || { type: 'noise', f: 500, q: 1, dur: 0.15, atk: 0.005 };
+
+      if (spec.type === 'noise') {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this._noise;
+        const flt = this.ctx.createBiquadFilter();
+        flt.type = 'bandpass'; flt.frequency.value = spec.f; flt.Q.value = spec.q;
+        src.connect(flt); flt.connect(g);
+        src.start(t); src.stop(t + spec.dur + 0.05);
+      } else {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sawtooth'; osc.frequency.value = spec.f;
+        const lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+        lfo.frequency.value = 5.5; lg.gain.value = 7;
+        lfo.connect(lg); lg.connect(osc.frequency);
+        const flt = this.ctx.createBiquadFilter();
+        flt.type = 'lowpass'; flt.frequency.value = 700;
+        osc.connect(flt); flt.connect(g);
+        osc.start(t); lfo.start(t);
+        osc.stop(t + spec.dur + 0.05); lfo.stop(t + spec.dur + 0.05);
+      }
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain, t + spec.atk);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + spec.dur);
+    },
+
+    /** 玩家听到别人发出的声音：音量 ∝ margin，声像 ∝ 路径入口方向 */
+    onHeard(info, player) {
+      if (!this.enabled) return;
+      const gain = Math.min(1, info.margin / 45) * 0.85;
+      const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
+      const pan = info.dir.x * right.x + info.dir.z * right.z;
+      this.play(info.evt.category, gain, pan);
+    },
+    /** 玩家自己发出的声音：固定小音量，居中 */
+    onSelf(evt) {
+      if (!this.enabled) return;
+      const g = evt.category === 'Footstep' ? 0.10 : 0.22;
+      this.play(evt.category, g, 0);
+    }
+  };
+
+  C.Audio = Audio;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/14-hud.js ===== */
+/*
+ * 14-hud.js —— HUD（主文档 10.1：屏幕上尽可能少）
+ * 常驻：体力条、手中物品、准星。屏息时才出现声纹指示环。时间不常驻，按 X 看表。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
+
+  function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
+
+  Hud.prototype.draw = function (player, time, dt) {
+    const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2;
+
+    // 准星
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.stroke();
+
+    // 声纹指示环（只在屏息时显示）
+    if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, cx, cy);
+
+    // 体力条
+    const S = C.Config.player.stamina;
+    const bw = 220, bh = 12, bx = 28, by = H - 46;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.fillStyle = player.exhausted ? '#c0392b' : '#4aa3df';
+    ctx.fillRect(bx, by, bw * (player.stamina / S.max), bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('体力', bx, by - 6);
+
+    // 姿态 / 状态
+    const tags = [];
+    if (player.holdBreath) tags.push('屏息');
+    if (player.posture === 'crouch') tags.push('蹲');
+    if (player.wallHug) tags.push('贴墙');
+    if (player.lean) tags.push(player.lean < 0 ? '左探头' : '右探头');
+    if (player.running) tags.push('奔跑');
+    if (player.exhausted) tags.push('力竭');
+    if (player.flashlight) tags.push('手电');
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText(tags.join(' · ') || '站立', bx, by + 30);
+
+    // 手中物品 / 快取
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
+    if (player.charge > 0) {
+      const cw = 120;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
+      ctx.fillStyle = '#ffd479'; ctx.fillRect(W - 28 - cw, H - 22, cw * player.charge, 6);
+    }
+
+    // 交互提示
+    if (player.interactTarget) {
+      const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
+      const opening = !g.isPassable(p);
+      const noun = player.interactTarget.kind === 'window' ? '窗' : '门';
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '13px system-ui, sans-serif';
+      ctx.fillText(`[F] 轻点=快速${opening ? '开' : '关'}${noun}（吵）　按住=缓慢${opening ? '开' : '关'}（安静）`, cx, cy + 46);
+      if (player.interactProgress > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
+      }
+    }
+
+    // 手表（不常驻）
+    if (this.showWatch) {
+      ctx.textAlign = 'center'; ctx.font = '28px ui-monospace, monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillText('第 ' + time.day + ' 天  ' + time.format(), cx, H - 90);
+    }
+
+    if (!player.alive) {
+      ctx.fillStyle = 'rgba(20,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#e6d2d2';
+      ctx.font = '38px system-ui, sans-serif'; ctx.fillText('你死了', cx, cy - 10);
+      ctx.font = '15px system-ui, sans-serif';
+      ctx.fillText(player.deathCause || '', cx, cy + 24);
+      ctx.fillText('按 R 重新开始', cx, cy + 52);
+    }
+  };
+
+  Hud.prototype._soundprint = function (player, cx, cy) {
+    const ctx = this.ctx, now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(180,220,255,0.14)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, 150, 0, Math.PI * 2); ctx.stroke();
+    const forward = player.yaw + Math.PI;
+    for (const s of player.soundprints) {
+      const age = (now - s.born) / life;
+      if (age > 1) continue;
+      const rel = M.wrapAngle(s.angle - forward);
+      // 距离分级决定指示环半径：很近的画在里圈
+      const R = s.band === '很近' ? 92 : s.band === '中等' ? 124 : 150;
+      const x = cx + Math.sin(rel) * R, y = cy - Math.cos(rel) * R;
+      const a = (1 - age) * 0.95;
+      ctx.fillStyle = `rgba(150,220,255,${a})`;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(8,14,22,${a})`;
+      ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ICONS[s.category] || '?', x, y + 0.5);
+    }
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  };
+
+  C.Hud = Hud;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/15-debug.js ===== */
+/*
+ * 15-debug.js —— 声音可视化调试工具 + 实时调参面板
+ * 对应主文档 13.2 风险三：「玩家听不见的东西很难 debug，必须在 M0 就做一个可视化调试工具」。
+ * Tab 切换俯视图：实时显示每个节点的当前响度、每只丧尸的 margin 和目标点。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { AABB, V, M } = C;
+
+  const STATE_COLOR = {
+    '游荡': '#8ab4f8', '警觉': '#ffd479', '调查': '#ff9f43', '搜索': '#c58af9', '追击': '#ff5c5c', '趴伏': '#7f8c8d'
+  };
+  const PORTAL_COLOR = { Open: '#4cd97b', Closed: '#e05555', Broken: '#e0c455', Blocked: '#7a4a4a' };
+
+  function Debug(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.visible = false;
+    this.floor = 0;
+    this.followPlayer = true;
+  }
+
+  Debug.prototype.draw = function (level, player, time) {
+    if (!this.visible) return;
+    const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    ctx.fillStyle = 'rgba(8,10,16,0.94)'; ctx.fillRect(0, 0, W, H);
+
+    const H_ = level.bounds.floorHeight;
+    if (this.followPlayer) this.floor = M.clamp(Math.round(player.pos.y / H_), 0, level.bounds.floors - 1);
+    const b = level.bounds;
+    const padL = 20, padR = 340, padT = 56, padB = 20;
+    const sx = (W - padL - padR) / (b.maxX - b.minX);
+    const sz = (H - padT - padB) / (b.maxZ - b.minZ);
+    const s = Math.min(sx, sz);
+    const toX = (x) => padL + (x - b.minX) * s;
+    const toY = (z) => padT + (z - b.minZ) * s;
+
+    const result = C.SoundSystem.lastResult;
+    const evt = C.SoundSystem.lastEvent;
+
+    // ── 节点：填色 = 上一次声音事件在该节点入口的到达响度 ──
+    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center';
+    for (const n of level.graph.nodes) {
+      const onFloor = n.isOutdoor || n.floor === this.floor;
+      if (!onFloor) continue;
+      const x0 = toX(n.bounds.min.x), y0 = toY(n.bounds.min.z);
+      const w = (n.bounds.max.x - n.bounds.min.x) * s, h = (n.bounds.max.z - n.bounds.min.z) * s;
+      const rec = result && result.get(n.id);
+      if (rec) {
+        const t = M.clamp(rec.arrival / 90, 0, 1);
+        ctx.fillStyle = `hsla(${(1 - t) * 200}, 85%, ${18 + t * 34}%, 0.92)`;
+      } else ctx.fillStyle = n.isOutdoor ? 'rgba(30,42,32,0.7)' : 'rgba(32,36,46,0.85)';
+      ctx.fillRect(x0, y0, w, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.strokeRect(x0, y0, w, h);
+      if (w > 34 && h > 18) {
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillText(n.name, x0 + w / 2, y0 + 13);
+        if (rec) {
+          ctx.fillStyle = '#ffe08a';
+          ctx.fillText(rec.arrival.toFixed(1), x0 + w / 2, y0 + 26);
+        }
+      }
+    }
+
+    // ── Portal：颜色 = 状态 ───────────────────────────
+    for (const p of level.graph.portals) {
+      const a = level.graph.getNode(p.nodeA), bb = level.graph.getNode(p.nodeB);
+      const show = (a.isOutdoor || a.floor === this.floor) && (bb.isOutdoor || bb.floor === this.floor);
+      if (!show) continue;
+      ctx.fillStyle = PORTAL_COLOR[p.state] || '#fff';
+      ctx.fillRect(toX(p.position.x) - 3, toY(p.position.z) - 3, 6, 6);
+    }
+    // 竖向楼梯口单独标出来
+    for (const p of level.graph.portals) {
+      if (p.type !== 'Stairwell') continue;
+      const a = level.graph.getNode(p.nodeA);
+      if (a.floor !== this.floor && level.graph.getNode(p.nodeB).floor !== this.floor) continue;
+      ctx.strokeStyle = '#5ad'; ctx.lineWidth = 2;
+      ctx.strokeRect(toX(p.position.x) - 7, toY(p.position.z) - 7, 14, 14);
+    }
+
+    // ── 声源 ─────────────────────────────────────────
+    if (evt) {
+      ctx.strokeStyle = 'rgba(255,220,120,0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(toX(evt.worldPosition.x), toY(evt.worldPosition.z), 9, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // ── 丧尸：状态色 + margin + 目标点 + 定位误差圈 ──
+    for (const z of C.ZombieManager.list) {
+      if (!z.alive) continue;
+      const zx = toX(z.pos.x), zy = toY(z.pos.z);
+      const sameFloor = Math.round(z.pos.y / H_) === this.floor;
+      ctx.globalAlpha = sameFloor ? 1 : 0.28;
+      if (z.target) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(zx, zy); ctx.lineTo(toX(z.target.x), toY(z.target.z)); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,160,80,0.85)';
+        ctx.beginPath(); ctx.arc(toX(z.target.x), toY(z.target.z), 4, 0, Math.PI * 2); ctx.stroke();
+        if (z.targetTrue && z.targetError > 0) {
+          ctx.strokeStyle = 'rgba(255,160,80,0.22)';
+          ctx.beginPath(); ctx.arc(toX(z.targetTrue.x), toY(z.targetTrue.z), z.targetError * s, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+      ctx.fillStyle = STATE_COLOR[z.state] || '#fff';
+      ctx.beginPath(); ctx.arc(zx, zy, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(zx, zy);
+      ctx.lineTo(zx + Math.sin(z.yaw) * 14, zy + Math.cos(z.yaw) * 14); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '10px system-ui, sans-serif';
+      ctx.fillText(z.state + ' m=' + z.currentMargin.toFixed(0), zx, zy - 10);
+      ctx.globalAlpha = 1;
+    }
+
+    // ── 玩家 ─────────────────────────────────────────
+    const px = toX(player.pos.x), py = toY(player.pos.z);
+    ctx.fillStyle = '#7cf07c';
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7cf07c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, py);
+    ctx.lineTo(px - Math.sin(player.yaw) * 18, py - Math.cos(player.yaw) * 18); ctx.stroke();
+
+    this._panel(ctx, W, H, padR, level, player, time);
+  };
+
+  Debug.prototype._panel = function (ctx, W, H, padR, level, player, time) {
+    const x = W - padR + 14;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText('声音调试视图', 20, 30);
+    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('Tab 关闭 · [ ] 切换楼层 · 当前 ' + (this.floor + 1) + 'F' +
+                 (this.followPlayer ? '（跟随玩家，按 \\ 取消）' : ''), 150, 30);
+
+    let y = 58;
+    const line = (t, c) => { ctx.fillStyle = c || 'rgba(255,255,255,0.85)'; ctx.fillText(t, x, y); y += 17; };
+    ctx.font = '12px ui-monospace, monospace';
+    const st = C.SoundSystem.stats;
+    line('时间  第' + time.day + '天 ' + time.format() + '  夜间系数 ' + time.getNightFactor().toFixed(2));
+    line('传播  ' + st.lastMs.toFixed(3) + ' ms / ' + st.lastExpanded + ' 节点  （预算 0.5ms）',
+         st.lastMs > 0.5 ? '#ff8a8a' : '#8de08d');
+    line('事件  ' + st.eventsThisSecond + ' 次/秒  峰值 ' + st.peakPerSecond + '  （预算 40）',
+         st.peakPerSecond > 40 ? '#ff8a8a' : '#8de08d');
+    const counts = C.ZombieManager.countByState();
+    line('丧尸  ' + Object.keys(counts).map(k => k + ':' + counts[k]).join('  '));
+    line('玩家  阈值 ' + player.hearing.finalThreshold().toFixed(0) +
+         '  定位 ' + player.hearing.finalLocalization().toFixed(2) +
+         '  节点 ' + (level.graph.getNode(player.nodeId) || {}).name);
+    const key = player.baseLoudnessKey();
+    const base = key ? C.Config.loudness[key] : 0;
+    line('脚步  ' + (key || '静默') + ' 基础' + base + ' → 最终 ' +
+         C.ModifierPipeline.query('sound.footstep', base, player.id).toFixed(1));
+    y += 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText('── 声音事件流 ──', x, y); y += 18;
+    const log = C.SoundSystem.log.slice(-16).reverse();
+    for (const e of log) {
+      const n = level.graph.getNode(e.node);
+      ctx.fillStyle = e.emitter === C.PLAYER_ID ? '#8de08d' : (e.emitter >= 100 ? '#ff9a9a' : '#d8d8d8');
+      ctx.fillText(`${String(e.loud).padStart(3)}  ${(e.label || e.cat).slice(0, 10).padEnd(10)} @${n ? n.name : '?'}`, x, y);
+      y += 15;
+      if (y > H - 20) break;
+    }
+  };
+
+  // ── 实时调参面板 ─────────────────────────────────
+  const TUNABLES = [
+    ['sound.kIndoor', '室内衰减 k', 0.5, 4, 0.1],
+    ['sound.kOutdoor', '室外衰减 k', 0.5, 4, 0.1],
+    ['time.nightFactor', '夜间系数', 0.4, 1, 0.05],
+    ['time.secondsPerGameHour', '1游戏小时(秒)', 20, 200, 5],
+    ['loudness.walk', '走路响度', 0, 60, 1],
+    ['loudness.run', '奔跑响度', 0, 90, 1],
+    ['loudness.crouch', '蹲行响度', 0, 40, 1],
+    ['loudness.stoneImpact', '石头响度', 0, 90, 1],
+    ['loudness.crawlerBreath', '蜷伏者呼吸响度', 0, 40, 1],
+    ['loudness.zombieGrowl', '追击低吼响度', 0, 90, 1],
+    ['hearing.zombie', '丧尸阈值', 1, 40, 1],
+    ['hearing.player', '玩家阈值', 1, 60, 1],
+    ['hearing.playerHoldBreath', '屏息阈值', 1, 40, 1],
+    ['zombieReaction.maxChasers', '同时追击上限', 1, 30, 1],
+    ['zombieReaction.chainMaxDepth', '连锁层数上限', 0, 5, 1],
+    ['zombieReaction.investigateSpeedMul', '调查速度倍率', 0.5, 4, 0.1],
+    ['player.speedWalk', '走路速度', 0.5, 6, 0.1],
+    ['player.speedRun', '奔跑速度', 1, 9, 0.1],
+    ['player.weightRatio', '负重比 r', 0, 1.5, 0.05],
+    ['skills.quietStep.level', '静步熟练度', 0, 5, 1],
+    ['skills.hearing.level', '听觉熟练度', 0, 5, 1]
+  ];
+
+  function get(path) { return path.split('.').reduce((o, k) => o[k], C.Config); }
+  function set(path, v) {
+    const ks = path.split('.'); const last = ks.pop();
+    ks.reduce((o, k) => o[k], C.Config)[last] = v;
+  }
+
+  Debug.buildTuner = function (container) {
+    container.innerHTML = '<h3>实时调参 <small>（P 开关 · 立即生效 · 不写回文件）</small></h3>';
+    for (const [path, label, min, max, step] of TUNABLES) {
+      const row = document.createElement('label');
+      row.className = 'tune-row';
+      row.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${get(path)}"><b>${get(path)}</b>`;
+      const input = row.querySelector('input'), out = row.querySelector('b');
+      input.addEventListener('input', () => { set(path, parseFloat(input.value)); out.textContent = input.value; });
+      container.appendChild(row);
+    }
+    const btn = document.createElement('button');
+    btn.textContent = '恢复文档默认值';
+    btn.onclick = () => {
+      for (const [path] of TUNABLES) set(path, path.split('.').reduce((o, k) => o[k], C.ConfigDefaults));
+      Debug.buildTuner(container);
+    };
+    container.appendChild(btn);
+  };
+
+  C.Debug = Debug;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/16-main.js ===== */
+/*
+ * 16-main.js —— 装配与主循环
+ * 这里是唯一允许把各层连起来的地方。任何两个系统之间的直接调用都应该出现在这里，
+ * 而不是藏在某个系统内部。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  const Game = {
+    keys: {}, mouse: { dx: 0, dy: 0 }, locked: false,
+    timeScales: [1, 4, 20], timeScaleIndex: 0,
+
+    start() {
+      this.canvas3d = document.getElementById('view');
+      this.hudCanvas = document.getElementById('hud');
+      this.dbgCanvas = document.getElementById('dbg');
+      this.tuner = document.getElementById('tuner');
+
+      this.hud = new C.Hud(this.hudCanvas);
+      this.debug = new C.Debug(this.dbgCanvas);
+      C.Debug.buildTuner(this.tuner);
+
+      this._bindInput();
+      this.restart();
+      this._resize();
+      addEventListener('resize', () => this._resize());
+      this.last = performance.now();
+      requestAnimationFrame((t) => this._frame(t));
+    },
+
+    restart() {
+      C.SoundSystem.reset();
+      C.ZombieManager.reset();
+      C.ModifierPipeline.clear();
+      C.EventBus.clear();
+
+      this.level = C.buildDormitory();
+      this.world = new C.World(this.level);
+      this.time = new C.TimeSystem();
+      C.SoundSystem.init(this.level.graph, this.time);
+      C.Projectiles.init(this.world);
+      this.player = new C.Player(this.level, this.world);
+      C.ZombieManager.spawnAll(this.level, this.world);
+
+      // 渲染器持有场景对象，重开时整体重建
+      if (this.renderer) this.renderer.three.dispose();
+      this.renderer = new C.Renderer(this.canvas3d, this.level);
+      this._resize();
+
+      // 音频：把听觉组件的结果接到耳朵上
+      const origOnHeard = this.player.hearing.onHeard.bind(this.player.hearing);
+      this.player.hearing.onHeard = (info) => { origOnHeard(info); C.Audio.onHeard(info, this.player); };
+      C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
+        if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
+      });
+      C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; });
+      this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
+    },
+
+    msg(text) {
+      const el = document.getElementById('toast');
+      el.textContent = text; el.style.opacity = '1';
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 5200);
+    },
+
+    _bindInput() {
+      addEventListener('keydown', (e) => {
+        if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
+        if (this.keys[e.code]) return;
+        this.keys[e.code] = true;
+        switch (e.code) {
+          case 'Tab': this.debug.visible = !this.debug.visible; break;
+          case 'KeyP': this.tuner.classList.toggle('open'); break;
+          case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
+          case 'KeyR': if (!this.player.alive) this.restart(); break;
+          case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
+          case 'BracketRight': this.debug.floor = Math.min(this.level.bounds.floors - 1, this.debug.floor + 1); this.debug.followPlayer = false; break;
+          case 'Backslash': this.debug.followPlayer = !this.debug.followPlayer; break;
+          case 'KeyT':
+            this.timeScaleIndex = (this.timeScaleIndex + 1) % this.timeScales.length;
+            this.time.timeScale = this.timeScales[this.timeScaleIndex];
+            this.msg('时间流速 ×' + this.time.timeScale);
+            break;
+          case 'KeyN':
+            this.time.hour = (this.time.hour > 6 && this.time.hour < 19) ? 23 : 12;
+            this.msg(this.time.isNight() ? '切到夜间：声音传播距离 +43%，丧尸视觉半径减半' : '切到白天');
+            break;
+        }
+      });
+      addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+
+      // 监听在 document 上：开场提示层盖在画布之上，挂在画布上的点击永远收不到
+      document.addEventListener('click', () => {
+        C.Audio.init(); C.Audio.resume();
+        if (!this.locked) this.canvas3d.requestPointerLock();
+      });
+      document.addEventListener('pointerlockchange', () => {
+        this.locked = document.pointerLockElement === this.canvas3d;
+        document.getElementById('startHint').style.display = this.locked ? 'none' : 'flex';
+      });
+      addEventListener('mousemove', (e) => {
+        if (!this.locked) return;
+        this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
+      });
+    },
+
+    _input() {
+      const k = this.keys;
+      return {
+        forward: (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0),
+        right: (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0),
+        run: !!(k.ShiftLeft || k.ShiftRight),
+        crouch: !!(k.ControlLeft || k.ControlRight || k.KeyC),
+        wallHug: !!k.KeyV,
+        lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
+        holdBreath: !!k.Space,
+        interact: !!k.KeyF,
+        throwHeld: !!k.KeyG
+      };
+    },
+
+    _frame(now) {
+      const dt = Math.min(0.05, (now - this.last) / 1000);
+      this.last = now;
+
+      // 视角
+      if (this.locked) {
+        const sens = 0.0022;
+        this.player.yaw -= this.mouse.dx * sens;
+        this.player.pitch = M.clamp(this.player.pitch - this.mouse.dy * sens, -1.4, 1.4);
+      }
+      this.mouse.dx = 0; this.mouse.dy = 0;
+      this.hud.showWatch = !!this.keys.KeyX;
+
+      this.time.update(dt);
+      this.player.update(dt, this._input(), this.time);
+      C.Projectiles.update(dt);
+      C.ZombieManager.update(dt, this.player, this.time);
+      C.SoundSystem.tickStats(dt);
+
+      this.renderer.update(this.player, this.time, dt);
+      this.renderer.render();
+      this.hud.draw(this.player, this.time, dt);
+      this.debug.draw(this.level, this.player, this.time);
+      this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
+
+      requestAnimationFrame((t) => this._frame(t));
+    },
+
+    _resize() {
+      const w = innerWidth, h = innerHeight, dpr = Math.min(devicePixelRatio, 2);
+      this.renderer.resize(w, h);
+      for (const c of [this.hudCanvas, this.dbgCanvas]) {
+        c.width = w * dpr; c.height = h * dpr;
+        c.style.width = w + 'px'; c.style.height = h + 'px';
+        c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      this.hudCanvas.width = w; this.hudCanvas.height = h;
+      this.hudCanvas.getContext('2d').setTransform(1, 0, 0, 1, 0, 0);
+      this.dbgCanvas.width = w; this.dbgCanvas.height = h;
+      this.dbgCanvas.getContext('2d').setTransform(1, 0, 0, 1, 0, 0);
+    }
+  };
+
+  C.Game = Game;
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => Game.start());
+    else Game.start();
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
