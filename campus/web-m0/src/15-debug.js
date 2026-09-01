@@ -23,7 +23,7 @@
   Debug.prototype.draw = function (level, player, time) {
     if (!this.visible) return;
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
-    ctx.fillStyle = 'rgba(8,10,16,0.94)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(11,13,17,0.96)'; ctx.fillRect(0, 0, W, H);
 
     const H_ = level.bounds.floorHeight;
     if (this.followPlayer) this.floor = M.clamp(Math.round(player.pos.y / H_), 0, level.bounds.floors - 1);
@@ -39,7 +39,7 @@
     const evt = C.SoundSystem.lastEvent;
 
     // ── 节点：填色 = 上一次声音事件在该节点入口的到达响度 ──
-    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '10.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace'; ctx.textAlign = 'center';
     for (const n of level.graph.nodes) {
       const onFloor = n.isOutdoor || n.floor === this.floor;
       if (!onFloor) continue;
@@ -53,13 +53,16 @@
       ctx.fillRect(x0, y0, w, h);
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
       ctx.strokeRect(x0, y0, w, h);
-      if (w > 34 && h > 18) {
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(n.name, x0 + w / 2, y0 + 13);
+      // 标签靠左上角，不放中间 —— 中间会被丧尸/玩家的图标和状态文字盖住
+      if (w > 34 && h > 16) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(220,227,235,0.78)';
+        ctx.fillText(n.name, x0 + 5, y0 + 12);
         if (rec) {
-          ctx.fillStyle = '#ffe08a';
-          ctx.fillText(rec.arrival.toFixed(1), x0 + w / 2, y0 + 26);
+          ctx.fillStyle = '#6FD3E8';
+          ctx.fillText(rec.arrival.toFixed(1), x0 + 5, y0 + 24);
         }
+        ctx.textAlign = 'center';
       }
     }
 
@@ -107,8 +110,13 @@
       ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(zx, zy);
       ctx.lineTo(zx + Math.sin(z.yaw) * 14, zy + Math.cos(z.yaw) * 14); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '10px system-ui, sans-serif';
-      ctx.fillText(z.state + ' m=' + z.currentMargin.toFixed(0), zx, zy - 10);
+      const label = z.state + ' m=' + z.currentMargin.toFixed(0);
+      ctx.font = '10px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
+      const lw = ctx.measureText(label).width + 8;
+      ctx.fillStyle = 'rgba(11,13,17,0.72)';
+      ctx.fillRect(zx - lw / 2, zy - 20, lw, 13);
+      ctx.fillStyle = 'rgba(220,227,235,0.92)';
+      ctx.fillText(label, zx, zy - 10);
       ctx.globalAlpha = 1;
     }
 
@@ -126,15 +134,15 @@
   Debug.prototype._panel = function (ctx, W, H, padR, level, player, time) {
     const x = W - padR + 14;
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillStyle = '#E4573D'; ctx.font = '500 12px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
     ctx.fillText('声音调试视图', 20, 30);
-    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '11.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText('Tab 关闭 · [ ] 切换楼层 · 当前 ' + (this.floor + 1) + 'F' +
                  (this.followPlayer ? '（跟随玩家，按 \\ 取消）' : ''), 150, 30);
 
     let y = 58;
     const line = (t, c) => { ctx.fillStyle = c || 'rgba(255,255,255,0.85)'; ctx.fillText(t, x, y); y += 17; };
-    ctx.font = '12px ui-monospace, monospace';
+    ctx.font = '11.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
     const st = C.SoundSystem.stats;
     line('时间  第' + time.day + '天 ' + time.format() + '  夜间系数 ' + time.getNightFactor().toFixed(2));
     line('传播  ' + st.lastMs.toFixed(3) + ' ms / ' + st.lastExpanded + ' 节点  （预算 0.5ms）',

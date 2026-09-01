@@ -18,7 +18,7 @@ const scriptBlock = grab('SCRIPTS');
 const files = [...scriptBlock.matchAll(/src="(src\/[^"]+)"/g)].map(m => m[1]);
 const code = files.map(f => `/* ===== ${f} ===== */\n` + fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 
-const out = `<title>校园 · M0 潜行原型</title>
+const out = `<title>校园 M0 潜行原型</title>
 ${style}
 ${content}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>

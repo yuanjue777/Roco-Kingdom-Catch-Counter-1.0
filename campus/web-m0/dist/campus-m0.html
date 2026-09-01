@@ -1,37 +1,95 @@
-<title>校园 · M0 潜行原型</title>
+<title>校园 M0 潜行原型</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
-  :root { color-scheme: dark; }
+  /* 单一视觉世界：这是一台仪器，不是一个网页。深冷底 + 安全出口橙做唯一重音，
+     声纹青只用在与声音有关的读数上。不做明暗两套主题 —— 游戏画面本身就是暗的。 */
+  :root {
+    color-scheme: dark;
+    --ground:  #0B0D11;   /* 偏蓝的近黑，不是纯灰 */
+    --surface: #141A22;
+    --line:    #232C38;
+    --ink:     #DCE3EB;
+    --muted:   #7C8896;
+    --dim:     #4E5966;
+    --accent:  #E4573D;   /* 安全出口 / 消防栓 */
+    --signal:  #6FD3E8;   /* 声纹 */
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; overflow: hidden; background: #0a0c12;
-         font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #e8ecf2; }
+  body { margin: 0; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--cjk); }
   #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
   #hud { pointer-events: none; }
   #dbg { display: none; }
-  #startHint { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
-               justify-content: center; gap: 14px; background: rgba(6,8,14,0.86); z-index: 5; text-align: center; padding: 24px; }
-  #startHint h1 { font-size: 26px; margin: 0; letter-spacing: 2px; font-weight: 600; }
-  #startHint p { margin: 0; color: #9fb0c4; max-width: 620px; line-height: 1.7; font-size: 13.5px; }
-  #startHint .go { margin-top: 6px; padding: 10px 26px; border: 1px solid #47607d; border-radius: 4px; color: #cfe4ff; }
-  kbd { background: #1d2530; border: 1px solid #33414f; border-bottom-width: 2px; border-radius: 3px;
-        padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d7e3ef; }
-  table.keys { border-collapse: collapse; font-size: 12.5px; color: #a9bccd; }
-  table.keys td { padding: 3px 10px; }
-  table.keys td:first-child { text-align: right; white-space: nowrap; }
-  #toast { position: fixed; left: 50%; transform: translateX(-50%); top: 26px; z-index: 4;
-           background: rgba(8,12,20,0.82); border: 1px solid #2b3a4a; border-radius: 4px;
-           padding: 8px 16px; font-size: 13px; color: #cfe0f0; opacity: 0; transition: opacity .5s; pointer-events: none; }
-  #tuner { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 6; overflow-y: auto;
-           background: rgba(10,14,20,0.95); border-left: 1px solid #26313e; padding: 14px 16px;
-           transform: translateX(100%); transition: transform .18s; font-size: 12px; }
+
+  #startHint {
+    position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 90% at 50% 45%, rgba(11,13,17,0.88), rgba(11,13,17,0.97));
+    padding: 32px; overflow-y: auto;
+  }
+  .card { width: min(680px, 100%); border-left: 2px solid var(--accent); padding-left: 28px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 14px; display: flex; gap: 10px; align-items: center;
+  }
+  .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .card h1 {
+    margin: 0 0 4px; font-size: clamp(30px, 5vw, 44px); font-weight: 600;
+    letter-spacing: 0.3em; text-wrap: balance;
+  }
+  .sub { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: 0.08em; margin: 0 0 22px; }
+  .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.85; font-size: 13.5px; max-width: 62ch; }
+  .card p.lede { color: var(--ink); font-size: 15px; line-height: 1.9; }
+  .card p em { color: var(--signal); font-style: normal; }
+
+  /* 两列图例：每行是「键 · 动作 · 响度」，响度右对齐成一栏，方便横向比较 */
+  .legend { margin: 22px 0 0; border-top: 1px solid var(--line);
+            display: grid; grid-template-columns: 1fr 1fr; column-gap: 44px; }
+  .legend .row { display: grid; grid-template-columns: 106px 1fr auto; align-items: center;
+                 gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .legend .act { color: var(--muted); }
+  .legend .val { font-family: var(--mono); font-size: 11.5px; color: var(--signal);
+                 font-variant-numeric: tabular-nums; }
+  .legend .val.none { color: var(--dim); }
+  @media (max-width: 640px) { .legend { grid-template-columns: 1fr; column-gap: 0; } }
+  kbd {
+    font-family: var(--mono); font-size: 11px; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 3px; padding: 2px 6px; white-space: nowrap;
+  }
+  .go {
+    margin-top: 26px; font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.06em;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  .go .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .go .dot { animation: none; } }
+
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%); top: 24px; z-index: 4;
+    background: rgba(20,26,34,0.92); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 9px 18px; font-size: 13px; color: var(--ink); opacity: 0; transition: opacity .5s; pointer-events: none;
+  }
+  #tuner {
+    position: fixed; right: 0; top: 0; bottom: 0; width: 330px; z-index: 6; overflow-y: auto;
+    background: rgba(11,13,17,0.97); border-left: 1px solid var(--line); padding: 16px 18px;
+    transform: translateX(100%); transition: transform .18s; font-size: 12px;
+  }
   #tuner.open { transform: none; }
-  #tuner h3 { margin: 4px 0 14px; font-size: 14px; }
-  #tuner h3 small { font-weight: 400; color: #7d8fa1; font-size: 11px; }
-  .tune-row { display: grid; grid-template-columns: 116px 1fr 42px; align-items: center; gap: 8px; margin-bottom: 7px; }
-  .tune-row span { color: #9fb0c4; }
-  .tune-row b { text-align: right; font-family: ui-monospace, monospace; color: #ffd479; font-weight: 500; }
-  .tune-row input { width: 100%; }
-  #tuner button { margin-top: 14px; width: 100%; padding: 7px; background: #1b2531; color: #cfe0f0;
-                  border: 1px solid #33414f; border-radius: 4px; cursor: pointer; }
+  #tuner h3 { margin: 2px 0 16px; font-size: 12px; font-family: var(--mono);
+              letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); font-weight: 500; }
+  #tuner h3 small { display: block; margin-top: 6px; font-family: var(--cjk); letter-spacing: 0;
+                    text-transform: none; color: var(--dim); font-size: 11px; }
+  .tune-row { display: grid; grid-template-columns: 120px 1fr 44px; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .tune-row span { color: var(--muted); }
+  .tune-row b { text-align: right; font-family: var(--mono); color: var(--signal);
+                font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tune-row input { width: 100%; accent-color: var(--accent); }
+  #tuner button {
+    margin-top: 16px; width: 100%; padding: 8px; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 3px; cursor: pointer; font-family: var(--cjk); font-size: 12px;
+  }
+  #tuner button:hover { border-color: var(--accent); color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 <canvas id="view"></canvas>
 <canvas id="hud"></canvas>
@@ -39,22 +97,31 @@
 <div id="toast"></div>
 <div id="tuner"></div>
 <div id="startHint">
-  <h1>校 园 · M0 潜行原型</h1>
-  <p>你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
-     楼里有三只游荡者和一只蜷伏者，没有武器，没有战斗 —— 只有声音。</p>
-  <p style="color:#7d8fa1">这是《校园》设计文档 M0 里程碑的可玩验证：完整的声音传播（Dijkstra 绕行 + Portal 衰减）、
-     丧尸的余量反应曲线、屏息声纹、投石引怪。<kbd>Tab</kbd> 打开俯视调试图看声音怎么传的，
-     <kbd>P</kbd> 打开实时调参。</p>
-  <table class="keys">
-    <tr><td><kbd>W A S D</kbd></td><td>移动</td><td><kbd>Shift</kbd></td><td>奔跑（响度 45）</td></tr>
-    <tr><td><kbd>Ctrl</kbd>/<kbd>C</kbd></td><td>蹲行（响度 10）</td><td><kbd>V</kbd></td><td>贴墙（响度 14）</td></tr>
-    <tr><td><kbd>Q</kbd> <kbd>E</kbd></td><td>左右探头（被发现半径 ×0.35）</td><td><kbd>Space</kbd></td><td>屏息（阈值 25→8，出声纹）</td></tr>
-    <tr><td><kbd>F</kbd></td><td>轻点=快速开关门　按住=缓慢</td><td><kbd>G</kbd></td><td>按住蓄力，松开投石</td></tr>
-    <tr><td><kbd>L</kbd></td><td>手电</td><td><kbd>X</kbd></td><td>看手表</td></tr>
-    <tr><td><kbd>N</kbd></td><td>切换昼夜</td><td><kbd>T</kbd></td><td>时间流速</td></tr>
-    <tr><td><kbd>Tab</kbd></td><td>声音调试俯视图</td><td><kbd>P</kbd></td><td>实时调参面板</td></tr>
-  </table>
-  <div class="go">点击画面开始（会锁定鼠标，<kbd>Esc</kbd> 退出锁定）</div>
+  <div class="card">
+    <p class="eyebrow">M0 · 潜行手感验证</p>
+    <h1>校园</h1>
+    <p class="sub">DORMITORY GREYBOX / 4F × 6 ROOMS / 320-ZOMBIE RULESET, 4 SPAWNED</p>
+    <p class="lede">你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
+      楼里有三只游荡者和一只蜷伏者。没有武器，没有战斗 —— <em>只有声音</em>。</p>
+    <p>声音沿着开着的门绕行，不穿墙。关上门就真的能挡住。每个动作都有明码标价的响度，
+      丧尸的反应快慢与定位精度，完全由它听到的响度减去自己的阈值决定。
+      没有隐藏随机数，你可以在脑内推演。</p>
+    <p>按 <kbd>Tab</kbd> 打开俯视调试图，能实时看到声音在每个房间的到达响度、
+      每只丧尸的余量与它以为的声源位置；按 <kbd>P</kbd> 打开调参面板，21 个数值可以边玩边改。</p>
+    <div class="legend">
+      <div class="row"><span><kbd>W A S D</kbd></span><span class="act">移动</span><span class="val">20</span></div>
+      <div class="row"><span><kbd>Shift</kbd></span><span class="act">奔跑</span><span class="val">45</span></div>
+      <div class="row"><span><kbd>Ctrl</kbd> <kbd>C</kbd></span><span class="act">蹲行</span><span class="val">10</span></div>
+      <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙</span><span class="val">14</span></div>
+      <div class="row"><span><kbd>Space</kbd></span><span class="act">屏息 · 出声纹</span><span class="val">0</span></div>
+      <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
+      <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
+      <div class="row"><span><kbd>L</kbd> <kbd>X</kbd></span><span class="act">手电 / 看表</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>N</kbd> <kbd>T</kbd></span><span class="act">昼夜 / 时间流速</span><span class="val none">—</span></div>
+    </div>
+    <div class="go"><span class="dot"></span>点击画面开始 · 会锁定鼠标，<kbd>Esc</kbd> 退出锁定</div>
+  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -2416,6 +2483,10 @@
   const C = (root.Campus = root.Campus || {});
   const { M } = C;
 
+  const MONO = '"JetBrains Mono", ui-monospace, "PingFang SC", monospace';
+  const SANS = '"PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
+  const ACCENT = '#E4573D', SIGNAL = '#6FD3E8';
+
   const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
@@ -2436,13 +2507,13 @@
     const S = C.Config.player.stamina;
     const bw = 220, bh = 12, bx = 28, by = H - 46;
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
-    ctx.fillStyle = player.exhausted ? '#c0392b' : '#4aa3df';
+    ctx.fillStyle = player.exhausted ? ACCENT : SIGNAL;
     ctx.fillRect(bx, by, bw * (player.stamina / S.max), bh);
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
     ctx.strokeRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
-    ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '12px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '11px ' + MONO;
     ctx.textAlign = 'left';
-    ctx.fillText('体力', bx, by - 6);
+    ctx.fillText('STAMINA', bx, by - 6);
 
     // 姿态 / 状态
     const tags = [];
@@ -2453,12 +2524,12 @@
     if (player.running) tags.push('奔跑');
     if (player.exhausted) tags.push('力竭');
     if (player.flashlight) tags.push('手电');
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '12.5px ' + SANS;
     ctx.fillText(tags.join(' · ') || '站立', bx, by + 30);
 
     // 手中物品 / 快取
     ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '14px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
     ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
     if (player.charge > 0) {
       const cw = 120;
@@ -2471,7 +2542,7 @@
       const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
       const opening = !g.isPassable(p);
       const noun = player.interactTarget.kind === 'window' ? '窗' : '门';
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '13px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '12.5px ' + SANS;
       ctx.fillText(`[F] 轻点=快速${opening ? '开' : '关'}${noun}（吵）　按住=缓慢${opening ? '开' : '关'}（安静）`, cx, cy + 46);
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
@@ -2481,16 +2552,16 @@
 
     // 手表（不常驻）
     if (this.showWatch) {
-      ctx.textAlign = 'center'; ctx.font = '28px ui-monospace, monospace';
+      ctx.textAlign = 'center'; ctx.font = '26px ' + MONO;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       ctx.fillText('第 ' + time.day + ' 天  ' + time.format(), cx, H - 90);
     }
 
     if (!player.alive) {
       ctx.fillStyle = 'rgba(20,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
-      ctx.textAlign = 'center'; ctx.fillStyle = '#e6d2d2';
-      ctx.font = '38px system-ui, sans-serif'; ctx.fillText('你死了', cx, cy - 10);
-      ctx.font = '15px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.fillStyle = '#E4573D';
+      ctx.font = '34px ' + SANS; ctx.letterSpacing = '0.3em'; ctx.fillText('你死了', cx, cy - 10); ctx.letterSpacing = '0px';
+      ctx.font = '13px ' + SANS;
       ctx.fillText(player.deathCause || '', cx, cy + 24);
       ctx.fillText('按 R 重新开始', cx, cy + 52);
     }
@@ -2510,10 +2581,10 @@
       const R = s.band === '很近' ? 92 : s.band === '中等' ? 124 : 150;
       const x = cx + Math.sin(rel) * R, y = cy - Math.cos(rel) * R;
       const a = (1 - age) * 0.95;
-      ctx.fillStyle = `rgba(150,220,255,${a})`;
+      ctx.fillStyle = `rgba(111,211,232,${a})`;
       ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = `rgba(8,14,22,${a})`;
-      ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '11px ' + MONO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(ICONS[s.category] || '?', x, y + 0.5);
     }
     ctx.textBaseline = 'alphabetic';
@@ -2549,7 +2620,7 @@
   Debug.prototype.draw = function (level, player, time) {
     if (!this.visible) return;
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
-    ctx.fillStyle = 'rgba(8,10,16,0.94)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(11,13,17,0.96)'; ctx.fillRect(0, 0, W, H);
 
     const H_ = level.bounds.floorHeight;
     if (this.followPlayer) this.floor = M.clamp(Math.round(player.pos.y / H_), 0, level.bounds.floors - 1);
@@ -2565,7 +2636,7 @@
     const evt = C.SoundSystem.lastEvent;
 
     // ── 节点：填色 = 上一次声音事件在该节点入口的到达响度 ──
-    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '10.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace'; ctx.textAlign = 'center';
     for (const n of level.graph.nodes) {
       const onFloor = n.isOutdoor || n.floor === this.floor;
       if (!onFloor) continue;
@@ -2579,13 +2650,16 @@
       ctx.fillRect(x0, y0, w, h);
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
       ctx.strokeRect(x0, y0, w, h);
-      if (w > 34 && h > 18) {
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(n.name, x0 + w / 2, y0 + 13);
+      // 标签靠左上角，不放中间 —— 中间会被丧尸/玩家的图标和状态文字盖住
+      if (w > 34 && h > 16) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(220,227,235,0.78)';
+        ctx.fillText(n.name, x0 + 5, y0 + 12);
         if (rec) {
-          ctx.fillStyle = '#ffe08a';
-          ctx.fillText(rec.arrival.toFixed(1), x0 + w / 2, y0 + 26);
+          ctx.fillStyle = '#6FD3E8';
+          ctx.fillText(rec.arrival.toFixed(1), x0 + 5, y0 + 24);
         }
+        ctx.textAlign = 'center';
       }
     }
 
@@ -2633,8 +2707,13 @@
       ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(zx, zy);
       ctx.lineTo(zx + Math.sin(z.yaw) * 14, zy + Math.cos(z.yaw) * 14); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '10px system-ui, sans-serif';
-      ctx.fillText(z.state + ' m=' + z.currentMargin.toFixed(0), zx, zy - 10);
+      const label = z.state + ' m=' + z.currentMargin.toFixed(0);
+      ctx.font = '10px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
+      const lw = ctx.measureText(label).width + 8;
+      ctx.fillStyle = 'rgba(11,13,17,0.72)';
+      ctx.fillRect(zx - lw / 2, zy - 20, lw, 13);
+      ctx.fillStyle = 'rgba(220,227,235,0.92)';
+      ctx.fillText(label, zx, zy - 10);
       ctx.globalAlpha = 1;
     }
 
@@ -2652,15 +2731,15 @@
   Debug.prototype._panel = function (ctx, W, H, padR, level, player, time) {
     const x = W - padR + 14;
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillStyle = '#E4573D'; ctx.font = '500 12px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
     ctx.fillText('声音调试视图', 20, 30);
-    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '11.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText('Tab 关闭 · [ ] 切换楼层 · 当前 ' + (this.floor + 1) + 'F' +
                  (this.followPlayer ? '（跟随玩家，按 \\ 取消）' : ''), 150, 30);
 
     let y = 58;
     const line = (t, c) => { ctx.fillStyle = c || 'rgba(255,255,255,0.85)'; ctx.fillText(t, x, y); y += 17; };
-    ctx.font = '12px ui-monospace, monospace';
+    ctx.font = '11.5px "JetBrains Mono", ui-monospace, "PingFang SC", monospace';
     const st = C.SoundSystem.stats;
     line('时间  第' + time.day + '天 ' + time.format() + '  夜间系数 ' + time.getNightFactor().toFixed(2));
     line('传播  ' + st.lastMs.toFixed(3) + ' ms / ' + st.lastExpanded + ' 节点  （预算 0.5ms）',
