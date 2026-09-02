@@ -57,7 +57,15 @@
     lastEvent: null,
     lastResult: null,
 
-    init(graph, time) { this.graph = graph; this.time = time; return this; },
+    /* 室外遮挡判定由外部注入（声音规格 4.3）。
+       声音系统属于规则层，不能反过来依赖碰撞世界；注入一个纯函数即可保持分层单向。 */
+    occlusionTest: null,
+
+    init(graph, time, occlusionTest) {
+      this.graph = graph; this.time = time;
+      this.occlusionTest = occlusionTest || null;
+      return this;
+    },
 
     registerListener(hc) { if (this.listeners.indexOf(hc) < 0) this.listeners.push(hc); },
     unregisterListener(hc) {
@@ -182,7 +190,14 @@
       const node = this.graph.getNode(nodeId);
       const k = this.kFor(node);
       const segLen = V.dist(rec.entryPos, pos);
-      const arrival = rec.arrival - k * segLen;
+      let arrival = rec.arrival - k * segLen;
+      /* 室外没有天然的房间边界：同一个室外节点内，若入口点与听者之间隔着建筑体，
+         额外扣一次固定遮挡值（声音规格 4.3）。只对室外、只在同节点内做，
+         数量极少，开销可忽略。 */
+      if (node.isOutdoor && this.occlusionTest && segLen > 0.5 &&
+          !this.occlusionTest(rec.entryPos, pos)) {
+        arrival -= C.Config.sound.outdoorOcclusion;
+      }
       if (arrival <= 0) return null;
       // 方向 = 声音传来的路径入口方向，不是声源真实方向（声音规格 5.4）
       const dir = V.norm(V.sub(rec.entryPos, pos));

@@ -39,7 +39,9 @@
       this.level = C.buildDormitory();
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
-      C.SoundSystem.init(this.level.graph, this.time);
+      // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
+      C.SoundSystem.init(this.level.graph, this.time,
+        (a, b) => this.world.lineOfSight(a, b));
       C.Projectiles.init(this.world);
       this.player = new C.Player(this.level, this.world);
       C.ZombieManager.spawnAll(this.level, this.world);

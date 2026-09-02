@@ -87,6 +87,35 @@ time.hour = 12;
 // 多通道取最优：把门关上后，声音应该改走窗户+室外这条更差的路径或直接到不了
 doorPortal.state = 'Open';
 
+// 室外遮挡（声音规格 4.3）
+section('2b. 室外建筑遮挡');
+{
+  const g2 = new C.SoundGraph();
+  const out = g2.addNode({ name: '空地', kind: 'outdoor', isOutdoor: true,
+    bounds: C.AABB.make(-50, 0, -50, 50, 20, 50) });
+  const t2 = new C.TimeSystem(); t2.hour = 12;
+  const src2 = C.V.make(0, 1.5, 0), ear2 = C.V.make(20, 1.5, 0);
+  const mk = (occ) => {
+    C.SoundSystem.init(g2, t2, occ);
+    const r = C.SoundSystem.propagate({ id: 0, worldPosition: src2, nodeId: out.id,
+      loudness: 90, category: 'Impact', emitterId: -1, chainDepth: 0, timestamp: 0 });
+    return C.SoundSystem.resolveAt(r, ear2, out.id).arrival;
+  };
+  const clear = mk(() => true), blocked = mk(() => false);
+  ok('室外 k=1.2：20m 处 90 → 66', near(clear, 90 - 1.2 * 20, 0.01), clear.toFixed(2));
+  ok('有建筑遮挡时再扣 25', near(clear - blocked, C.Config.sound.outdoorOcclusion, 0.01),
+     `无遮挡 ${clear.toFixed(1)} / 有遮挡 ${blocked.toFixed(1)}`);
+  ok('遮挡判定只对室外生效', (() => {
+    const g3 = new C.SoundGraph();
+    const room = g3.addNode({ name: '室内', bounds: C.AABB.make(-50, 0, -50, 50, 20, 50) });
+    C.SoundSystem.init(g3, t2, () => false);
+    const r = C.SoundSystem.propagate({ id: 0, worldPosition: src2, nodeId: room.id,
+      loudness: 90, category: 'Impact', emitterId: -1, chainDepth: 0, timestamp: 0 });
+    return near(C.SoundSystem.resolveAt(r, ear2, room.id).arrival, 90 - 2.0 * 20, 0.01);
+  })());
+  C.SoundSystem.init(lv.graph, time);
+}
+
 // ── 3. 反应公式（声音规格 5.2）──────────────────────
 section('3. 丧尸反应公式');
 ok('margin=0  → 延迟 3.0s，误差 12m', near(C.Reaction.delay(0), 3.0) && near(C.Reaction.localizationError(0), 12));
