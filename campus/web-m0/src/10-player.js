@@ -68,6 +68,8 @@
   };
 
   Player.prototype._onHeard = function (info) {
+    // 只有丧尸发出的动静才成为声纹：走路、低吼、巡逻时的拖行声
+    if (C.Config.hearing.soundprintZombiesOnly && info.evt.emitterId < 100) return;
     // 方向角误差 =(1 − 听觉熟练度系数) × 基准角误差（声音规格 5.4）
     const err = (1 - info.localization) * C.Config.hearing.baseAngleError * M.deg2rad;
     // 误差用事件 id 做种子，同一个事件的指示方向不会每帧抖动
@@ -155,9 +157,14 @@
     if (this.wallHug) this.lean = 0;   // 贴墙时整个人已经在掩体后，探头交给第三人称视角
 
     // ── 屏息：阈值 25→8，同时提升定位精度（声音规格 5.4）──
+    // 听觉熟练度直接决定基础阈值（= 决定可听范围）
+    const H = C.Config.hearing;
+    const lvl = M.clamp(C.Config.skills.hearing.level | 0, 0, 5);
+    this.hearing.baseThreshold = H.playerLevelThreshold[lvl];
+    // 屏息在当前等级上再减一档，是加法不是覆盖 —— 覆盖会把等级的收益一笔抹掉
     const hasHB = C.ModifierPipeline.has('hearing.threshold', 'holdBreath');
     if (this.holdBreath && !hasHB) {
-      C.Mod.override('hearing.threshold', 'holdBreath', () => C.Config.hearing.playerHoldBreath, PLAYER_ID, 100);
+      C.Mod.add('hearing.threshold', 'holdBreath', () => -C.Config.hearing.holdBreathBonus, PLAYER_ID, 0);
       C.Mod.add('hearing.localization', 'holdBreath', 0.35, PLAYER_ID, 5);
     } else if (!this.holdBreath && hasHB) {
       C.Mod.remove('hearing.threshold', 'holdBreath');

@@ -163,13 +163,38 @@ ok('自己发出的声音被过滤', heardCount === 1);
 C.SoundSystem.emit({ worldPosition: src, loudness: 6, category: 'Footstep', emitterId: 1 });
 ok('低于阈值的声音不触发', heardCount === 1);
 
-// 屏息：把阈值 25 覆盖为 8
-const player = new C.HearingComponent({ ownerId: 1, baseThreshold: C.Config.hearing.player });
-ok('玩家常态阈值 25', player.finalThreshold() === 25);
-C.Mod.override('hearing.threshold', 'holdBreath', () => C.Config.hearing.playerHoldBreath, 1);
-ok('屏息后阈值 8', player.finalThreshold() === 8);
+// 玩家听觉：阈值即范围
+const HH = C.Config.hearing;
+const player = new C.HearingComponent({ ownerId: 1, baseThreshold: HH.player });
+ok('玩家初始阈值 9，只比丧尸的 10 好一点点', player.finalThreshold() === 9 && HH.player < HH.zombie);
+ok('对丧尸脚步(30)的初始可听半径 10.5m',
+   near(player.audibleRange(C.Config.loudness.zombieShuffle), 10.5, 0.01),
+   player.audibleRange(C.Config.loudness.zombieShuffle).toFixed(2) + 'm');
+C.Mod.add('hearing.threshold', 'holdBreath', () => -HH.holdBreathBonus, 1);
+ok('屏息是在当前阈值上做减法（9−4=5），不是覆盖', player.finalThreshold() === 5);
+ok('屏息后可听半径扩到 12.5m', near(player.audibleRange(C.Config.loudness.zombieShuffle), 12.5, 0.01));
 C.Mod.remove('hearing.threshold', 'holdBreath');
-ok('松开屏息恢复 25', player.finalThreshold() === 25);
+ok('松开屏息恢复 9', player.finalThreshold() === 9);
+// 熟练度逐级降阈值 = 逐级扩范围
+let prevT = Infinity, mono = true;
+for (let l = 0; l <= 5; l++) {
+  const t = HH.playerLevelThreshold[l];
+  if (t >= prevT) mono = false;
+  prevT = t;
+}
+ok('听觉 Lv0→Lv5 阈值单调下降', mono, HH.playerLevelThreshold.join(' → '));
+const rng = (L, t) => (L - t) / C.Config.sound.kIndoor;
+ok('等级对很轻的声音影响巨大：蜷伏者呼吸 1.5m → 5.0m',
+   near(rng(12, HH.playerLevelThreshold[0]), 1.5, 0.01) && near(rng(12, HH.playerLevelThreshold[5]), 5.0, 0.01));
+ok('对很响的声音影响有限：追击低吼 23m → 26.5m（上限由声源响度决定）',
+   near(rng(55, HH.playerLevelThreshold[0]), 23, 0.01) && near(rng(55, HH.playerLevelThreshold[5]), 26.5, 0.01));
+ok('阈值有下限，不会出现负阈值', (() => {
+  const h = new C.HearingComponent({ ownerId: 2, baseThreshold: 2 });
+  C.Mod.add('hearing.threshold', 'hb2', () => -99, 2);
+  const t = h.finalThreshold();
+  C.Mod.remove('hearing.threshold', 'hb2');
+  return t === HH.minThreshold;
+})());
 
 // ── 6. 夜间系数曲线（主文档 3.1）────────────────────
 section('6. 夜间系数平滑过渡');

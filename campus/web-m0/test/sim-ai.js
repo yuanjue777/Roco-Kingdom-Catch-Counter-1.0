@@ -176,15 +176,18 @@ function breathHeardWithin(dist, threshold) {
   return heard;
 }
 const TH = C.Config.hearing;
-ok('常态（阈值25）无论多近都听不见呼吸（响度 12 < 25）', breathHeardWithin(1.0, TH.player) === 0);
-ok('屏息（阈值8）几乎贴脸（水平 0.5m）才听得见', breathHeardWithin(0.5, TH.playerHoldBreath) > 0);
-ok('屏息在水平 1.5m 外就听不见了', breathHeardWithin(1.5, TH.playerHoldBreath) === 0);
+/* 常态阈值 9 对应可听半径 (12−9)/2 = 1.5m，而耳朵比趴在地上的声源高 1.65m —— 
+   光是高度差就超了。也就是说常态根本听不见蜷伏者呼吸，必须屏息。 */
+ok('常态（阈值9）听不见蜷伏者呼吸：1.5m 半径还不够抵消 1.65m 的高度差',
+   breathHeardWithin(0.0, TH.player) === 0);
+ok('屏息（阈值5）能把呼吸的可听距离拉开', breathHeardWithin(2.0, TH.player - TH.holdBreathBonus) > 0);
+ok('屏息也只有 3.5m 半径，4m 外就听不见', breathHeardWithin(4.0, TH.player - TH.holdBreathBonus) === 0);
 /* 雪上加霜：呼吸声从蜷伏者所在的地面高度发出，玩家耳朵在 1.65m，
    光是这个高度差就吃掉了 2m 可听预算里的 1.65m，水平可听距离只剩约 1.1m。 */
 ok('高度差吃掉大部分预算：水平 1.1m 时 3D 距离已接近 2m',
    Math.abs(Math.hypot(1.1, 1.65) - 1.98) < 0.05);
-ok('若把 crawlerBreath 提到 24，可听半径变成 8m（与起身范围一致）',
-   (24 - TH.playerHoldBreath) / C.Config.sound.kIndoor === 8);
+ok('若把 crawlerBreath 提到 24，屏息可听半径变成 9.5m（超过它 8m 的起身范围）',
+   (24 - (TH.player - TH.holdBreathBonus)) / C.Config.sound.kIndoor === 9.5);
 
 // ── 7. 追击上限 ────────────────────────────────────
 section('7. 同时追击上限');
@@ -348,16 +351,30 @@ function ear(thr, x) {
   C.SoundSystem.registerListener(h);
   return () => n;
 }
-const farNormal = ear(TH.player, 26), farHeld = ear(TH.playerHoldBreath, 26);
+const farNormal = ear(TH.player, 26), farHeld = ear(TH.player - TH.holdBreathBonus, 26);
 step(sim, 20);
 ok('移动中的丧尸会持续发出脚步声', C.SoundSystem.log.filter(e => e.label === '丧尸脚步').length > 0);
 const L = C.Config.loudness.zombieShuffle, k = C.Config.sound.kIndoor;
-ok(`屏息可听半径 ${(L - TH.playerHoldBreath) / k}m > 丧尸听见你走路的 ${(C.Config.loudness.walk - TH.zombie) / k}m`,
-   (L - TH.playerHoldBreath) / k > (C.Config.loudness.walk - TH.zombie) / k,
-   '玩家有先手');
-ok('常态阈值 25 时可听半径只有 2.5m（必须屏息才能当雷达用）',
-   Math.abs((L - TH.player) / k - 2.5) < 0.01);
-ok('16m 外常态听不见', farNormal() === 0, String(farNormal()));
+ok(`常态可听 ${(L - TH.player) / k}m > 丧尸听见你走路的 ${(C.Config.loudness.walk - TH.zombie) / k}m —— 玩家有先手`,
+   (L - TH.player) / k > (C.Config.loudness.walk - TH.zombie) / k);
+ok('屏息在常态基础上再扩 2m', Math.abs((L - (TH.player - TH.holdBreathBonus)) / k - (L - TH.player) / k - 2) < 0.01);
+/* 直接量可听半径：在同一个节点里，正好 10.5m 处应当刚好听得见，12m 处听不见 */
+ok('丧尸脚步的常态可听半径就是 10.5m', (() => {
+  const s3 = makeSim();
+  const at = (d) => {
+    let n = 0;
+    const h = new C.HearingComponent({ ownerId: 1, baseThreshold: TH.player,
+      onHeard: () => n++ });
+    h.position = C.V.make(10 + d, 1.3, 1.3);
+    h.nodeId = s3.level.graph.getNodeAt(h.position).id;
+    C.SoundSystem.registerListener(h);
+    C.SoundSystem.emit({ worldPosition: C.V.make(10, 1.3, 1.3), loudness: C.Config.loudness.zombieShuffle,
+                         category: C.SoundCategory.Footstep, emitterId: 101 });
+    C.SoundSystem.unregisterListener(h);
+    return n;
+  };
+  return at(10.4) > 0 && at(10.6) === 0;
+})());
 ok('趴伏的蜷伏者不发脚步声', (() => {
   const s2 = makeSim();
   const cr3 = C.ZombieManager.spawn({ type: 'Crawler', pos: C.V.make(10, 0, 4) }, s2.world);
@@ -400,7 +417,13 @@ pv.update(1 / 60, idle2, sim.time);
 C.SoundSystem.emit({ worldPosition: C.V.make(12, 3 * 3.2, 1.3), loudness: 60,
                      category: C.SoundCategory.Footstep, emitterId: 101, label: '丧尸脚步' });
 const sp = pv.soundprints[pv.soundprints.length - 1];
-ok('声纹记录了声源真实坐标（用于透视标记）', sp && sp.src && Math.abs(sp.src.x - 12) < 0.01);
+ok('声纹记录了声源真实坐标（标记挂在它头顶）', sp && sp.src && Math.abs(sp.src.x - 12) < 0.01);
+{
+  const before = pv.soundprints.length;
+  C.SoundSystem.emit({ worldPosition: C.V.make(13, 3 * 3.2, 1.3), loudness: 60,
+                       category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地' });
+  ok('非丧尸发出的声音不产生声纹（石头、门都不显示）', pv.soundprints.length === before);
+}
 ok('声纹标记了来源是丧尸', sp && sp.fromZombie === true);
 ok('方向指示仍按路径入口算（规格 5.4 不受影响）', typeof sp.angle === 'number');
 

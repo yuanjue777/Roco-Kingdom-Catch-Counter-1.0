@@ -151,9 +151,13 @@
          st.peakPerSecond > 40 ? '#ff8a8a' : '#8de08d');
     const counts = C.ZombieManager.countByState();
     line('丧尸  ' + Object.keys(counts).map(k => k + ':' + counts[k]).join('  '));
-    line('玩家  阈值 ' + player.hearing.finalThreshold().toFixed(0) +
-         '  定位 ' + player.hearing.finalLocalization().toFixed(2) +
+    const kNow = C.SoundSystem.kFor(level.graph.getNode(player.nodeId));
+    line('玩家  阈值 ' + player.hearing.finalThreshold().toFixed(1) +
+         '  听觉Lv' + (C.Config.skills.hearing.level | 0) +
          '  节点 ' + (level.graph.getNode(player.nodeId) || {}).name);
+    line('可听  丧尸脚步 ' + player.hearing.audibleRange(C.Config.loudness.zombieShuffle, kNow).toFixed(1) +
+         'm  低吼 ' + player.hearing.audibleRange(C.Config.loudness.zombieGrowl, kNow).toFixed(1) +
+         'm  呼吸 ' + player.hearing.audibleRange(C.Config.loudness.crawlerBreath, kNow).toFixed(1) + 'm');
     const key = player.baseLoudnessKey();
     const base = key ? C.Config.loudness[key] : 0;
     line('脚步  ' + (key || '静默') + ' 基础' + base + ' → 最终 ' +
@@ -183,8 +187,8 @@
     ['loudness.crawlerBreath', '蜷伏者呼吸响度', 0, 40, 1],
     ['loudness.zombieGrowl', '追击低吼响度', 0, 90, 1],
     ['hearing.zombie', '丧尸阈值', 1, 40, 1],
-    ['hearing.player', '玩家阈值', 1, 60, 1],
-    ['hearing.playerHoldBreath', '屏息阈值', 1, 40, 1],
+    ['hearing.player', '玩家基础阈值', 1, 30, 0.5],
+    ['hearing.holdBreathBonus', '屏息加成', 0, 12, 0.5],
     ['zombieReaction.maxChasers', '同时追击上限', 1, 30, 1],
     ['zombieReaction.chainMaxDepth', '连锁层数上限', 0, 5, 1],
     ['zombieReaction.investigateSpeedMul', '调查速度倍率', 0.5, 4, 0.1],

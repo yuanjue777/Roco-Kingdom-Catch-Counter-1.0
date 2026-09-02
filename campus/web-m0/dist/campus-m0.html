@@ -367,7 +367,7 @@
     sound: {
       kIndoor: 2.0,                // 室内每米衰减 2 点
       kOutdoor: 1.2,               // 室外每米衰减 1.2 点
-      globalMinThreshold: 8,       // Dijkstra 剪枝下限 = 全场最低听觉阈值（屏息玩家）
+      globalMinThreshold: 1,       // Dijkstra 剪枝下限 = 全场可能出现的最低听觉阈值
       outdoorOcclusion: 25,        // 室外同节点内被建筑遮挡时的额外扣减
       maxExpandedNodes: 400        // 安全阀，防止图数据出错时死循环
     },
@@ -424,8 +424,17 @@
       zombieAlert: 6,
       crawler: 6,
       runner: 6,
-      player: 25,
-      playerHoldBreath: 8,
+      /* 玩家听觉：阈值越低听得越远。可听半径 =(响度 − 阈值)/k。
+         初始 9，只比丧尸的 10 好一点点 —— 玩家不是超人，只是没那么迟钝。
+         熟练度每级降阈值，也就是每级扩范围；屏息在当前等级上再减 holdBreathBonus。
+         注意范围上限由**声源响度**决定，不由听力决定：所以等级对「很轻的声音」
+         影响巨大（蜷伏者呼吸 12：Lv0 1.5m → Lv5 5m），对「很响的声音」影响有限。 */
+      player: 9,
+      playerLevelThreshold: [9, 7.6, 6.2, 4.8, 3.4, 2],
+      holdBreathBonus: 4,
+      minThreshold: 1,
+      // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
+      soundprintZombiesOnly: true,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
@@ -1108,7 +1117,12 @@
 
   // 阈值与精度都不写死，每次使用前向修正管线查询（声音规格 2.4）
   HearingComponent.prototype.finalThreshold = function () {
-    return C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId);
+    return Math.max(C.Config.hearing.minThreshold,
+      C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId));
+  };
+  /** 对某个响度的可听半径（米）。UI 与调试用，规则本身不依赖它。 */
+  HearingComponent.prototype.audibleRange = function (loudness, k) {
+    return Math.max(0, (loudness - this.finalThreshold()) / (k || C.Config.sound.kIndoor));
   };
   HearingComponent.prototype.finalLocalization = function () {
     return M.clamp(C.ModifierPipeline.query('hearing.localization', this.baseLocalization, this.ownerId), 0, 1);
@@ -1744,6 +1758,8 @@
   };
 
   Player.prototype._onHeard = function (info) {
+    // 只有丧尸发出的动静才成为声纹：走路、低吼、巡逻时的拖行声
+    if (C.Config.hearing.soundprintZombiesOnly && info.evt.emitterId < 100) return;
     // 方向角误差 =(1 − 听觉熟练度系数) × 基准角误差（声音规格 5.4）
     const err = (1 - info.localization) * C.Config.hearing.baseAngleError * M.deg2rad;
     // 误差用事件 id 做种子，同一个事件的指示方向不会每帧抖动
@@ -1831,9 +1847,14 @@
     if (this.wallHug) this.lean = 0;   // 贴墙时整个人已经在掩体后，探头交给第三人称视角
 
     // ── 屏息：阈值 25→8，同时提升定位精度（声音规格 5.4）──
+    // 听觉熟练度直接决定基础阈值（= 决定可听范围）
+    const H = C.Config.hearing;
+    const lvl = M.clamp(C.Config.skills.hearing.level | 0, 0, 5);
+    this.hearing.baseThreshold = H.playerLevelThreshold[lvl];
+    // 屏息在当前等级上再减一档，是加法不是覆盖 —— 覆盖会把等级的收益一笔抹掉
     const hasHB = C.ModifierPipeline.has('hearing.threshold', 'holdBreath');
     if (this.holdBreath && !hasHB) {
-      C.Mod.override('hearing.threshold', 'holdBreath', () => C.Config.hearing.playerHoldBreath, PLAYER_ID, 100);
+      C.Mod.add('hearing.threshold', 'holdBreath', () => -C.Config.hearing.holdBreathBonus, PLAYER_ID, 0);
       C.Mod.add('hearing.localization', 'holdBreath', 0.35, PLAYER_ID, 5);
     } else if (!this.holdBreath && hasHB) {
       C.Mod.remove('hearing.threshold', 'holdBreath');
@@ -3348,9 +3369,13 @@
          st.peakPerSecond > 40 ? '#ff8a8a' : '#8de08d');
     const counts = C.ZombieManager.countByState();
     line('丧尸  ' + Object.keys(counts).map(k => k + ':' + counts[k]).join('  '));
-    line('玩家  阈值 ' + player.hearing.finalThreshold().toFixed(0) +
-         '  定位 ' + player.hearing.finalLocalization().toFixed(2) +
+    const kNow = C.SoundSystem.kFor(level.graph.getNode(player.nodeId));
+    line('玩家  阈值 ' + player.hearing.finalThreshold().toFixed(1) +
+         '  听觉Lv' + (C.Config.skills.hearing.level | 0) +
          '  节点 ' + (level.graph.getNode(player.nodeId) || {}).name);
+    line('可听  丧尸脚步 ' + player.hearing.audibleRange(C.Config.loudness.zombieShuffle, kNow).toFixed(1) +
+         'm  低吼 ' + player.hearing.audibleRange(C.Config.loudness.zombieGrowl, kNow).toFixed(1) +
+         'm  呼吸 ' + player.hearing.audibleRange(C.Config.loudness.crawlerBreath, kNow).toFixed(1) + 'm');
     const key = player.baseLoudnessKey();
     const base = key ? C.Config.loudness[key] : 0;
     line('脚步  ' + (key || '静默') + ' 基础' + base + ' → 最终 ' +
@@ -3380,8 +3405,8 @@
     ['loudness.crawlerBreath', '蜷伏者呼吸响度', 0, 40, 1],
     ['loudness.zombieGrowl', '追击低吼响度', 0, 90, 1],
     ['hearing.zombie', '丧尸阈值', 1, 40, 1],
-    ['hearing.player', '玩家阈值', 1, 60, 1],
-    ['hearing.playerHoldBreath', '屏息阈值', 1, 40, 1],
+    ['hearing.player', '玩家基础阈值', 1, 30, 0.5],
+    ['hearing.holdBreathBonus', '屏息加成', 0, 12, 0.5],
     ['zombieReaction.maxChasers', '同时追击上限', 1, 30, 1],
     ['zombieReaction.chainMaxDepth', '连锁层数上限', 0, 5, 1],
     ['zombieReaction.investigateSpeedMul', '调查速度倍率', 0.5, 4, 0.1],

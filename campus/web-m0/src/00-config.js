@@ -25,7 +25,7 @@
     sound: {
       kIndoor: 2.0,                // 室内每米衰减 2 点
       kOutdoor: 1.2,               // 室外每米衰减 1.2 点
-      globalMinThreshold: 8,       // Dijkstra 剪枝下限 = 全场最低听觉阈值（屏息玩家）
+      globalMinThreshold: 1,       // Dijkstra 剪枝下限 = 全场可能出现的最低听觉阈值
       outdoorOcclusion: 25,        // 室外同节点内被建筑遮挡时的额外扣减
       maxExpandedNodes: 400        // 安全阀，防止图数据出错时死循环
     },
@@ -82,8 +82,17 @@
       zombieAlert: 6,
       crawler: 6,
       runner: 6,
-      player: 25,
-      playerHoldBreath: 8,
+      /* 玩家听觉：阈值越低听得越远。可听半径 =(响度 − 阈值)/k。
+         初始 9，只比丧尸的 10 好一点点 —— 玩家不是超人，只是没那么迟钝。
+         熟练度每级降阈值，也就是每级扩范围；屏息在当前等级上再减 holdBreathBonus。
+         注意范围上限由**声源响度**决定，不由听力决定：所以等级对「很轻的声音」
+         影响巨大（蜷伏者呼吸 12：Lv0 1.5m → Lv5 5m），对「很响的声音」影响有限。 */
+      player: 9,
+      playerLevelThreshold: [9, 7.6, 6.2, 4.8, 3.4, 2],
+      holdBreathBonus: 4,
+      minThreshold: 1,
+      // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
+      soundprintZombiesOnly: true,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。

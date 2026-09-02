@@ -20,7 +20,12 @@
 
   // 阈值与精度都不写死，每次使用前向修正管线查询（声音规格 2.4）
   HearingComponent.prototype.finalThreshold = function () {
-    return C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId);
+    return Math.max(C.Config.hearing.minThreshold,
+      C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId));
+  };
+  /** 对某个响度的可听半径（米）。UI 与调试用，规则本身不依赖它。 */
+  HearingComponent.prototype.audibleRange = function (loudness, k) {
+    return Math.max(0, (loudness - this.finalThreshold()) / (k || C.Config.sound.kIndoor));
   };
   HearingComponent.prototype.finalLocalization = function () {
     return M.clamp(C.ModifierPipeline.query('hearing.localization', this.baseLocalization, this.ownerId), 0, 1);
