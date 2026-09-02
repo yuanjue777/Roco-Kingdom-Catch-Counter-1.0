@@ -1,0 +1,364 @@
+<title>校园 M0 系统核对表</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground:#EEF1F4; --surface:#FFFFFF; --surface2:#F5F7F9; --line:#D6DDE4; --line2:#E7ECF1;
+    --ink:#161A1F; --body:#3C4753; --muted:#6B7885; --dim:#93A0AC;
+    --accent:#C9432B;
+    --done-fg:#1F6B4F; --done-bg:#DFF0E7; --done-bd:#A9D6C0;
+    --part-fg:#8A5A08; --part-bg:#FAEEDA; --part-bd:#E5C68B;
+    --none-fg:#5A6673; --none-bg:#E8ECF0; --none-bd:#CFD7DE;
+    --extra-fg:#1C5E76; --extra-bg:#DEEEF4; --extra-bd:#A6CDDC;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --cjk:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground:#0B0D11; --surface:#141A22; --surface2:#111720; --line:#26313E; --line2:#1D2530;
+      --ink:#E4EAF1; --body:#B4C0CC; --muted:#8593A1; --dim:#5D6C7A;
+      --accent:#E4573D;
+      --done-fg:#6FD3A0; --done-bg:#14291F; --done-bd:#2C5943;
+      --part-fg:#E5B45C; --part-bg:#2B2317; --part-bd:#5A4823;
+      --none-fg:#8593A1; --none-bg:#1B222B; --none-bd:#2E3A47;
+      --extra-fg:#6FD3E8; --extra-bg:#122730; --extra-bd:#2A5461;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground:#0B0D11; --surface:#141A22; --surface2:#111720; --line:#26313E; --line2:#1D2530;
+    --ink:#E4EAF1; --body:#B4C0CC; --muted:#8593A1; --dim:#5D6C7A;
+    --accent:#E4573D;
+    --done-fg:#6FD3A0; --done-bg:#14291F; --done-bd:#2C5943;
+    --part-fg:#E5B45C; --part-bg:#2B2317; --part-bd:#5A4823;
+    --none-fg:#8593A1; --none-bg:#1B222B; --none-bd:#2E3A47;
+    --extra-fg:#6FD3E8; --extra-bg:#122730; --extra-bd:#2A5461;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--ground); color:var(--body);
+         font-family:var(--cjk); font-size:14px; line-height:1.7;
+         -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 22px 80px; }
+
+  header { border-left: 3px solid var(--accent); padding-left: 20px; margin-bottom: 30px; }
+  .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+             color:var(--accent); margin:0 0 10px; }
+  h1 { margin:0 0 6px; font-size:clamp(24px,4vw,34px); font-weight:600; letter-spacing:.16em;
+       color:var(--ink); text-wrap:balance; }
+  .meta { font-family:var(--mono); font-size:11.5px; color:var(--dim); letter-spacing:.03em;
+          display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px; }
+  .lede { margin:18px 0 0; max-width:62ch; color:var(--body); }
+  .lede b { color:var(--ink); font-weight:600; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:10px; margin:26px 0 6px; }
+  .tile { background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:13px 15px; }
+  .tile .n { font-family:var(--mono); font-size:26px; font-weight:500; line-height:1.1;
+             font-variant-numeric:tabular-nums; }
+  .tile .l { font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .tile.done .n{color:var(--done-fg)} .tile.part .n{color:var(--part-fg)}
+  .tile.none .n{color:var(--none-fg)} .tile.extra .n{color:var(--extra-fg)}
+
+  .bar { height:7px; border-radius:4px; overflow:hidden; display:flex; margin:16px 0 4px;
+         border:1px solid var(--line); background:var(--surface); }
+  .bar i { display:block; height:100%; }
+  .bar .d{background:var(--done-fg)} .bar .p{background:var(--part-fg)} .bar .x{background:var(--none-bd)}
+  .barnote { font-family:var(--mono); font-size:11px; color:var(--dim); }
+
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:28px 0 14px;
+             position:sticky; top:0; background:var(--ground); padding:10px 0; z-index:5;
+             border-bottom:1px solid var(--line2); }
+  .chip { font-family:var(--mono); font-size:11.5px; padding:5px 11px; border-radius:14px; cursor:pointer;
+          border:1px solid var(--line); background:var(--surface); color:var(--muted); }
+  .chip[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+  .toolbar .spacer { flex:1 }
+  .progress { font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+  .linkbtn { font-family:var(--mono); font-size:11.5px; color:var(--muted); background:none;
+             border:1px solid var(--line); border-radius:4px; padding:5px 10px; cursor:pointer; }
+  .linkbtn:hover { border-color:var(--accent); color:var(--accent); }
+
+  section { margin-top: 34px; }
+  h2 { font-size:15px; color:var(--ink); margin:0 0 3px; font-weight:600; letter-spacing:.04em;
+       display:flex; align-items:baseline; gap:10px; }
+  h2 .src { font-family:var(--mono); font-size:11px; color:var(--dim); letter-spacing:.06em; font-weight:400; }
+  .snote { font-size:12.5px; color:var(--muted); margin:0 0 12px; max-width:66ch; }
+
+  .rows { border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--surface); }
+  .row { display:grid; grid-template-columns:26px 1fr 82px minmax(0,1.35fr); gap:12px;
+         padding:11px 14px; border-bottom:1px solid var(--line2); align-items:start; }
+  .row:last-child { border-bottom:none; }
+  .row:nth-child(even) { background:var(--surface2); }
+  .row.checked .name, .row.checked .note { opacity:.42; }
+  .row.checked .name { text-decoration:line-through; text-decoration-color:var(--dim); }
+  .row input[type=checkbox] { width:15px; height:15px; margin-top:3px; accent-color:var(--accent); cursor:pointer; }
+  .name { color:var(--ink); font-size:13.5px; }
+  .name .id { font-family:var(--mono); font-size:11px; color:var(--dim); margin-right:7px; }
+  .note { font-size:12.5px; color:var(--muted); line-height:1.6; }
+  .note code { font-family:var(--mono); font-size:11.5px; background:var(--surface2);
+               border:1px solid var(--line2); border-radius:3px; padding:0 4px; color:var(--body); }
+  .st { font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; text-align:center;
+        border-radius:11px; padding:3px 0; border:1px solid; white-space:nowrap; }
+  .st.done{color:var(--done-fg);background:var(--done-bg);border-color:var(--done-bd)}
+  .st.part{color:var(--part-fg);background:var(--part-bg);border-color:var(--part-bd)}
+  .st.none{color:var(--none-fg);background:var(--none-bg);border-color:var(--none-bd)}
+  .st.extra{color:var(--extra-fg);background:var(--extra-bg);border-color:var(--extra-bd)}
+
+  .callout { border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:0 6px 6px 0;
+             background:var(--surface); padding:15px 18px; margin-top:14px; }
+  .callout h3 { margin:0 0 8px; font-size:13.5px; color:var(--ink); font-weight:600; }
+  .callout ul { margin:0; padding-left:19px; }
+  .callout li { margin-bottom:7px; font-size:13px; }
+  .callout li:last-child { margin-bottom:0; }
+  .callout b { color:var(--ink); }
+
+  footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--line);
+           font-size:12px; color:var(--dim); }
+  @media (max-width:720px) {
+    .row { grid-template-columns:24px 1fr 78px; }
+    .row .note { grid-column:2 / -1; }
+    .toolbar { position:static; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Implementation Audit</p>
+    <h1>校园 M0 系统核对表</h1>
+    <p class="meta">
+      <span id="mCommit">commit 5fe845b</span>
+      <span>103 tests passing</span>
+      <span>3373 lines / 18 modules</span>
+      <span id="mDate"></span>
+    </p>
+    <p class="lede">按《游戏设计文档 v1》与《声音系统规格 v1》的章节顺序逐条列出。
+      状态是<b>照着代码查的，不是凭记忆写的</b>——配置里定义了但没有任何代码引用的项，一律算「未开始」。
+      每行可以打勾，勾选状态存在你自己的浏览器里。</p>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="bar" id="bar"></div>
+  <p class="barnote" id="barnote"></p>
+
+  <div class="toolbar">
+    <button class="chip" data-f="all" aria-pressed="true">全部</button>
+    <button class="chip" data-f="done" aria-pressed="false">已完成</button>
+    <button class="chip" data-f="part" aria-pressed="false">部分</button>
+    <button class="chip" data-f="none" aria-pressed="false">未开始</button>
+    <button class="chip" data-f="extra" aria-pressed="false">文档外</button>
+    <span class="spacer"></span>
+    <span class="progress" id="prog"></span>
+    <button class="linkbtn" id="clear">清除勾选</button>
+  </div>
+
+  <div id="body"></div>
+
+  <section>
+    <h2>需要你拍板的问题</h2>
+    <p class="snote">这些是实现过程中撞出来的、文档没法自己回答的问题。按主文档 0.2.5，我没有自行改动数值。</p>
+    <div class="callout">
+      <ul>
+        <li><b>「有效半径」用哪一列？</b>声音规格 6.1 的半径是到达响度归零处，但丧尸阈值是 10，
+          对丧尸的实际半径是 <code>(响度−阈值)/k</code>——走路是 5m 不是 10m，奔跑是 17.5m 不是 22m。差一倍。</li>
+        <li><b>蹲行响度 10 = 丧尸阈值 10</b>，意味着蹲行在数学上绝对安全。这应该是「很难被听见」还是「不可能被听见」？</li>
+        <li><b>蜷伏者呼吸声的可听半径只有 2m</b>（响度 12、屏息阈值 8、k=2），扣掉声源在地面、耳朵在 1.65m
+          的高度差后水平只剩约 1.1m；而它的起身范围是 8m。要让屏息真能用来扫房间，这个值得提到 20–24。</li>
+        <li><b>丧尸会不会撞门？</b>文档没定义。目前关上的门对丧尸是绝对屏障，
+          这让「关门」变成零代价的万能解。响度表里有「撞门 70」，但没有对应的行为规则。</li>
+        <li><b>调查状态的移动速度？</b>文档只给了游荡 1.0 与追击 3.2，中间态没有定义，目前用占位值 1.6。</li>
+        <li><b>跳跃要不要留？</b>主文档 4.1 的姿态表里没有跳跃。目前实现了，相关数值全部标注为文档外，
+          砍掉或写回文档都很容易。</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    状态说明：<b>已完成</b>＝按文档实现并有测试或实机验证；<b>部分</b>＝主干可用但有明确缺口；
+    <b>未开始</b>＝没有任何实现（含只在配置里有定义的）；<b>文档外</b>＝文档没写、应需求新增。
+  </footer>
+</div>
+
+<script>
+const D = [
+ ["声音系统规格 v1", "这是 M0 的核心，逐条对照", [
+  ["2.1", "SoundEvent 结构", "done", "worldPosition / nodeId / loudness / category / emitterId / timestamp 全有；额外加了 <code>chainDepth</code> 支持连锁上限"],
+  ["2.2", "SoundNode 房间节点", "done", "id / bounds / isOutdoor / buildingId / portals；额外加了 floor / kind"],
+  ["2.3", "SoundPortal 连接", "done", "8 种类型 × 4 种状态查表；状态变化发 <code>PortalStateChanged</code>，同时挡人挡声"],
+  ["2.4", "HearingComponent", "done", "玩家与丧尸<b>共用同一个类</b>；阈值与定位精度每次使用前经修正管线查询"],
+  ["3.1", "核心传播公式", "done", "源响度 − k×路径长度 − Σ Portal 衰减；室内 2.0 / 室外 1.2 / 夜间 ×0.7"],
+  ["3.2", "Dijkstra 图搜索", "done", "代价＝累计衰减；按 GLOBAL_MIN_THRESHOLD 剪枝；每节点保留最优路径"],
+  ["3.3", "听者结算", "done", "加上节点内最后一段距离——同房间贴脸与隔十米不再等价"],
+  ["3.4", "结算时机", "part", "事件驱动、不在 Update 轮询 ✓；「同帧多事件合并批处理」未做，目前各跑各的"],
+  ["4.1", "未加载区域", "part", "图数据常驻内存、传播不受加载状态影响 ✓；分区加载本身未实现（M0 只有一栋楼）"],
+  ["4.2", "跨楼栋传播", "done", "楼与楼经室外节点相连，窗户作为 Portal；已有楼前/楼后两片室外空地"],
+  ["4.3", "室外传播", "done", "室外大节点 + <code>OpenAir</code> 零衰减连接；同节点内被建筑遮挡再扣 25，射线判定由装配层注入"],
+  ["4.4", "移动声源", "done", "脚步是离散事件：跑 0.35s、走 0.7s 一次"],
+  ["4.5", "自己的声音", "done", "按 emitterId 过滤自己的声纹显示，但<b>仍然会被丧尸听见</b>"],
+  ["5.1", "余量 margin", "done", "margin ≤ 0 直接丢弃事件"],
+  ["5.2", "丧尸反应曲线", "done", "延迟 <code>clamp(3−m×0.06)</code>、误差 <code>clamp(12−m×0.25)</code>；偏移在接收时确定一次并固定，丧尸不抖"],
+  ["5.3", "优先级覆盖", "done", "已在调查时，新声音需高出 8 才切目标；连续投石不会让丧尸原地抽搐"],
+  ["5.4", "玩家听觉与声纹", "done", "方向取<b>路径入口</b>而非声源真实方向；角误差随熟练度收敛；距离只给很近/中等/很远"],
+  ["6.1", "行为响度表", "part", "18 项数值全部录入；其中 11 项有对应行为。砸玻璃 / 近战 / 受伤呼痛 / 广播 / 翻找 / 撞门 / 玻璃瓶尚无产生它们的机制"],
+  ["6.2", "连接类型衰减表", "done", "8 类 × 4 态全部录入并生效，含 <code>Blocked</code> 同时阻断通行"],
+  ["6.3", "感知阈值表", "done", "丧尸 10 / 警觉中 6 / 玩家 25 / 屏息 8，全部经管线"],
+  ["7", "对外接口", "done", "<code>SoundSystem.emit()</code> 一行发声，调用方不需要知道图、节点、Portal"],
+  ["9", "性能预算", "done", "单次传播实测 0.023ms（预算 0.5ms）；响度 150 展开 38 节点（预算 150）"]
+ ]],
+ ["第三部分 · 时间与需求", "", [
+  ["3.1", "游戏时钟与昼夜", "done", "1 游戏小时＝85 秒；夜间声音系数 19:00→19:30 平滑降到 0.7、05:30→06:00 回升；光照同步过渡"],
+  ["3.2", "生命条与饥饿口渴挤占", "none", "完全未做。M0 没有生命值，接触丧尸即死"],
+  ["3.3", "体力条与困乏", "part", "体力全部实现：跑 −8/s、屏息 −3/s、攀爬 −12/次、站立 +6/s、蹲下 +9/s、力竭 −30% 速度并产生响度 25 的喘息。<b>困乏挤占未做</b>"],
+  ["3.4", "睡眠与安全睡点", "none", ""],
+  ["3.5", "夜行", "part", "夜间声音传得更远 ✓、丧尸视觉半径减半 ✓、手电使夜间半径 ×1.8 ✓；「部分丧尸夜间回到固定聚集点」未做"]
+ ]],
+ ["第四部分 · 玩家", "", [
+  ["4.1", "移动与姿态", "done", "站立 2.4 / 奔跑 4.6 / 蹲行 1.2 / 贴墙 1.0；响度全部经管线；负重三条公式已接入（无背包，用调参面板模拟 r）"],
+  ["4.2", "潜行动作", "done", "贴墙、左右探头、屏息（阈值 25→8、速度降为蹲行的 50%）、声纹显示"],
+  ["4.3", "交互", "part", "开关门窗的快版/慢版全做了（35·30 / 12·10）；<b>翻找容器、封锁未做</b>"],
+  ["4.4", "投掷", "part", "石头完成：蓄力、弹道点阵、落点标记、引怪半径圈与数值。玻璃瓶 / 发令枪 / <b>闹钟</b>未做"],
+  ["4.5", "视觉与被发现", "done", "锥角 110°、半径 14m、夜间 ×0.5、持灯 ×1.8、蹲下 ×0.6、探头 ×0.35、射线遮挡、0.8 秒识别条，全部按文档"],
+  ["＋", "跳跃与情境翻越", "extra", "文档里没有跳跃。Space 一键两用：前方有 0.30–1.45m 且上方 0.95m 净空的边缘就翻越，否则起跳。翻越沿用文档内的 −12 体力与响度 30"]
+ ]],
+ ["第五部分 · 丧尸", "", [
+  ["5.1", "总体设定", "part", "唯一 ID + 持久状态 ✓、死亡永久移除 ✓；<b>320 只的规模与未加载区域的简化模拟未做</b>（M0 按文档只放 4 只）"],
+  ["5.2", "三种类型", "part", "游荡者 ✓、蜷伏者 ✓（趴伏、8m 内才起身、屏息可听见呼吸）；奔行者定义已录入但未布置（文档说第 12 天后才出现）"],
+  ["5.3", "感知与反应", "done", "见声音规格 5.2；警觉状态阈值降到 6 也经管线"],
+  ["5.4", "行为状态机", "done", "游荡→警觉→调查→搜索→追击 全通；追击时每 1.5 秒发出响度 55 的低吼"],
+  ["5.5", "连锁警戒上限", "done", "最多传播 2 层、同时追击上限 12 只，均可配置，有专门测试"],
+  ["5.6", "尸群迁移", "none", ""],
+  ["？", "丧尸撞门", "none", "文档未定义此机制。目前关上的门对丧尸是绝对屏障"]
+ ]],
+ ["第七部分 · 物资、背包与制作", "整块尚未开始，属于 M1–M3 的范围", [
+  ["7.1", "格子背包", "part", "负重的三条公式已接入管线并有测试；<b>格子系统、快取位、容器本身未做</b>"],
+  ["7.2", "物资分布", "none", ""],
+  ["7.3", "水系统与第 8 天停水", "none", ""],
+  ["7.4", "烹饪", "none", ""],
+  ["7.5", "制作与工作台", "none", ""]
+ ]],
+ ["第八部分 · 战斗、伤势与熟练度", "", [
+  ["8.1", "近战武器", "none", "六种武器的数值尚未录入"],
+  ["8.2", "战斗规则", "none", "M0 无战斗。接触丧尸即死，是占位规则不是设计"],
+  ["8.3", "伤势系统", "none", "出血 / 骨折 / 感染 / 腹泻均未做"],
+  ["8.4", "死亡", "part", "死亡→重开已通；「存档删除」无从谈起，因为还没有存档"],
+  ["8.5", "熟练度", "part", "静步与听觉两项已接入管线并可在调参面板调级；<b>体能 / 敏捷 / 烹饪 / 手艺未接</b>；反刷分的经验累积规则未做（等级目前靠手动设）"]
+ ]],
+ ["第九部分 · 地图", "", [
+  ["9.1", "全校区域", "none", "只有男生宿舍楼一栋"],
+  ["9.3", "出生点 402", "done", "四楼第二间，面朝房门；三楼楼梯口有一只必须绕开的游荡者"],
+  ["9.4", "六个出入口", "none", "结局二相关"],
+  ["9.5", "分区加载", "part", "「声音连通图全量常驻」这一条已经成立；异步加载/卸载本身未做"],
+  ["9.6", "房间节点标注", "done", "宿舍楼按文档做成了程序化模板；<b>几何与声音图由同一份布局推导</b>，杜绝两者对不上"]
+ ]],
+ ["第十部分 · 界面", "", [
+  ["10.1", "HUD", "part", "体力条、姿态、手中物品、屏息时的声纹环、时间不常驻（按 X 看表）均已实现；生命条缺席是因为还没有生命系统"],
+  ["10.2", "背包界面", "none", ""],
+  ["10.3", "笔记本", "none", ""],
+  ["10.4", "暂停菜单", "none", ""]
+ ]],
+ ["第十一部分 · 技术架构", "这部分是硬约束，逐条对照过", [
+  ["11.1", "分层单向依赖", "done", "第 1–3 层（00–11 号模块）完全不依赖浏览器与渲染引擎，可在 node 里直接跑测试"],
+  ["11.2", "事件总线", "done", "含递归深度 8 的告警。12 类核心事件已定义，其中 3 类当前有订阅者，其余等对应系统落地"],
+  ["11.3", "数值修正管线", "done", "Additive → Multiplicative → Override，支持按 ownerId 过滤；负重、熟练度、屏息、警觉阈值全部走它"],
+  ["11.4", "数据资产", "done", "等价物是 <code>00-config.js</code>：文档第三到第八部分出现的数字全在里面，业务代码无硬编码"],
+  ["11.5", "存档", "none", "完全未做。这是 M1 的内容"],
+  ["11.6", "命名规范", "part", "JS 侧按等价规则执行（类型 PascalCase、私有 _camelCase、事件以 Event 结尾、管线 key 小写点分）"],
+  ["11.7", "性能预算", "part", "声音传播已实测达标；「60 只活跃 AI / 260 只简化模拟 / 60FPS」尚未压测，因为还没有那么多丧尸"]
+ ]],
+ ["尚未开始的整块", "这几块依赖前面的系统，按文档的里程碑顺序还没轮到", [
+  ["二", "三条结局线", "none", "等待救援 / 净化 / 逃离，以及收音机、广播、发电机、信标"],
+  ["六", "幸存者", "none", "四名 NPC 与招募流程"],
+  ["12", "M2–M6 里程碑", "none", "校园全图、可持续、冲突、结局、打磨"]
+ ]],
+ ["文档外的新增", "都是为了让原型能被评估而加的，不改变任何文档内的规则", [
+  ["＋", "程序化音效", "extra", "不用任何素材：音量取自 margin、声像取自路径入口方向。你耳朵听到的就是规则层算出来的"],
+  ["＋", "声音调试俯视图", "extra", "文档 13.2 风险三点名要求的工具。实时显示每个节点的到达响度、每只丧尸的 margin 与它以为的声源位置"],
+  ["＋", "实时调参面板", "extra", "21 个关键数值可以边玩边改，用来定手感"],
+  ["＋", "触屏操作层", "extra", "虚拟摇杆输出模拟量、拖拽转视角、按住类与开关类按键分离"],
+  ["＋", "单文件构建", "extra", "把 three.js 一并内联，双击即可离线运行"]
+ ]]
+];
+
+const LABEL = { done:"已完成", part:"部分", none:"未开始", extra:"文档外" };
+const KEY = "campus-m0-audit-v1";
+let checked = {};
+try { checked = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { checked = {}; }
+
+const body = document.getElementById("body");
+let counts = { done:0, part:0, none:0, extra:0 }, total = 0;
+
+D.forEach((sec, si) => {
+  const el = document.createElement("section");
+  const h = document.createElement("h2");
+  h.innerHTML = sec[0];
+  el.appendChild(h);
+  if (sec[1]) { const p = document.createElement("p"); p.className = "snote"; p.textContent = sec[1]; el.appendChild(p); }
+  const rows = document.createElement("div");
+  rows.className = "rows";
+  sec[2].forEach((r, ri) => {
+    const [id, name, st, note] = r;
+    counts[st]++; total++;
+    const key = si + "." + ri;
+    const div = document.createElement("div");
+    div.className = "row" + (checked[key] ? " checked" : "");
+    div.dataset.st = st;
+    div.innerHTML =
+      '<input type="checkbox" aria-label="' + name + '"' + (checked[key] ? " checked" : "") + '>' +
+      '<div class="name"><span class="id">' + id + '</span>' + name + '</div>' +
+      '<div class="st ' + st + '">' + LABEL[st] + '</div>' +
+      '<div class="note">' + (note || "") + '</div>';
+    div.querySelector("input").addEventListener("change", (e) => {
+      checked[key] = e.target.checked;
+      div.classList.toggle("checked", e.target.checked);
+      persist(); renderProgress();
+    });
+    rows.appendChild(div);
+  });
+  el.appendChild(rows);
+  body.appendChild(el);
+});
+
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(checked)); } catch (e) {} }
+
+document.getElementById("tiles").innerHTML =
+  [["done","已完成"],["part","部分"],["none","未开始"],["extra","文档外新增"]]
+    .map(([k, l]) => '<div class="tile ' + k + '"><div class="n">' + counts[k] + '</div><div class="l">' + l + '</div></div>')
+    .join("");
+
+const inDoc = counts.done + counts.part + counts.none;
+document.getElementById("bar").innerHTML =
+  '<i class="d" style="width:' + (counts.done / inDoc * 100) + '%"></i>' +
+  '<i class="p" style="width:' + (counts.part / inDoc * 100) + '%"></i>' +
+  '<i class="x" style="width:' + (counts.none / inDoc * 100) + '%"></i>';
+document.getElementById("barnote").textContent =
+  "文档内共 " + inDoc + " 条：已完成 " + counts.done + " · 部分 " + counts.part + " · 未开始 " + counts.none +
+  "。另有 " + counts.extra + " 条文档外新增。";
+
+function renderProgress() {
+  const n = Object.values(checked).filter(Boolean).length;
+  document.getElementById("prog").textContent = "已核对 " + n + " / " + total;
+}
+renderProgress();
+
+document.querySelectorAll(".chip").forEach((c) => {
+  c.addEventListener("click", () => {
+    document.querySelectorAll(".chip").forEach((o) => o.setAttribute("aria-pressed", o === c));
+    const f = c.dataset.f;
+    document.querySelectorAll(".row").forEach((r) => {
+      r.style.display = (f === "all" || r.dataset.st === f) ? "" : "none";
+    });
+    document.querySelectorAll("section").forEach((s) => {
+      const rows = s.querySelectorAll(".row");
+      if (!rows.length) return;
+      s.style.display = [...rows].some((r) => r.style.display !== "none") ? "" : "none";
+    });
+  });
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+  checked = {}; persist();
+  document.querySelectorAll(".row").forEach((r) => { r.classList.remove("checked"); r.querySelector("input").checked = false; });
+  renderProgress();
+});
+
+document.getElementById("mDate").textContent = new Date().toISOString().slice(0, 10);
+</script>
