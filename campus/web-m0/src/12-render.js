@@ -13,7 +13,7 @@
   function Renderer(canvas, level) {
     this.level = level;
     this.three = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.three.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11131a);
     this.scene.fog = new THREE.Fog(0x11131a, 12, 60);
@@ -175,6 +175,7 @@
   };
 
   Renderer.prototype.resize = function (w, h) {
+    this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.three.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();

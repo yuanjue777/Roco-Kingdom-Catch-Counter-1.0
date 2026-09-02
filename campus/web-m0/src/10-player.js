@@ -142,15 +142,17 @@
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     let mx = input.right * cos - input.forward * sin;
     let mz = -input.right * sin - input.forward * cos;
+    // 只在超过 1 时归一化：键盘斜向走(√2)被压回 1，触屏摇杆的模拟量(0~1)得以保留
     const mlen = Math.hypot(mx, mz);
-    if (mlen > 1e-4) { mx /= mlen; mz /= mlen; } else { mx = mz = 0; }
+    if (mlen > 1) { mx /= mlen; mz /= mlen; } else if (mlen < 1e-3) { mx = mz = 0; }
+    const mag = Math.min(mlen, 1);            // 摇杆推到几分，速度就是几分
     if (this.wallHug && this.wallNormal) {
       // 贴墙时把移动投影到墙面上
       const d = mx * this.wallNormal.x + mz * this.wallNormal.z;
       mx -= d * this.wallNormal.x; mz -= d * this.wallNormal.z;
     }
     this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
-    this.speedNow = this.moving ? speed : 0;
+    this.speedNow = this.moving ? speed * mag : 0;
     if (this.moving) this.world.moveCharacter(this.pos, mx * speed * dt, mz * speed * dt, P.radius, 1.7, P.stepHeight);
     else this.world.snapToGround(this.pos, P.radius, P.stepHeight);
 

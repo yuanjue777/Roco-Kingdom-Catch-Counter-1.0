@@ -90,12 +90,121 @@
   }
   #tuner button:hover { border-color: var(--accent); color: var(--accent); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ── 触屏层 ─────────────────────────────────────────
+     只在 pointer:coarse 的设备上出现（或 URL 加 ?touch=1 强制打开）。
+     整层负责接住空白处的拖拽来转视角，按钮是它的子元素。 */
+  body.touch { overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+               -webkit-tap-highlight-color: transparent; }
+  #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
+  #touch[hidden] { display: none; }
+  #touch button { touch-action: none; }
+
+  #stickBase {
+    position: absolute; left: calc(18px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 108px; height: 108px; border-radius: 50%;
+    background: rgba(20,26,34,0.42); border: 1px solid var(--line); backdrop-filter: blur(2px);
+  }
+  #stickKnob {
+    position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; border-radius: 50%;
+    transform: translate(-50%, -50%); background: rgba(228,87,61,0.5); border: 1px solid var(--accent);
+    pointer-events: none;
+  }
+
+  .tb {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1px; overflow: hidden; border-radius: 50%; cursor: pointer;
+    background: rgba(20,26,34,0.5); border: 1px solid var(--line); color: var(--ink);
+    font-family: var(--cjk); font-size: 13px; line-height: 1.1; backdrop-filter: blur(2px);
+    width: 52px; height: 52px; padding: 0;
+  }
+  .tb small { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .tb.big { width: 72px; height: 72px; font-size: 14px; }
+  .tb.sm { width: 44px; height: 44px; font-size: 11.5px; }
+  .tb.tiny { width: auto; height: 27px; border-radius: 14px; padding: 0 11px; font-size: 11px; }
+  .tb.on { border-color: var(--accent); color: var(--accent); background: rgba(228,87,61,0.16); }
+  .tb.avail { border-color: var(--signal); color: var(--signal); }
+  .tb.flash { background: rgba(228,87,61,0.28); }
+  /* 蓄力 / 长按进度：手机上没有准星旁的提示环，进度只能画在按钮自己身上 */
+  .tb::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to top, rgba(228,87,61,0.45) var(--fill, 0%), transparent var(--fill, 0%));
+  }
+
+  .pad { position: absolute; display: flex; gap: 9px; }
+  .pad-mods { left: calc(140px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom));
+              flex-direction: column-reverse; }
+  .pad-lean { left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .pad-act  { right: calc(20px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+              align-items: flex-end; }
+  .pad-act .col { display: flex; flex-direction: column; gap: 9px; }
+  .pad-util { right: calc(14px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); }
+
+  /* 竖屏：宽度只有 390px，探头键夹在摇杆区和动作区中间必然打架，整排上移 */
+  @media (orientation: portrait) {
+    .pad-lean { bottom: calc(212px + env(safe-area-inset-bottom)); }
+    .pad-mods { left: calc(134px + env(safe-area-inset-left)); }
+  }
+
+  #rotateHint {
+    position: absolute; left: 50%; top: calc(52px + env(safe-area-inset-top)); transform: translateX(-50%);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--accent);
+    border: 1px solid var(--line); background: rgba(11,13,17,0.8); padding: 5px 12px; border-radius: 3px;
+  }
+  #rotateHint[hidden] { display: none; }
+
+  /* 开场层在手机上的适配 */
+  body.touch .card { padding-left: 18px; }
+  body.touch .desktop-only { display: none; }
+  .touch-only { display: none; }
+  body.touch .touch-only { display: flex; }
+  body.touch #tuner { width: min(330px, 86vw); }
+  @media (max-height: 420px) {
+    #stickBase { width: 94px; height: 94px; }
+    #stickKnob { width: 38px; height: 38px; }
+    .tb { width: 46px; height: 46px; font-size: 12px; }
+    .tb.big { width: 62px; height: 62px; font-size: 13px; }
+    .tb.sm { width: 40px; height: 40px; font-size: 11px; }
+    .pad-mods { left: calc(122px + env(safe-area-inset-left)); }
+  }
+  @media (max-height: 460px) {
+    body.touch .card h1 { font-size: 26px; }
+    body.touch .card p:not(.lede):not(.sub) { display: none; }
+    body.touch .legend { display: none; }
+  }
 </style>
 <canvas id="view"></canvas>
 <canvas id="hud"></canvas>
 <canvas id="dbg"></canvas>
 <div id="toast"></div>
 <div id="tuner"></div>
+<div id="touch" hidden>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div class="pad pad-mods">
+    <button id="btnCrouch" class="tb sm" type="button">蹲</button>
+    <button id="btnRun" class="tb sm" type="button">跑</button>
+    <button id="btnWall" class="tb sm" type="button">贴墙</button>
+  </div>
+  <div class="pad pad-lean">
+    <button id="btnLeanL" class="tb sm" type="button">◀探</button>
+    <button id="btnLeanR" class="tb sm" type="button">探▶</button>
+  </div>
+  <div class="pad pad-act">
+    <div class="col">
+      <button id="btnInteract" class="tb" type="button">F<small>门</small></button>
+      <button id="btnThrow" class="tb" type="button">G<small>投石</small></button>
+    </div>
+    <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
+  </div>
+  <div class="pad pad-util">
+    <button id="btnTorch" class="tb tiny" type="button">手电</button>
+    <button id="btnWatch" class="tb tiny" type="button">看表</button>
+    <button id="btnDebug" class="tb tiny" type="button">调试</button>
+    <button id="btnTune" class="tb tiny" type="button">调参</button>
+    <button id="btnHelp" class="tb tiny" type="button">?</button>
+  </div>
+  <div id="rotateHint" hidden>建 议 横 屏</div>
+</div>
 <div id="startHint">
   <div class="card">
     <p class="eyebrow">M0 · 潜行手感验证</p>
@@ -120,7 +229,8 @@
       <div class="row"><span><kbd>L</kbd> <kbd>X</kbd></span><span class="act">手电 / 看表</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>N</kbd> <kbd>T</kbd></span><span class="act">昼夜 / 时间流速</span><span class="val none">—</span></div>
     </div>
-    <div class="go"><span class="dot"></span>点击画面开始 · 会锁定鼠标，<kbd>Esc</kbd> 退出锁定</div>
+    <div class="go desktop-only"><span class="dot"></span>点击画面开始 · 会锁定鼠标，<kbd>Esc</kbd> 退出锁定</div>
+    <div class="go touch-only"><span class="dot"></span>点击任意处开始 · 左下摇杆移动，空白处拖拽转视角</div>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1593,15 +1703,17 @@
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     let mx = input.right * cos - input.forward * sin;
     let mz = -input.right * sin - input.forward * cos;
+    // 只在超过 1 时归一化：键盘斜向走(√2)被压回 1，触屏摇杆的模拟量(0~1)得以保留
     const mlen = Math.hypot(mx, mz);
-    if (mlen > 1e-4) { mx /= mlen; mz /= mlen; } else { mx = mz = 0; }
+    if (mlen > 1) { mx /= mlen; mz /= mlen; } else if (mlen < 1e-3) { mx = mz = 0; }
+    const mag = Math.min(mlen, 1);            // 摇杆推到几分，速度就是几分
     if (this.wallHug && this.wallNormal) {
       // 贴墙时把移动投影到墙面上
       const d = mx * this.wallNormal.x + mz * this.wallNormal.z;
       mx -= d * this.wallNormal.x; mz -= d * this.wallNormal.z;
     }
     this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
-    this.speedNow = this.moving ? speed : 0;
+    this.speedNow = this.moving ? speed * mag : 0;
     if (this.moving) this.world.moveCharacter(this.pos, mx * speed * dt, mz * speed * dt, P.radius, 1.7, P.stepHeight);
     else this.world.snapToGround(this.pos, P.radius, P.stepHeight);
 
@@ -2208,7 +2320,7 @@
   function Renderer(canvas, level) {
     this.level = level;
     this.three = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.three.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11131a);
     this.scene.fog = new THREE.Fog(0x11131a, 12, 60);
@@ -2370,6 +2482,7 @@
   };
 
   Renderer.prototype.resize = function (w, h) {
+    this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.three.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -2503,9 +2616,11 @@
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, cx, cy);
 
-    // 体力条
+    // 体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
+    const touch = C.Touch && C.Touch.enabled;
     const S = C.Config.player.stamina;
-    const bw = 220, bh = 12, bx = 28, by = H - 46;
+    const bw = touch ? 150 : 220, bh = touch ? 9 : 12;
+    const bx = touch ? 16 : 28, by = touch ? 26 : H - 46;
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
     ctx.fillStyle = player.exhausted ? ACCENT : SIGNAL;
     ctx.fillRect(bx, by, bw * (player.stamina / S.max), bh);
@@ -2524,17 +2639,23 @@
     if (player.running) tags.push('奔跑');
     if (player.exhausted) tags.push('力竭');
     if (player.flashlight) tags.push('手电');
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '12.5px ' + SANS;
-    ctx.fillText(tags.join(' · ') || '站立', bx, by + 30);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = (touch ? '11.5px ' : '12.5px ') + SANS;
+    ctx.fillText(tags.join(' · ') || '站立', bx, by + bh + 15);
 
     // 手中物品 / 快取
-    ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
-    ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
-    if (player.charge > 0) {
-      const cw = 120;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
-      ctx.fillStyle = '#ffd479'; ctx.fillRect(W - 28 - cw, H - 22, cw * player.charge, 6);
+    if (touch) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(220,227,235,0.85)'; ctx.font = '11px ' + MONO;
+      ctx.fillText('石头 ×' + player.stones, bx, by + bh + 30);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
+      ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
+      if (player.charge > 0) {
+        const cw = 120;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
+        ctx.fillStyle = '#ffd479'; ctx.fillRect(W - 28 - cw, H - 22, cw * player.charge, 6);
+      }
     }
 
     // 交互提示
@@ -2543,7 +2664,10 @@
       const opening = !g.isPassable(p);
       const noun = player.interactTarget.kind === 'window' ? '窗' : '门';
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '12.5px ' + SANS;
-      ctx.fillText(`[F] 轻点=快速${opening ? '开' : '关'}${noun}（吵）　按住=缓慢${opening ? '开' : '关'}（安静）`, cx, cy + 46);
+      ctx.fillText(touch
+        ? `轻点 F=快速${opening ? '开' : '关'}${noun}（吵）　按住=缓慢（安静）`
+        : `[F] 轻点=快速${opening ? '开' : '关'}${noun}（吵）　按住=缓慢${opening ? '开' : '关'}（安静）`,
+        cx, cy - (touch ? 54 : -46));
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
@@ -2560,25 +2684,27 @@
     if (!player.alive) {
       ctx.fillStyle = 'rgba(20,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
       ctx.textAlign = 'center'; ctx.fillStyle = '#E4573D';
-      ctx.font = '34px ' + SANS; ctx.letterSpacing = '0.3em'; ctx.fillText('你死了', cx, cy - 10); ctx.letterSpacing = '0px';
+      ctx.font = (touch ? '26px ' : '34px ') + SANS; ctx.letterSpacing = '0.3em'; ctx.fillText('你死了', cx, cy - 10); ctx.letterSpacing = '0px';
       ctx.font = '13px ' + SANS;
       ctx.fillText(player.deathCause || '', cx, cy + 24);
-      ctx.fillText('按 R 重新开始', cx, cy + 52);
+      ctx.fillText(touch ? '点击画面重新开始' : '按 R 重新开始', cx, cy + 52);
     }
   };
 
   Hud.prototype._soundprint = function (player, cx, cy) {
     const ctx = this.ctx, now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
+    // 半径跟着屏幕短边走：横屏手机只有 390px 高，写死 150 会把指示环画到屏幕外
+    const R_OUT = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
     ctx.save();
     ctx.strokeStyle = 'rgba(180,220,255,0.14)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, 150, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R_OUT, 0, Math.PI * 2); ctx.stroke();
     const forward = player.yaw + Math.PI;
     for (const s of player.soundprints) {
       const age = (now - s.born) / life;
       if (age > 1) continue;
       const rel = M.wrapAngle(s.angle - forward);
       // 距离分级决定指示环半径：很近的画在里圈
-      const R = s.band === '很近' ? 92 : s.band === '中等' ? 124 : 150;
+      const R = R_OUT * (s.band === '很近' ? 0.61 : s.band === '中等' ? 0.83 : 1.0);
       const x = cx + Math.sin(rel) * R, y = cy - Math.cos(rel) * R;
       const a = (1 - age) * 0.95;
       ctx.fillStyle = `rgba(111,211,232,${a})`;
@@ -2820,6 +2946,182 @@
   C.Debug = Debug;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/17-touch.js ===== */
+/*
+ * 17-touch.js —— 触屏操作层
+ * 手机上没有指针锁定，也没有「按住 Shift」这种修饰键，所以这一层做三件事：
+ *   1) 左下虚拟摇杆 → 模拟量的 forward/right（键盘是 0/1，这里是 0~1）
+ *   2) 空白区拖拽 → 转视角（代替鼠标）
+ *   3) 右侧按键面板 → 蹲/跑/屏息/交互/投石/探头
+ * 它只产出与键盘同构的 input 结构，玩家控制器完全不知道触屏的存在。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const Touch = {
+    enabled: false,
+    game: null,
+    look: { dx: 0, dy: 0 },
+    stick: { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, radius: 52 },
+    looking: { id: -1, lx: 0, ly: 0 },
+    btn: {},            // 按住类按钮的当前状态
+    toggle: {},         // 开关类按钮的当前状态
+
+    detect() {
+      const forced = /[?&]touch=1/.test(location.search);
+      const coarse = root.matchMedia && root.matchMedia('(pointer: coarse)').matches;
+      return forced || (coarse && ('ontouchstart' in root || navigator.maxTouchPoints > 0));
+    },
+
+    init(game) {
+      this.game = game;
+      this.enabled = this.detect();
+      if (!this.enabled) return;
+      document.body.classList.add('touch');
+
+      const layer = document.getElementById('touch');
+      layer.hidden = false;
+      this.layer = layer;
+      this.knob = document.getElementById('stickKnob');
+      this.base = document.getElementById('stickBase');
+
+      // 按住类：按下为真，抬起为假
+      const holds = { btnBreath: 'holdBreath', btnInteract: 'interact', btnThrow: 'throwHeld',
+                      btnLeanL: 'leanL', btnLeanR: 'leanR', btnWall: 'wallHug' };
+      for (const id in holds) this._bindHold(document.getElementById(id), holds[id]);
+
+      // 开关类：点一下切换
+      this._bindToggle(document.getElementById('btnCrouch'), 'crouch');
+      this._bindToggle(document.getElementById('btnRun'), 'run');
+
+      // 直接触发按键行为的
+      this._bindTap(document.getElementById('btnTorch'), () => { game.player.flashlight = !game.player.flashlight; });
+      this._bindTap(document.getElementById('btnWatch'), () => { this.toggle.watch = !this.toggle.watch; });
+      this._bindTap(document.getElementById('btnDebug'), () => { game.debug.visible = !game.debug.visible; });
+      this._bindTap(document.getElementById('btnTune'), () => { document.getElementById('tuner').classList.toggle('open'); });
+      this._bindTap(document.getElementById('btnHelp'), () => {
+        const h = document.getElementById('startHint');
+        h.style.display = (h.style.display === 'none') ? 'flex' : 'none';
+      });
+
+      // 摇杆
+      this.base.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const r = this.base.getBoundingClientRect();
+        this.stick.active = true; this.stick.id = e.pointerId;
+        this.stick.ox = r.left + r.width / 2; this.stick.oy = r.top + r.height / 2;
+        this._moveStick(e.clientX, e.clientY);
+        this.base.setPointerCapture(e.pointerId);
+      });
+      this.base.addEventListener('pointermove', (e) => {
+        if (!this.stick.active || e.pointerId !== this.stick.id) return;
+        this._moveStick(e.clientX, e.clientY);
+      });
+      const endStick = (e) => {
+        if (e.pointerId !== this.stick.id) return;
+        this.stick.active = false; this.stick.id = -1; this.stick.x = 0; this.stick.y = 0;
+        this.knob.style.transform = 'translate(-50%, -50%)';
+      };
+      this.base.addEventListener('pointerup', endStick);
+      this.base.addEventListener('pointercancel', endStick);
+
+      // 空白区拖拽转视角
+      layer.addEventListener('pointerdown', (e) => {
+        if (e.target !== layer) return;                 // 点在按钮上时不转视角
+        if (!game.player.alive) { game.restart(); return; }
+        this.looking.id = e.pointerId; this.looking.lx = e.clientX; this.looking.ly = e.clientY;
+        layer.setPointerCapture(e.pointerId);
+      });
+      layer.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== this.looking.id) return;
+        this.look.dx += e.clientX - this.looking.lx;
+        this.look.dy += e.clientY - this.looking.ly;
+        this.looking.lx = e.clientX; this.looking.ly = e.clientY;
+      });
+      const endLook = (e) => { if (e.pointerId === this.looking.id) this.looking.id = -1; };
+      layer.addEventListener('pointerup', endLook);
+      layer.addEventListener('pointercancel', endLook);
+
+      // 屏幕方向提示
+      const checkOrient = () => {
+        document.getElementById('rotateHint').hidden = innerWidth >= innerHeight;
+      };
+      addEventListener('resize', checkOrient);
+      addEventListener('orientationchange', () => setTimeout(checkOrient, 250));
+      checkOrient();
+    },
+
+    _moveStick(cx, cy) {
+      let dx = cx - this.stick.ox, dy = cy - this.stick.oy;
+      const len = Math.hypot(dx, dy), R = this.stick.radius;
+      if (len > R) { dx = dx / len * R; dy = dy / len * R; }
+      this.stick.x = dx / R; this.stick.y = dy / R;
+      this.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    },
+
+    _bindHold(el, key) {
+      if (!el) return;
+      const on = (e) => { e.preventDefault(); this.btn[key] = true; el.classList.add('on'); el.setPointerCapture(e.pointerId); };
+      const off = (e) => { e.preventDefault(); this.btn[key] = false; el.classList.remove('on'); };
+      el.addEventListener('pointerdown', on);
+      el.addEventListener('pointerup', off);
+      el.addEventListener('pointercancel', off);
+      el.addEventListener('pointerleave', off);
+    },
+    _bindToggle(el, key) {
+      if (!el) return;
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.toggle[key] = !this.toggle[key];
+        el.classList.toggle('on', !!this.toggle[key]);
+      });
+    },
+    _bindTap(el, fn) {
+      if (!el) return;
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(); el.classList.add('flash'); });
+      el.addEventListener('pointerup', () => el.classList.remove('flash'));
+      el.addEventListener('pointercancel', () => el.classList.remove('flash'));
+    },
+
+    /** 与键盘同构的 input；由 Game._input 合并 */
+    read() {
+      const s = this.stick;
+      return {
+        forward: -s.y, right: s.x,
+        run: !!this.toggle.run, crouch: !!this.toggle.crouch,
+        wallHug: !!this.btn.wallHug,
+        lean: (this.btn.leanR ? 1 : 0) - (this.btn.leanL ? 1 : 0),
+        holdBreath: !!this.btn.holdBreath,
+        interact: !!this.btn.interact,
+        throwHeld: !!this.btn.throwHeld
+      };
+    },
+
+    /** 取走并清空本帧的视角增量 */
+    takeLook() {
+      const d = { dx: this.look.dx, dy: this.look.dy };
+      this.look.dx = 0; this.look.dy = 0;
+      return d;
+    },
+
+    /** 蓄力/交互进度反馈到按钮上，手机没有准星提示，这个反馈很必要 */
+    sync(player) {
+      if (!this.enabled) return;
+      const t = document.getElementById('btnThrow');
+      if (t) t.style.setProperty('--fill', (player.charge * 100).toFixed(0) + '%');
+      const f = document.getElementById('btnInteract');
+      if (f) {
+        f.style.setProperty('--fill', ((player.interactProgress || 0) * 100).toFixed(0) + '%');
+        f.classList.toggle('avail', !!player.interactTarget);
+      }
+      const b = document.getElementById('btnBreath');
+      if (b) b.classList.toggle('avail', player.holdBreath);
+    }
+  };
+
+  C.Touch = Touch;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/16-main.js ===== */
 /*
  * 16-main.js —— 装配与主循环
@@ -2843,6 +3145,7 @@
       this.hud = new C.Hud(this.hudCanvas);
       this.debug = new C.Debug(this.dbgCanvas);
       C.Debug.buildTuner(this.tuner);
+      C.Touch.init(this);
 
       this._bindInput();
       this.restart();
@@ -2917,6 +3220,11 @@
       // 监听在 document 上：开场提示层盖在画布之上，挂在画布上的点击永远收不到
       document.addEventListener('click', () => {
         C.Audio.init(); C.Audio.resume();
+        if (C.Touch.enabled) {
+          // 手机没有指针锁定，点一下就是开始
+          document.getElementById('startHint').style.display = 'none';
+          return;
+        }
         if (!this.locked) this.canvas3d.requestPointerLock();
       });
       document.addEventListener('pointerlockchange', () => {
@@ -2931,7 +3239,7 @@
 
     _input() {
       const k = this.keys;
-      return {
+      const kb = {
         forward: (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0),
         right: (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0),
         run: !!(k.ShiftLeft || k.ShiftRight),
@@ -2941,6 +3249,20 @@
         holdBreath: !!k.Space,
         interact: !!k.KeyF,
         throwHeld: !!k.KeyG
+      };
+      if (!C.Touch.enabled) return kb;
+      // 触屏与键盘取并集：外接键盘的平板两种都能用
+      const t = C.Touch.read();
+      return {
+        forward: Math.abs(t.forward) > 0.02 ? t.forward : kb.forward,
+        right: Math.abs(t.right) > 0.02 ? t.right : kb.right,
+        run: kb.run || t.run,
+        crouch: kb.crouch || t.crouch,
+        wallHug: kb.wallHug || t.wallHug,
+        lean: kb.lean || t.lean,
+        holdBreath: kb.holdBreath || t.holdBreath,
+        interact: kb.interact || t.interact,
+        throwHeld: kb.throwHeld || t.throwHeld
       };
     },
 
@@ -2955,7 +3277,13 @@
         this.player.pitch = M.clamp(this.player.pitch - this.mouse.dy * sens, -1.4, 1.4);
       }
       this.mouse.dx = 0; this.mouse.dy = 0;
-      this.hud.showWatch = !!this.keys.KeyX;
+      if (C.Touch.enabled) {
+        const d = C.Touch.takeLook();
+        const ts = 0.0042;                       // 触屏灵敏度：手指行程比鼠标短，需要更高
+        this.player.yaw -= d.dx * ts;
+        this.player.pitch = M.clamp(this.player.pitch - d.dy * ts, -1.4, 1.4);
+      }
+      this.hud.showWatch = !!this.keys.KeyX || !!C.Touch.toggle.watch;
 
       this.time.update(dt);
       this.player.update(dt, this._input(), this.time);
@@ -2968,12 +3296,16 @@
       this.hud.draw(this.player, this.time, dt);
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
+      C.Touch.sync(this.player);
 
       requestAnimationFrame((t) => this._frame(t));
     },
 
     _resize() {
-      const w = innerWidth, h = innerHeight, dpr = Math.min(devicePixelRatio, 2);
+      // 手机上把渲染分辨率压到 1.25 倍：这套灰盒是四层楼几百个盒子，
+      // 中端手机按 3x DPR 渲染会掉到 20fps 以下，潜行手感全毁。
+      const w = innerWidth, h = innerHeight;
+      const dpr = Math.min(devicePixelRatio, C.Touch.enabled ? 1.25 : 2);
       this.renderer.resize(w, h);
       for (const c of [this.hudCanvas, this.dbgCanvas]) {
         c.width = w * dpr; c.height = h * dpr;

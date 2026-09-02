@@ -20,6 +20,7 @@
       this.hud = new C.Hud(this.hudCanvas);
       this.debug = new C.Debug(this.dbgCanvas);
       C.Debug.buildTuner(this.tuner);
+      C.Touch.init(this);
 
       this._bindInput();
       this.restart();
@@ -94,6 +95,11 @@
       // 监听在 document 上：开场提示层盖在画布之上，挂在画布上的点击永远收不到
       document.addEventListener('click', () => {
         C.Audio.init(); C.Audio.resume();
+        if (C.Touch.enabled) {
+          // 手机没有指针锁定，点一下就是开始
+          document.getElementById('startHint').style.display = 'none';
+          return;
+        }
         if (!this.locked) this.canvas3d.requestPointerLock();
       });
       document.addEventListener('pointerlockchange', () => {
@@ -108,7 +114,7 @@
 
     _input() {
       const k = this.keys;
-      return {
+      const kb = {
         forward: (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0),
         right: (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0),
         run: !!(k.ShiftLeft || k.ShiftRight),
@@ -118,6 +124,20 @@
         holdBreath: !!k.Space,
         interact: !!k.KeyF,
         throwHeld: !!k.KeyG
+      };
+      if (!C.Touch.enabled) return kb;
+      // 触屏与键盘取并集：外接键盘的平板两种都能用
+      const t = C.Touch.read();
+      return {
+        forward: Math.abs(t.forward) > 0.02 ? t.forward : kb.forward,
+        right: Math.abs(t.right) > 0.02 ? t.right : kb.right,
+        run: kb.run || t.run,
+        crouch: kb.crouch || t.crouch,
+        wallHug: kb.wallHug || t.wallHug,
+        lean: kb.lean || t.lean,
+        holdBreath: kb.holdBreath || t.holdBreath,
+        interact: kb.interact || t.interact,
+        throwHeld: kb.throwHeld || t.throwHeld
       };
     },
 
@@ -132,7 +152,13 @@
         this.player.pitch = M.clamp(this.player.pitch - this.mouse.dy * sens, -1.4, 1.4);
       }
       this.mouse.dx = 0; this.mouse.dy = 0;
-      this.hud.showWatch = !!this.keys.KeyX;
+      if (C.Touch.enabled) {
+        const d = C.Touch.takeLook();
+        const ts = 0.0042;                       // 触屏灵敏度：手指行程比鼠标短，需要更高
+        this.player.yaw -= d.dx * ts;
+        this.player.pitch = M.clamp(this.player.pitch - d.dy * ts, -1.4, 1.4);
+      }
+      this.hud.showWatch = !!this.keys.KeyX || !!C.Touch.toggle.watch;
 
       this.time.update(dt);
       this.player.update(dt, this._input(), this.time);
@@ -145,12 +171,16 @@
       this.hud.draw(this.player, this.time, dt);
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
+      C.Touch.sync(this.player);
 
       requestAnimationFrame((t) => this._frame(t));
     },
 
     _resize() {
-      const w = innerWidth, h = innerHeight, dpr = Math.min(devicePixelRatio, 2);
+      // 手机上把渲染分辨率压到 1.25 倍：这套灰盒是四层楼几百个盒子，
+      // 中端手机按 3x DPR 渲染会掉到 20fps 以下，潜行手感全毁。
+      const w = innerWidth, h = innerHeight;
+      const dpr = Math.min(devicePixelRatio, C.Touch.enabled ? 1.25 : 2);
       this.renderer.resize(w, h);
       for (const c of [this.hudCanvas, this.dbgCanvas]) {
         c.width = w * dpr; c.height = h * dpr;
