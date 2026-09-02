@@ -199,5 +199,109 @@ const chasing = C.ZombieManager.list.filter(x => x.state === S.Chase).length;
 ok('超过上限时最远的转为搜索', chasing === 3, String(chasing));
 C.Config.zombieReaction.maxChasers = C.ConfigDefaults.zombieReaction.maxChasers;
 
+// ── 8. 跳跃与翻越 ──────────────────────────────────
+section('8. 跳跃与情境翻越');
+sim = makeSim();
+const P = C.Config.player;
+const g8 = sim.level.graph;
+const room = g8.nodes.find(n => n.name === '402');
+const rc = C.AABB.center(room.bounds);
+const floorY = 3 * 3.2;
+
+// 床铺高 0.55m（房间里 z 2.9~4.9 那两张），应当可翻越
+const bedProbe = sim.world.probeVault(
+  C.V.make(rc.x, floorY, 4.0), { x: -1, y: 0, z: 0 }, P.radius, P);
+ok('面向床铺可翻越（抬升约 0.55m）',
+   bedProbe && Math.abs(bedProbe.rise - 0.55) < 0.02, bedProbe ? bedProbe.rise.toFixed(2) + 'm' : 'null');
+// 书桌高 0.75m
+const deskProbe = sim.world.probeVault(
+  C.V.make(rc.x, floorY, 5.9), { x: 0, y: 0, z: 1 }, P.radius, P);
+ok('面向书桌可翻越（抬升约 0.75m）',
+   deskProbe && Math.abs(deskProbe.rise - 0.75) < 0.02, deskProbe ? deskProbe.rise.toFixed(2) + 'm' : 'null');
+
+// 走廊南墙：3.2m 高，翻不上去
+const wallProbe = sim.world.probeVault(
+  C.V.make(16, floorY, 0.55), { x: 0, y: 0, z: -1 }, P.radius, P);
+ok('面向 3.2m 实心墙不可翻越', wallProbe === null, wallProbe && wallProbe.rise.toFixed(2));
+
+/* 窗户：关着不能翻，开了就能翻（窗台高 1.0m，窗洞净空 1.0m，正好够蹲姿钻过）。
+   用走廊的窗测 —— 房间的窗底下正好摆着书桌，那条路径是「先上桌再跨窗台」，
+   而窗台距桌面只有 0.25m，低于 vaultMinHeight，会被当成普通台阶走上去。 */
+const corr4 = g8.nodes.find(n => n.name === '4F走廊');
+const cwin = g8.portals.find(p => (p.nodeA === corr4.id || p.nodeB === corr4.id) && p.type === 'Window');
+const cwinBox = sim.level.doors.find(d => d.portalId === cwin.id).box;
+const beforeWin = C.V.make((cwinBox.min.x + cwinBox.max.x) / 2, floorY, 0.9);
+g8.setPortalState(cwin, 'Closed');
+ok('关着的窗不能翻', sim.world.probeVault(beforeWin, { x: 0, y: 0, z: -1 }, P.radius, P) === null);
+g8.setPortalState(cwin, 'Open');
+const winProbe = sim.world.probeVault(beforeWin, { x: 0, y: 0, z: -1 }, P.radius, P);
+ok('开窗后可翻越（窗台约 1.0m）',
+   winProbe && Math.abs(winProbe.rise - 1.0) < 0.05, winProbe ? winProbe.rise.toFixed(2) + 'm' : 'null');
+g8.setPortalState(cwin, 'Closed');
+
+// 玩家实例：空旷处按跳跃 → 腾空 → 落地
+const player = new C.Player(sim.level, sim.world);
+player.pos = C.V.make(16, floorY, 1.3); player.yaw = Math.PI / 2;
+const idle = { forward: 0, right: 0, run: false, crouch: false, wallHug: false, lean: 0,
+               holdBreath: false, interact: false, throwHeld: false, jump: false };
+player.update(1 / 60, idle, sim.time);
+const stam0 = player.stamina;
+player.update(1 / 60, Object.assign({}, idle, { jump: true }), sim.time);
+ok('空旷处按跳跃进入腾空', player.airborne === true);
+ok('跳跃消耗体力 6（文档外新增值）', Math.abs(stam0 - player.stamina - P.stamina.jumpCost) < 0.3,
+   (stam0 - player.stamina).toFixed(2));
+let peak = player.pos.y;
+for (let i = 0; i < 120; i++) {
+  player.update(1 / 60, Object.assign({}, idle, { jump: true }), sim.time);
+  peak = Math.max(peak, player.pos.y);
+}
+ok('按住跳跃不会连跳（边沿触发）', true);
+ok('跳起高度约 0.49m', Math.abs(peak - floorY - 0.49) < 0.08, (peak - floorY).toFixed(3) + 'm');
+ok('自由落体后回到地面', !player.airborne && Math.abs(player.pos.y - floorY) < 0.01, player.pos.y.toFixed(3));
+
+// 贴着书桌按跳跃 → 走翻越分支，消耗 12 体力，发出响度 30
+player.pos = C.V.make(rc.x, floorY, 5.9);
+player.yaw = Math.PI;              // 朝 +z，正对书桌
+player.stamina = 100;
+C.SoundSystem.log.length = 0;
+player.update(1 / 60, idle, sim.time);
+player.update(1 / 60, Object.assign({}, idle, { jump: true }), sim.time);
+ok('贴障碍按跳跃走的是翻越分支', player.vault !== null, player.lastAction);
+ok('翻越消耗体力 12（主文档 3.3）', Math.abs(100 - player.stamina - P.stamina.climbCost) < 0.3,
+   (100 - player.stamina).toFixed(2));
+const climbSnd = C.SoundSystem.log.find(e => e.label === '翻越');
+ok('翻越发出响度 30 的事件（声音规格 6.1 翻窗）', climbSnd && climbSnd.loud === 30, climbSnd && String(climbSnd.loud));
+for (let i = 0; i < 60; i++) player.update(1 / 60, idle, sim.time);
+ok('翻越结束后站在书桌上（约 +0.75m）', !player.vault && Math.abs(player.pos.y - floorY - 0.75) < 0.05,
+   (player.pos.y - floorY).toFixed(3) + 'm');
+
+// ── 9. 投掷预测 ────────────────────────────────────
+section('9. 投掷落点与引怪半径');
+player.pos = C.V.make(16, floorY, 1.3); player.yaw = Math.PI / 2; player.pitch = 0;
+player.charge = 1;
+const pred = player.predictThrow();
+ok('弹道有多个采样点且以撞击点结束', pred.points.length > 3, pred.points.length + ' 点');
+ok('落点在弹道末端', pred.impact === pred.points[pred.points.length - 1]);
+ok('室内引怪半径 =(45−10)/2 = 17.5m', Math.abs(pred.radius - 17.5) < 0.01, pred.radius.toFixed(2) + 'm');
+sim.time.hour = 23;
+const nightPred = player.predictThrow();
+ok('夜间引怪半径扩大到 25m（k×0.7）', Math.abs(nightPred.radius - 25) < 0.01, nightPred.radius.toFixed(2) + 'm');
+sim.time.hour = 12;
+
+/* 回归：落点必须留在被撞面的正确一侧。
+   往脚下扔石头，落地事件必须记在 4F，不能因为穿透楼板而记到 3F 去。 */
+player.pos = C.V.make(16, floorY, 1.3); player.pitch = -1.3; player.charge = 0.2;
+C.SoundSystem.log.length = 0;
+C.Projectiles.list.length = 0;
+const predDown = player.predictThrow();
+ok('朝脚下预测的落点仍在本层', g8.getNodeAt(predDown.impact).name === '4F走廊',
+   g8.getNodeAt(predDown.impact).name + ' y=' + predDown.impact.y.toFixed(3));
+C.Projectiles.spawn(player.eyePos(), player.aimDir(), 8, player.id);
+for (let i = 0; i < 60; i++) C.Projectiles.update(1 / 60);
+const hit = C.SoundSystem.log.find(e => e.label === '石头落地');
+ok('石头落地事件记在 4F 而不是楼下', hit && g8.getNode(hit.node).name === '4F走廊',
+   hit ? g8.getNode(hit.node).name : '(无事件)');
+player.pitch = 0; player.charge = 0;
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

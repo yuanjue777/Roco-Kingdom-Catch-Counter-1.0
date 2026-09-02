@@ -110,6 +110,12 @@
         if (!this.locked) return;
         this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
       });
+      // 按住鼠标右键 = 屏息（Space 让给了跳跃）
+      this.rmb = false;
+      addEventListener('mousedown', (e) => { if (e.button === 2) this.rmb = true; });
+      addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
+      addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
+      addEventListener('blur', () => { this.rmb = false; this.keys = {}; });
     },
 
     _input() {
@@ -121,9 +127,10 @@
         crouch: !!(k.ControlLeft || k.ControlRight || k.KeyC),
         wallHug: !!k.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
-        holdBreath: !!k.Space,
+        holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF,
-        throwHeld: !!k.KeyG
+        throwHeld: !!k.KeyG,
+        jump: !!k.Space
       };
       if (!C.Touch.enabled) return kb;
       // 触屏与键盘取并集：外接键盘的平板两种都能用
@@ -137,7 +144,8 @@
         lean: kb.lean || t.lean,
         holdBreath: kb.holdBreath || t.holdBreath,
         interact: kb.interact || t.interact,
-        throwHeld: kb.throwHeld || t.throwHeld
+        throwHeld: kb.throwHeld || t.throwHeld,
+        jump: kb.jump || t.jump
       };
     },
 

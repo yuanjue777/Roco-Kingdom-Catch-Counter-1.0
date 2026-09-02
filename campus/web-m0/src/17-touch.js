@@ -38,7 +38,7 @@
 
       // 按住类：按下为真，抬起为假
       const holds = { btnBreath: 'holdBreath', btnInteract: 'interact', btnThrow: 'throwHeld',
-                      btnLeanL: 'leanL', btnLeanR: 'leanR', btnWall: 'wallHug' };
+                      btnLeanL: 'leanL', btnLeanR: 'leanR', btnWall: 'wallHug', btnJump: 'jump' };
       for (const id in holds) this._bindHold(document.getElementById(id), holds[id]);
 
       // 开关类：点一下切换
@@ -144,7 +144,8 @@
         lean: (this.btn.leanR ? 1 : 0) - (this.btn.leanL ? 1 : 0),
         holdBreath: !!this.btn.holdBreath,
         interact: !!this.btn.interact,
-        throwHeld: !!this.btn.throwHeld
+        throwHeld: !!this.btn.throwHeld,
+        jump: !!this.btn.jump
       };
     },
 
@@ -167,6 +168,9 @@
       }
       const b = document.getElementById('btnBreath');
       if (b) b.classList.toggle('avail', player.holdBreath);
+      // 前方有可翻越的边缘时把跳跃键点亮，手机上没有文字提示的空间
+      const j = document.getElementById('btnJump');
+      if (j) j.classList.toggle('avail', !!player.vaultTarget());
     }
   };
 

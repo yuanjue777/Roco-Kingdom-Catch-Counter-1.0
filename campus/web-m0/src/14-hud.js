@@ -48,6 +48,8 @@
     if (player.lean) tags.push(player.lean < 0 ? '左探头' : '右探头');
     if (player.running) tags.push('奔跑');
     if (player.exhausted) tags.push('力竭');
+    if (player.vault) tags.push('翻越中');
+    else if (player.airborne) tags.push('腾空');
     if (player.flashlight) tags.push('手电');
     ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = (touch ? '11.5px ' : '12.5px ') + SANS;
     ctx.fillText(tags.join(' · ') || '站立', bx, by + bh + 15);
@@ -68,6 +70,18 @@
       }
     }
 
+    // 蓄力投石时的落点读数：圈只能画出「同一空间内的上界」，确切数字得给出来
+    if (player.charge > 0 && player.predictThrow) {
+      const pr = player.predictThrow();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd479'; ctx.font = '12px ' + MONO;
+      ctx.fillText('蓄力 ' + Math.round(player.charge * 100) + '%', cx, cy + 74);
+      ctx.fillStyle = SIGNAL;
+      ctx.fillText('落点 ' + (pr.node ? pr.node.name : '?') + ' · 引怪半径 ' + pr.radius.toFixed(1) + 'm', cx, cy + 92);
+      ctx.fillStyle = 'rgba(220,227,235,0.45)'; ctx.font = '10.5px ' + SANS;
+      ctx.fillText('（半径按路径长度算，隔墙隔门会更短）', cx, cy + 108);
+    }
+
     // 交互提示
     if (player.interactTarget) {
       const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
@@ -81,6 +95,15 @@
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
+      }
+    }
+
+    // 前方可翻越的提示。与开门提示互斥，避免同一位置两行字打架。
+    if (!player.interactTarget && !touch) {
+      const v = player.vaultTarget && player.vaultTarget();
+      if (v) {
+        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.9)'; ctx.font = '12.5px ' + SANS;
+        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + 46);
       }
     }
 

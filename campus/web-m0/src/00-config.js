@@ -53,7 +53,8 @@
       broadcast: 150,
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
-      exhaustedBreath: 25          // 主文档 3.3：体力耗尽的喘息
+      exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
     },
 
     // ── 连接类型衰减表（声音规格 6.2）──────────────────
@@ -136,6 +137,20 @@
       holdBreathSpeedMul: 0.5,      // 屏息时为蹲行速度的 50%
       eyeHeightStand: 1.65, eyeHeightCrouch: 1.05,
       radius: 0.32, stepHeight: 0.36,
+      /* 跳跃与翻越。
+         「攀爬/翻窗 −12 体力」在主文档 3.3 有定义，「翻窗(完好窗) 响度 30」在声音规格 6.1 有定义，
+         所以翻越是文档内的机制。但**跳跃本身文档里没有**（4.1 的姿态表只有走/跑/蹲/贴墙/静止），
+         这里的跳跃是应需求新增的，相关数值全部标注为文档外，方便日后一并砍掉或写回文档。 */
+      gravity: 18.0,               // 文档外
+      jumpSpeed: 4.2,              // 文档外：起跳初速，约能跳起 0.49m
+      coyoteTime: 0.12,            // 文档外：离开地面后仍可起跳的宽限
+      airControlMul: 0.65,         // 文档外：空中转向能力
+      vaultMinHeight: 0.30,        // 低于这个高度直接靠 stepHeight 走上去，不触发翻越
+      vaultMaxHeight: 1.45,        // 能翻越的最大高度（文档未定义，实测值）
+      vaultProbeDistance: 1.7,     // 向前探测多远找可翻越的边缘
+      vaultClearance: 0.95,        // 落点上方需要的净空（按蹲姿通过算，正好能钻窗）
+      vaultDuration: 0.42,         // 翻越动作时长
+      vaultLift: 0.35,             // 翻越轨迹的抬升幅度，纯表现
       leanOffset: 0.55, leanAngle: 12,
       peekYaw: 35,                  // 侧身探头的视角偏移
       // 脚步事件间隔（声音规格 4.4：跑约 0.35s，走约 0.7s）
@@ -145,6 +160,7 @@
       stamina: {
         max: 100,
         runCost: 8, holdBreathCost: 3, climbCost: 12, meleeCost: 6,
+        jumpCost: 6,               // 文档外：跳跃消耗，取攀爬(12)的一半
         regenStand: 6, regenCrouch: 9,
         exhaustedSpeedMul: 0.7,     // 体力归零移动速度 −30%
         exhaustedBreathInterval: 1.5
@@ -167,7 +183,10 @@
     throwing: {
       gravity: 9.8,
       speedMin: 7, speedMax: 19, chargeSeconds: 1.2,
-      arcSamples: 40
+      arcSamples: 60,
+      showLandingMarker: true,     // 落点标记
+      showAudibleRing: true        // 落点的引怪半径圈 = (响度 − 丧尸阈值) / k，
+                                   // 让玩家能直接看到「这一下会惊动多大范围」（支柱三）
     },
 
     // ── 熟练度（主文档 8.5）：M0 只接入静步与听觉两项 ──

@@ -51,8 +51,8 @@
 
   const _tmp = [];
 
-  /** 角色水平移动 + 逐轴推出 + 台阶吸附。返回是否着地。 */
-  World.prototype.moveCharacter = function (pos, dx, dz, radius, height, stepHeight) {
+  /** 只做水平推挤，不做地面吸附。跳跃/下落时需要把水平与垂直分开处理。 */
+  World.prototype.moveHorizontal = function (pos, dx, dz, radius, height, stepHeight) {
     const solve = (axis, amount) => {
       if (amount === 0) return;
       pos[axis] += amount;
@@ -74,6 +74,11 @@
     };
     solve('x', dx);
     solve('z', dz);
+  };
+
+  /** 角色水平移动 + 台阶吸附（丧尸走这条，它们不跳） */
+  World.prototype.moveCharacter = function (pos, dx, dz, radius, height, stepHeight) {
+    this.moveHorizontal(pos, dx, dz, radius, height, stepHeight);
     return this.snapToGround(pos, radius, stepHeight);
   };
 
@@ -96,6 +101,53 @@
       if (best === null || b.max.y > best) best = b.max.y;
     }
     return best;
+  };
+
+  /** 头顶最近的一块底面（不低于 fromY）。跳跃顶到楼板时用它止住上升。 */
+  World.prototype.ceilingY = function (pos, fromY, radius) {
+    this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
+    let best = null;
+    for (const s of _tmp) {
+      const b = s.box;
+      if (b.min.y < fromY) continue;
+      if (pos.x < b.min.x - radius * 0.5 || pos.x > b.max.x + radius * 0.5) continue;
+      if (pos.z < b.min.z - radius * 0.5 || pos.z > b.max.z + radius * 0.5) continue;
+      if (best === null || b.min.y < best) best = b.min.y;
+    }
+    return best;
+  };
+
+  /** 从 y 起、高 height 的一段空间里有没有实体 */
+  World.prototype.isClear = function (x, z, y, height, radius) {
+    this.query(x - radius, z - radius, x + radius, z + radius, _tmp);
+    const lo = y + 0.06, hi = y + height;
+    for (const s of _tmp) {
+      const b = s.box;
+      if (b.max.y <= lo || b.min.y >= hi) continue;
+      if (x + radius <= b.min.x || x - radius >= b.max.x) continue;
+      if (z + radius <= b.min.z || z - radius >= b.max.z) continue;
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * 向正前方找一个可翻越的落点。
+   * 逐段向前采样，取第一个「顶面高度在可翻越区间内、且上方有足够净空」的位置。
+   * 返回 {target:{x,y,z}, rise, dist} 或 null。
+   */
+  World.prototype.probeVault = function (pos, dir, radius, cfg) {
+    const step = 0.2;
+    for (let d = radius + 0.12; d <= cfg.vaultProbeDistance; d += step) {
+      const x = pos.x + dir.x * d, z = pos.z + dir.z * d;
+      const top = this.groundY({ x, y: pos.y, z }, pos.y + cfg.vaultMaxHeight, radius * 0.8);
+      if (top === null) continue;
+      const rise = top - pos.y;
+      if (rise < cfg.vaultMinHeight) continue;                       // 台阶高度，直接走上去
+      if (!this.isClear(x, z, top, cfg.vaultClearance, radius * 0.8)) continue;
+      return { target: { x, y: top, z }, rise, dist: d };
+    }
+    return null;
   };
 
   /** 视线：两点之间是否无遮挡（主文档 4.5：有遮挡则完全看不见） */

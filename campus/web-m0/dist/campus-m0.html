@@ -194,7 +194,10 @@
       <button id="btnInteract" class="tb" type="button">F<small>门</small></button>
       <button id="btnThrow" class="tb" type="button">G<small>投石</small></button>
     </div>
-    <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
+    <div class="col">
+      <button id="btnJump" class="tb" type="button">跳<small>翻越</small></button>
+      <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
+    </div>
   </div>
   <div class="pad pad-util">
     <button id="btnTorch" class="tb tiny" type="button">手电</button>
@@ -222,7 +225,8 @@
       <div class="row"><span><kbd>Shift</kbd></span><span class="act">奔跑</span><span class="val">45</span></div>
       <div class="row"><span><kbd>Ctrl</kbd> <kbd>C</kbd></span><span class="act">蹲行</span><span class="val">10</span></div>
       <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙</span><span class="val">14</span></div>
-      <div class="row"><span><kbd>Space</kbd></span><span class="act">屏息 · 出声纹</span><span class="val">0</span></div>
+      <div class="row"><span><kbd>右键</kbd> <kbd>Z</kbd></span><span class="act">屏息 · 出声纹</span><span class="val">0</span></div>
+      <div class="row"><span><kbd>Space</kbd></span><span class="act">跳跃 · 贴障碍自动翻越</span><span class="val">35·30</span></div>
       <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
       <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
@@ -383,7 +387,8 @@
       broadcast: 150,
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
-      exhaustedBreath: 25          // 主文档 3.3：体力耗尽的喘息
+      exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
     },
 
     // ── 连接类型衰减表（声音规格 6.2）──────────────────
@@ -466,6 +471,20 @@
       holdBreathSpeedMul: 0.5,      // 屏息时为蹲行速度的 50%
       eyeHeightStand: 1.65, eyeHeightCrouch: 1.05,
       radius: 0.32, stepHeight: 0.36,
+      /* 跳跃与翻越。
+         「攀爬/翻窗 −12 体力」在主文档 3.3 有定义，「翻窗(完好窗) 响度 30」在声音规格 6.1 有定义，
+         所以翻越是文档内的机制。但**跳跃本身文档里没有**（4.1 的姿态表只有走/跑/蹲/贴墙/静止），
+         这里的跳跃是应需求新增的，相关数值全部标注为文档外，方便日后一并砍掉或写回文档。 */
+      gravity: 18.0,               // 文档外
+      jumpSpeed: 4.2,              // 文档外：起跳初速，约能跳起 0.49m
+      coyoteTime: 0.12,            // 文档外：离开地面后仍可起跳的宽限
+      airControlMul: 0.65,         // 文档外：空中转向能力
+      vaultMinHeight: 0.30,        // 低于这个高度直接靠 stepHeight 走上去，不触发翻越
+      vaultMaxHeight: 1.45,        // 能翻越的最大高度（文档未定义，实测值）
+      vaultProbeDistance: 1.7,     // 向前探测多远找可翻越的边缘
+      vaultClearance: 0.95,        // 落点上方需要的净空（按蹲姿通过算，正好能钻窗）
+      vaultDuration: 0.42,         // 翻越动作时长
+      vaultLift: 0.35,             // 翻越轨迹的抬升幅度，纯表现
       leanOffset: 0.55, leanAngle: 12,
       peekYaw: 35,                  // 侧身探头的视角偏移
       // 脚步事件间隔（声音规格 4.4：跑约 0.35s，走约 0.7s）
@@ -475,6 +494,7 @@
       stamina: {
         max: 100,
         runCost: 8, holdBreathCost: 3, climbCost: 12, meleeCost: 6,
+        jumpCost: 6,               // 文档外：跳跃消耗，取攀爬(12)的一半
         regenStand: 6, regenCrouch: 9,
         exhaustedSpeedMul: 0.7,     // 体力归零移动速度 −30%
         exhaustedBreathInterval: 1.5
@@ -497,7 +517,10 @@
     throwing: {
       gravity: 9.8,
       speedMin: 7, speedMax: 19, chargeSeconds: 1.2,
-      arcSamples: 40
+      arcSamples: 60,
+      showLandingMarker: true,     // 落点标记
+      showAudibleRing: true        // 落点的引怪半径圈 = (响度 − 丧尸阈值) / k，
+                                   // 让玩家能直接看到「这一下会惊动多大范围」（支柱三）
     },
 
     // ── 熟练度（主文档 8.5）：M0 只接入静步与听觉两项 ──
@@ -1474,8 +1497,8 @@
 
   const _tmp = [];
 
-  /** 角色水平移动 + 逐轴推出 + 台阶吸附。返回是否着地。 */
-  World.prototype.moveCharacter = function (pos, dx, dz, radius, height, stepHeight) {
+  /** 只做水平推挤，不做地面吸附。跳跃/下落时需要把水平与垂直分开处理。 */
+  World.prototype.moveHorizontal = function (pos, dx, dz, radius, height, stepHeight) {
     const solve = (axis, amount) => {
       if (amount === 0) return;
       pos[axis] += amount;
@@ -1497,6 +1520,11 @@
     };
     solve('x', dx);
     solve('z', dz);
+  };
+
+  /** 角色水平移动 + 台阶吸附（丧尸走这条，它们不跳） */
+  World.prototype.moveCharacter = function (pos, dx, dz, radius, height, stepHeight) {
+    this.moveHorizontal(pos, dx, dz, radius, height, stepHeight);
     return this.snapToGround(pos, radius, stepHeight);
   };
 
@@ -1519,6 +1547,53 @@
       if (best === null || b.max.y > best) best = b.max.y;
     }
     return best;
+  };
+
+  /** 头顶最近的一块底面（不低于 fromY）。跳跃顶到楼板时用它止住上升。 */
+  World.prototype.ceilingY = function (pos, fromY, radius) {
+    this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
+    let best = null;
+    for (const s of _tmp) {
+      const b = s.box;
+      if (b.min.y < fromY) continue;
+      if (pos.x < b.min.x - radius * 0.5 || pos.x > b.max.x + radius * 0.5) continue;
+      if (pos.z < b.min.z - radius * 0.5 || pos.z > b.max.z + radius * 0.5) continue;
+      if (best === null || b.min.y < best) best = b.min.y;
+    }
+    return best;
+  };
+
+  /** 从 y 起、高 height 的一段空间里有没有实体 */
+  World.prototype.isClear = function (x, z, y, height, radius) {
+    this.query(x - radius, z - radius, x + radius, z + radius, _tmp);
+    const lo = y + 0.06, hi = y + height;
+    for (const s of _tmp) {
+      const b = s.box;
+      if (b.max.y <= lo || b.min.y >= hi) continue;
+      if (x + radius <= b.min.x || x - radius >= b.max.x) continue;
+      if (z + radius <= b.min.z || z - radius >= b.max.z) continue;
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * 向正前方找一个可翻越的落点。
+   * 逐段向前采样，取第一个「顶面高度在可翻越区间内、且上方有足够净空」的位置。
+   * 返回 {target:{x,y,z}, rise, dist} 或 null。
+   */
+  World.prototype.probeVault = function (pos, dir, radius, cfg) {
+    const step = 0.2;
+    for (let d = radius + 0.12; d <= cfg.vaultProbeDistance; d += step) {
+      const x = pos.x + dir.x * d, z = pos.z + dir.z * d;
+      const top = this.groundY({ x, y: pos.y, z }, pos.y + cfg.vaultMaxHeight, radius * 0.8);
+      if (top === null) continue;
+      const rise = top - pos.y;
+      if (rise < cfg.vaultMinHeight) continue;                       // 台阶高度，直接走上去
+      if (!this.isClear(x, z, top, cfg.vaultClearance, radius * 0.8)) continue;
+      return { target: { x, y: top, z }, rise, dist: d };
+    }
+    return null;
   };
 
   /** 视线：两点之间是否无遮挡（主文档 4.5：有遮挡则完全看不见） */
@@ -1591,6 +1666,8 @@
     this._interactHeld = 0;
     this._interactTarget = null;
     this._interactDone = false;
+    this.velY = 0; this.airborne = false; this._coyote = 0; this._jumpPrev = false;
+    this.vault = null;                // 翻越中的插值状态
     this.charge = 0;                  // 投掷蓄力 0–1
     this.stones = 12;
     this.soundprints = [];            // 声纹（HUD 用）
@@ -1712,10 +1789,11 @@
       const d = mx * this.wallNormal.x + mz * this.wallNormal.z;
       mx -= d * this.wallNormal.x; mz -= d * this.wallNormal.z;
     }
-    this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
-    this.speedNow = this.moving ? speed * mag : 0;
-    if (this.moving) this.world.moveCharacter(this.pos, mx * speed * dt, mz * speed * dt, P.radius, 1.7, P.stepHeight);
-    else this.world.snapToGround(this.pos, P.radius, P.stepHeight);
+    // 跳跃/翻越是边沿触发：按住不放不会连跳
+    if (input.jump && !this._jumpPrev) this.tryJump();
+    this._jumpPrev = !!input.jump;
+
+    this._move(dt, mx, mz, speed, mag);
 
     const node = C.SoundSystem.graph.getNodeAt(this.eyePos(), this.nodeId);
     this.nodeId = node ? node.id : -1;
@@ -1741,7 +1819,7 @@
     }
 
     // ── 脚步声（声音规格 4.4：每一步发一次离散事件）──
-    if (this.moving && !this.holdBreath) {
+    if (this.moving && !this.holdBreath && !this.airborne && !this.vault) {
       const interval = this.running ? P.stepIntervalRun
         : this.wallHug ? P.stepIntervalWallHug
         : this.posture === 'crouch' ? P.stepIntervalCrouch : P.stepIntervalWalk;
@@ -1758,6 +1836,95 @@
     this._updateInteract(dt, input);
     this._updateThrow(dt, input);
     this._pruneSoundprints();
+  };
+
+  /** 水平与垂直分开处理：跳跃与下落需要独立的 y 轴积分，不能每帧硬吸附到地面 */
+  Player.prototype._move = function (dt, mx, mz, speed, mag) {
+    const P = C.Config.player, W = this.world;
+
+    // 翻越中：忽略输入，沿插值轨迹走完，中途不可打断
+    if (this.vault) {
+      this.vault.t += dt;
+      const k = M.clamp(this.vault.t / this.vault.dur, 0, 1);
+      const e = k * k * (3 - 2 * k);
+      this.pos.x = M.lerp(this.vault.from.x, this.vault.to.x, e);
+      this.pos.z = M.lerp(this.vault.from.z, this.vault.to.z, e);
+      this.pos.y = M.lerp(this.vault.from.y, this.vault.to.y, e) + Math.sin(k * Math.PI) * P.vaultLift;
+      this.moving = true; this.speedNow = 0;
+      if (k >= 1) { this.pos.y = this.vault.to.y; this.vault = null; this.airborne = false; this.velY = 0; }
+      return;
+    }
+
+    const ctl = this.airborne ? P.airControlMul : 1;
+    this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
+    this.speedNow = this.moving ? speed * mag : 0;
+    if (this.moving) W.moveHorizontal(this.pos, mx * speed * ctl * dt, mz * speed * ctl * dt, P.radius, 1.7, P.stepHeight);
+
+    if (this.airborne) {
+      this.velY -= P.gravity * dt;
+      let ny = this.pos.y + this.velY * dt;
+      const ceil = W.ceilingY(this.pos, this.pos.y + 1.2, P.radius);
+      if (ceil !== null && ny + 1.75 > ceil) { ny = Math.min(ny, ceil - 1.75); this.velY = Math.min(0, this.velY); }
+      const ground = W.groundY(this.pos, this.pos.y + 0.02, P.radius);
+      if (this.velY <= 0 && ground !== null && ny <= ground) {
+        ny = ground; this.airborne = false; this.velY = 0; this._onLand();
+      }
+      this.pos.y = ny;
+      this._coyote = 0;
+    } else {
+      const ground = W.groundY(this.pos, this.pos.y + P.stepHeight, P.radius);
+      if (ground === null) { this.airborne = true; this.velY = 0; this._fallFrom = this.pos.y; }
+      else { this.pos.y = ground; this._coyote = P.coyoteTime; this._fallFrom = ground; }
+    }
+  };
+
+  Player.prototype._onLand = function () {
+    // 落地有声。跳跃本身文档里没有，落地响度也是文档外的新增值。
+    const drop = (this._fallFrom || this.pos.y) - this.pos.y;
+    if (drop > 0.15 || this._jumped) {
+      this.emit(C.ModifierPipeline.query('sound.footstep', C.Config.loudness.jumpLand, this.id),
+                C.SoundCategory.Impact, '落地');
+    }
+    this._jumped = false;
+  };
+
+  Player.prototype.forwardFlat = function () {
+    return { x: -Math.sin(this.yaw), y: 0, z: -Math.cos(this.yaw) };
+  };
+
+  /**
+   * 跳跃键：先看正前方有没有可翻越的边缘，有就翻越，没有才起跳。
+   * 「贴住前方有障碍物时按跳跃会自动攀爬」就是这个优先级。
+   */
+  Player.prototype.tryJump = function () {
+    if (!this.alive || this.vault) return;
+    const P = C.Config.player;
+    const v = this.world.probeVault(this.pos, this.forwardFlat(), P.radius, P);
+    if (v) {
+      const cost = C.ModifierPipeline.query('stamina.climb_cost', P.stamina.climbCost, this.id);
+      if (this.stamina < cost) { this.lastAction = '体力不足，翻不上去'; return; }
+      this.stamina -= cost;
+      this.vault = { t: 0, dur: P.vaultDuration, from: V.copy(this.pos), to: v.target };
+      this.vaultRise = v.rise;
+      this.lastAction = '翻越 ' + v.rise.toFixed(2) + 'm';
+      // 翻窗(完好窗) 响度 30 —— 声音规格 6.1
+      this.emit(C.ModifierPipeline.query('sound.footstep', C.Config.loudness.windowClimb, this.id),
+                C.SoundCategory.Impact, '翻越');
+      return;
+    }
+    if (this.airborne && this._coyote <= 0) return;
+    const cost = C.ModifierPipeline.query('stamina.jump_cost', P.stamina.jumpCost, this.id);
+    if (this.stamina < cost) { this.lastAction = '体力不足，跳不动'; return; }
+    this.stamina -= cost;
+    this.airborne = true; this.velY = P.jumpSpeed; this._coyote = 0;
+    this._fallFrom = this.pos.y; this._jumped = true;
+    this.lastAction = '跳跃';
+  };
+
+  /** 正前方是否有可翻越的边缘（HUD 用来提示「按跳跃可翻越」） */
+  Player.prototype.vaultTarget = function () {
+    if (this.vault || this.airborne) return null;
+    return this.world.probeVault(this.pos, this.forwardFlat(), C.Config.player.radius, C.Config.player);
   };
 
   Player.prototype.emit = function (loudness, category, label) {
@@ -1848,11 +2015,24 @@
     return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
   };
 
-  /** 落点预测弧线（按住时显示） */
-  Player.prototype.predictArc = function () {
+  /**
+   * 投掷预测：弹道 + 落点 + 该落点的引怪半径。
+   * 引怪半径 = (落地响度 − 丧尸阈值) / k，k 取落点所在节点（室内 2.0 / 室外 1.2）并乘夜间系数。
+   * 注意这是**路径长度**半径，不是直线半径 —— 隔着墙和门实际会短很多，圆圈只是同一空间内的上界。
+   */
+  Player.prototype.predictThrow = function () {
     const T = C.Config.throwing;
     const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-    return C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const points = C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const impact = points[points.length - 1];
+    const node = C.SoundSystem.graph.getNodeAt(impact);
+    const k = C.SoundSystem.kFor(node);
+    const loud = C.Config.loudness.stoneImpact;
+    return {
+      points, impact, node,
+      loudness: loud,
+      radius: Math.max(0, (loud - C.Config.hearing.zombie) / k)
+    };
   };
 
   Player.prototype.die = function (cause) {
@@ -1879,8 +2059,11 @@
         p.vel.y -= g * dt;
         const next = V.add(p.pos, V.scale(p.vel, dt));
         if (this._hit(p.pos, next)) {
+          /* 必须用「接触点」而不是 next。next 已经穿到面的另一侧了：
+             石头落在四楼地板上时，next 在楼板下方，getNodeAt 会把它判成三楼，
+             于是脚边扔一块石头会去惊动楼下的丧尸。 */
           C.SoundSystem.emit({
-            worldPosition: next, loudness: C.Config.loudness.stoneImpact,
+            worldPosition: this.contact(p.pos, next), loudness: C.Config.loudness.stoneImpact,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
           });
           this.list.splice(i, 1);
@@ -1892,6 +2075,15 @@
         p.life -= dt;
         if (p.life <= 0) this.list.splice(i, 1);
       }
+    },
+    /** 二分出最后一个未接触的点，保证落点留在被撞面的正确一侧 */
+    contact(a, b) {
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        if (this._hit(a, V.lerp(a, b, mid))) hi = mid; else lo = mid;
+      }
+      return V.lerp(a, b, lo);
     },
     _hit(a, b) {
       const w = this.world, tmp = [];
@@ -1911,9 +2103,9 @@
         world.query(Math.min(p.x, n.x) - 0.2, Math.min(p.z, n.z) - 0.2, Math.max(p.x, n.x) + 0.2, Math.max(p.z, n.z) + 0.2, tmp);
         let hit = false;
         for (const s of tmp) if (C.AABB.segmentIntersects(s.box, p, n)) { hit = true; break; }
+        if (hit) { pts.push(this.contact(p, n)); break; }
         pts.push(V.copy(n));
         p = n;
-        if (hit) break;
       }
       return pts;
     }
@@ -2342,10 +2534,62 @@
 
     this._buildStatic();
     this._buildDoors();
+    this._buildThrowPreview();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
-    this._arc = null;
   }
+
+  /* 投掷预览：弹道 + 落点标记 + 引怪半径圈。
+     全部预先建好，每帧只改顶点和可见性 —— 原来每帧新建/销毁几何体，纯浪费。 */
+  Renderer.prototype._buildThrowPreview = function () {
+    const MAX = C.Config.throwing.arcSamples + 2;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX * 3), 3));
+    this.arcLine = new THREE.Line(geo, new THREE.LineDashedMaterial({
+      color: 0xffd479, dashSize: 0.22, gapSize: 0.16, transparent: true, opacity: 0.95, depthTest: false
+    }));
+    this.arcLine.renderOrder = 10;
+    this.arcLine.frustumCulled = false;
+    this.arcLine.visible = false;
+    this.scene.add(this.arcLine);
+
+    /* 再叠一层点阵。纯线条在「顺着弹道方向看过去」时会被透视压成几个像素，
+       而投石恰恰几乎总是朝着正前方扔 —— 点阵不受这个影响。 */
+    const pgeo = new THREE.BufferGeometry();
+    pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX * 3), 3));
+    this.arcDots = new THREE.Points(pgeo, new THREE.PointsMaterial({
+      color: 0xffd479, size: 0.075, sizeAttenuation: true, transparent: true, opacity: 0.9, depthTest: false
+    }));
+    this.arcDots.renderOrder = 10;
+    this.arcDots.frustumCulled = false;
+    this.arcDots.visible = false;
+    this.scene.add(this.arcDots);
+
+    // 落点：地面上的实心小环 + 一根竖直标杆，站在高处也看得见落点在哪
+    this.marker = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffd479, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthTest: false }));
+    ring.rotation.x = -Math.PI / 2;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0xffd479, transparent: true, opacity: 0.6, depthTest: false }));
+    post.position.y = 0.25;
+    this.marker.add(ring, post);
+    this.marker.renderOrder = 10;
+    this.marker.visible = false;
+    this.scene.add(this.marker);
+
+    // 引怪半径圈：半径 =(响度−丧尸阈值)/k，直接告诉玩家这一下会惊动多大范围
+    const seg = 72, pts = [];
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+    }
+    this.audibleRing = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x6FD3E8, transparent: true, opacity: 0.5, depthTest: false }));
+    this.audibleRing.renderOrder = 9;
+    this.audibleRing.visible = false;
+    this.scene.add(this.audibleRing);
+  };
 
   Renderer.prototype._buildStatic = function () {
     const byTag = new Map();
@@ -2471,14 +2715,40 @@
       if (p) m.position.set(p.pos.x, p.pos.y, p.pos.z);
     });
 
-    // 蓄力时的落点预测弧线
-    if (this._arc) { this.scene.remove(this._arc); this._arc.geometry.dispose(); this._arc = null; }
-    if (player.charge > 0) {
-      const pts = player.predictArc().map(p => new THREE.Vector3(p.x, p.y, p.z));
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      this._arc = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffd479 }));
-      this.scene.add(this._arc);
+    this._updateThrowPreview(player);
+  };
+
+  Renderer.prototype._updateThrowPreview = function (player) {
+    const T = C.Config.throwing;
+    const show = player.charge > 0 && player.alive;
+    this.arcLine.visible = show;
+    this.arcDots.visible = show;
+    this.marker.visible = show && T.showLandingMarker;
+    this.audibleRing.visible = show && T.showAudibleRing;
+    if (!show) return;
+
+    const pred = player.predictThrow();
+    const attr = this.arcLine.geometry.attributes.position;
+    const n = Math.min(pred.points.length, attr.count);
+    for (let i = 0; i < n; i++) {
+      const p = pred.points[i];
+      attr.setXYZ(i, p.x, p.y, p.z);
     }
+    attr.needsUpdate = true;
+    this.arcLine.geometry.setDrawRange(0, n);
+    this.arcLine.computeLineDistances();          // 虚线必须重算，否则不显示间隔
+    const dattr = this.arcDots.geometry.attributes.position;
+    for (let i = 0; i < n; i++) {
+      const p = pred.points[i];
+      dattr.setXYZ(i, p.x, p.y, p.z);
+    }
+    dattr.needsUpdate = true;
+    this.arcDots.geometry.setDrawRange(0, n);
+
+    const im = pred.impact;
+    this.marker.position.set(im.x, im.y + 0.02, im.z);
+    this.audibleRing.position.set(im.x, im.y + 0.03, im.z);
+    this.audibleRing.scale.setScalar(Math.max(0.1, pred.radius));
   };
 
   Renderer.prototype.resize = function (w, h) {
@@ -2638,6 +2908,8 @@
     if (player.lean) tags.push(player.lean < 0 ? '左探头' : '右探头');
     if (player.running) tags.push('奔跑');
     if (player.exhausted) tags.push('力竭');
+    if (player.vault) tags.push('翻越中');
+    else if (player.airborne) tags.push('腾空');
     if (player.flashlight) tags.push('手电');
     ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = (touch ? '11.5px ' : '12.5px ') + SANS;
     ctx.fillText(tags.join(' · ') || '站立', bx, by + bh + 15);
@@ -2658,6 +2930,18 @@
       }
     }
 
+    // 蓄力投石时的落点读数：圈只能画出「同一空间内的上界」，确切数字得给出来
+    if (player.charge > 0 && player.predictThrow) {
+      const pr = player.predictThrow();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd479'; ctx.font = '12px ' + MONO;
+      ctx.fillText('蓄力 ' + Math.round(player.charge * 100) + '%', cx, cy + 74);
+      ctx.fillStyle = SIGNAL;
+      ctx.fillText('落点 ' + (pr.node ? pr.node.name : '?') + ' · 引怪半径 ' + pr.radius.toFixed(1) + 'm', cx, cy + 92);
+      ctx.fillStyle = 'rgba(220,227,235,0.45)'; ctx.font = '10.5px ' + SANS;
+      ctx.fillText('（半径按路径长度算，隔墙隔门会更短）', cx, cy + 108);
+    }
+
     // 交互提示
     if (player.interactTarget) {
       const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
@@ -2671,6 +2955,15 @@
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
+      }
+    }
+
+    // 前方可翻越的提示。与开门提示互斥，避免同一位置两行字打架。
+    if (!player.interactTarget && !touch) {
+      const v = player.vaultTarget && player.vaultTarget();
+      if (v) {
+        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.9)'; ctx.font = '12.5px ' + SANS;
+        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + 46);
       }
     }
 
@@ -2987,7 +3280,7 @@
 
       // 按住类：按下为真，抬起为假
       const holds = { btnBreath: 'holdBreath', btnInteract: 'interact', btnThrow: 'throwHeld',
-                      btnLeanL: 'leanL', btnLeanR: 'leanR', btnWall: 'wallHug' };
+                      btnLeanL: 'leanL', btnLeanR: 'leanR', btnWall: 'wallHug', btnJump: 'jump' };
       for (const id in holds) this._bindHold(document.getElementById(id), holds[id]);
 
       // 开关类：点一下切换
@@ -3093,7 +3386,8 @@
         lean: (this.btn.leanR ? 1 : 0) - (this.btn.leanL ? 1 : 0),
         holdBreath: !!this.btn.holdBreath,
         interact: !!this.btn.interact,
-        throwHeld: !!this.btn.throwHeld
+        throwHeld: !!this.btn.throwHeld,
+        jump: !!this.btn.jump
       };
     },
 
@@ -3116,6 +3410,9 @@
       }
       const b = document.getElementById('btnBreath');
       if (b) b.classList.toggle('avail', player.holdBreath);
+      // 前方有可翻越的边缘时把跳跃键点亮，手机上没有文字提示的空间
+      const j = document.getElementById('btnJump');
+      if (j) j.classList.toggle('avail', !!player.vaultTarget());
     }
   };
 
@@ -3235,6 +3532,12 @@
         if (!this.locked) return;
         this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
       });
+      // 按住鼠标右键 = 屏息（Space 让给了跳跃）
+      this.rmb = false;
+      addEventListener('mousedown', (e) => { if (e.button === 2) this.rmb = true; });
+      addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
+      addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
+      addEventListener('blur', () => { this.rmb = false; this.keys = {}; });
     },
 
     _input() {
@@ -3246,9 +3549,10 @@
         crouch: !!(k.ControlLeft || k.ControlRight || k.KeyC),
         wallHug: !!k.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
-        holdBreath: !!k.Space,
+        holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF,
-        throwHeld: !!k.KeyG
+        throwHeld: !!k.KeyG,
+        jump: !!k.Space
       };
       if (!C.Touch.enabled) return kb;
       // 触屏与键盘取并集：外接键盘的平板两种都能用
@@ -3262,7 +3566,8 @@
         lean: kb.lean || t.lean,
         holdBreath: kb.holdBreath || t.holdBreath,
         interact: kb.interact || t.interact,
-        throwHeld: kb.throwHeld || t.throwHeld
+        throwHeld: kb.throwHeld || t.throwHeld,
+        jump: kb.jump || t.jump
       };
     },
 

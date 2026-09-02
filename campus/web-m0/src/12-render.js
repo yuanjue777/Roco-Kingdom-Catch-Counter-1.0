@@ -35,10 +35,62 @@
 
     this._buildStatic();
     this._buildDoors();
+    this._buildThrowPreview();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
-    this._arc = null;
   }
+
+  /* 投掷预览：弹道 + 落点标记 + 引怪半径圈。
+     全部预先建好，每帧只改顶点和可见性 —— 原来每帧新建/销毁几何体，纯浪费。 */
+  Renderer.prototype._buildThrowPreview = function () {
+    const MAX = C.Config.throwing.arcSamples + 2;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX * 3), 3));
+    this.arcLine = new THREE.Line(geo, new THREE.LineDashedMaterial({
+      color: 0xffd479, dashSize: 0.22, gapSize: 0.16, transparent: true, opacity: 0.95, depthTest: false
+    }));
+    this.arcLine.renderOrder = 10;
+    this.arcLine.frustumCulled = false;
+    this.arcLine.visible = false;
+    this.scene.add(this.arcLine);
+
+    /* 再叠一层点阵。纯线条在「顺着弹道方向看过去」时会被透视压成几个像素，
+       而投石恰恰几乎总是朝着正前方扔 —— 点阵不受这个影响。 */
+    const pgeo = new THREE.BufferGeometry();
+    pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX * 3), 3));
+    this.arcDots = new THREE.Points(pgeo, new THREE.PointsMaterial({
+      color: 0xffd479, size: 0.075, sizeAttenuation: true, transparent: true, opacity: 0.9, depthTest: false
+    }));
+    this.arcDots.renderOrder = 10;
+    this.arcDots.frustumCulled = false;
+    this.arcDots.visible = false;
+    this.scene.add(this.arcDots);
+
+    // 落点：地面上的实心小环 + 一根竖直标杆，站在高处也看得见落点在哪
+    this.marker = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffd479, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthTest: false }));
+    ring.rotation.x = -Math.PI / 2;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0xffd479, transparent: true, opacity: 0.6, depthTest: false }));
+    post.position.y = 0.25;
+    this.marker.add(ring, post);
+    this.marker.renderOrder = 10;
+    this.marker.visible = false;
+    this.scene.add(this.marker);
+
+    // 引怪半径圈：半径 =(响度−丧尸阈值)/k，直接告诉玩家这一下会惊动多大范围
+    const seg = 72, pts = [];
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+    }
+    this.audibleRing = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x6FD3E8, transparent: true, opacity: 0.5, depthTest: false }));
+    this.audibleRing.renderOrder = 9;
+    this.audibleRing.visible = false;
+    this.scene.add(this.audibleRing);
+  };
 
   Renderer.prototype._buildStatic = function () {
     const byTag = new Map();
@@ -164,14 +216,40 @@
       if (p) m.position.set(p.pos.x, p.pos.y, p.pos.z);
     });
 
-    // 蓄力时的落点预测弧线
-    if (this._arc) { this.scene.remove(this._arc); this._arc.geometry.dispose(); this._arc = null; }
-    if (player.charge > 0) {
-      const pts = player.predictArc().map(p => new THREE.Vector3(p.x, p.y, p.z));
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      this._arc = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffd479 }));
-      this.scene.add(this._arc);
+    this._updateThrowPreview(player);
+  };
+
+  Renderer.prototype._updateThrowPreview = function (player) {
+    const T = C.Config.throwing;
+    const show = player.charge > 0 && player.alive;
+    this.arcLine.visible = show;
+    this.arcDots.visible = show;
+    this.marker.visible = show && T.showLandingMarker;
+    this.audibleRing.visible = show && T.showAudibleRing;
+    if (!show) return;
+
+    const pred = player.predictThrow();
+    const attr = this.arcLine.geometry.attributes.position;
+    const n = Math.min(pred.points.length, attr.count);
+    for (let i = 0; i < n; i++) {
+      const p = pred.points[i];
+      attr.setXYZ(i, p.x, p.y, p.z);
     }
+    attr.needsUpdate = true;
+    this.arcLine.geometry.setDrawRange(0, n);
+    this.arcLine.computeLineDistances();          // 虚线必须重算，否则不显示间隔
+    const dattr = this.arcDots.geometry.attributes.position;
+    for (let i = 0; i < n; i++) {
+      const p = pred.points[i];
+      dattr.setXYZ(i, p.x, p.y, p.z);
+    }
+    dattr.needsUpdate = true;
+    this.arcDots.geometry.setDrawRange(0, n);
+
+    const im = pred.impact;
+    this.marker.position.set(im.x, im.y + 0.02, im.z);
+    this.audibleRing.position.set(im.x, im.y + 0.03, im.z);
+    this.audibleRing.scale.setScalar(Math.max(0.1, pred.radius));
   };
 
   Renderer.prototype.resize = function (w, h) {

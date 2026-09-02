@@ -30,6 +30,8 @@
     this._interactHeld = 0;
     this._interactTarget = null;
     this._interactDone = false;
+    this.velY = 0; this.airborne = false; this._coyote = 0; this._jumpPrev = false;
+    this.vault = null;                // 翻越中的插值状态
     this.charge = 0;                  // 投掷蓄力 0–1
     this.stones = 12;
     this.soundprints = [];            // 声纹（HUD 用）
@@ -151,10 +153,11 @@
       const d = mx * this.wallNormal.x + mz * this.wallNormal.z;
       mx -= d * this.wallNormal.x; mz -= d * this.wallNormal.z;
     }
-    this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
-    this.speedNow = this.moving ? speed * mag : 0;
-    if (this.moving) this.world.moveCharacter(this.pos, mx * speed * dt, mz * speed * dt, P.radius, 1.7, P.stepHeight);
-    else this.world.snapToGround(this.pos, P.radius, P.stepHeight);
+    // 跳跃/翻越是边沿触发：按住不放不会连跳
+    if (input.jump && !this._jumpPrev) this.tryJump();
+    this._jumpPrev = !!input.jump;
+
+    this._move(dt, mx, mz, speed, mag);
 
     const node = C.SoundSystem.graph.getNodeAt(this.eyePos(), this.nodeId);
     this.nodeId = node ? node.id : -1;
@@ -180,7 +183,7 @@
     }
 
     // ── 脚步声（声音规格 4.4：每一步发一次离散事件）──
-    if (this.moving && !this.holdBreath) {
+    if (this.moving && !this.holdBreath && !this.airborne && !this.vault) {
       const interval = this.running ? P.stepIntervalRun
         : this.wallHug ? P.stepIntervalWallHug
         : this.posture === 'crouch' ? P.stepIntervalCrouch : P.stepIntervalWalk;
@@ -197,6 +200,95 @@
     this._updateInteract(dt, input);
     this._updateThrow(dt, input);
     this._pruneSoundprints();
+  };
+
+  /** 水平与垂直分开处理：跳跃与下落需要独立的 y 轴积分，不能每帧硬吸附到地面 */
+  Player.prototype._move = function (dt, mx, mz, speed, mag) {
+    const P = C.Config.player, W = this.world;
+
+    // 翻越中：忽略输入，沿插值轨迹走完，中途不可打断
+    if (this.vault) {
+      this.vault.t += dt;
+      const k = M.clamp(this.vault.t / this.vault.dur, 0, 1);
+      const e = k * k * (3 - 2 * k);
+      this.pos.x = M.lerp(this.vault.from.x, this.vault.to.x, e);
+      this.pos.z = M.lerp(this.vault.from.z, this.vault.to.z, e);
+      this.pos.y = M.lerp(this.vault.from.y, this.vault.to.y, e) + Math.sin(k * Math.PI) * P.vaultLift;
+      this.moving = true; this.speedNow = 0;
+      if (k >= 1) { this.pos.y = this.vault.to.y; this.vault = null; this.airborne = false; this.velY = 0; }
+      return;
+    }
+
+    const ctl = this.airborne ? P.airControlMul : 1;
+    this.moving = (mx !== 0 || mz !== 0) && speed > 0.01;
+    this.speedNow = this.moving ? speed * mag : 0;
+    if (this.moving) W.moveHorizontal(this.pos, mx * speed * ctl * dt, mz * speed * ctl * dt, P.radius, 1.7, P.stepHeight);
+
+    if (this.airborne) {
+      this.velY -= P.gravity * dt;
+      let ny = this.pos.y + this.velY * dt;
+      const ceil = W.ceilingY(this.pos, this.pos.y + 1.2, P.radius);
+      if (ceil !== null && ny + 1.75 > ceil) { ny = Math.min(ny, ceil - 1.75); this.velY = Math.min(0, this.velY); }
+      const ground = W.groundY(this.pos, this.pos.y + 0.02, P.radius);
+      if (this.velY <= 0 && ground !== null && ny <= ground) {
+        ny = ground; this.airborne = false; this.velY = 0; this._onLand();
+      }
+      this.pos.y = ny;
+      this._coyote = 0;
+    } else {
+      const ground = W.groundY(this.pos, this.pos.y + P.stepHeight, P.radius);
+      if (ground === null) { this.airborne = true; this.velY = 0; this._fallFrom = this.pos.y; }
+      else { this.pos.y = ground; this._coyote = P.coyoteTime; this._fallFrom = ground; }
+    }
+  };
+
+  Player.prototype._onLand = function () {
+    // 落地有声。跳跃本身文档里没有，落地响度也是文档外的新增值。
+    const drop = (this._fallFrom || this.pos.y) - this.pos.y;
+    if (drop > 0.15 || this._jumped) {
+      this.emit(C.ModifierPipeline.query('sound.footstep', C.Config.loudness.jumpLand, this.id),
+                C.SoundCategory.Impact, '落地');
+    }
+    this._jumped = false;
+  };
+
+  Player.prototype.forwardFlat = function () {
+    return { x: -Math.sin(this.yaw), y: 0, z: -Math.cos(this.yaw) };
+  };
+
+  /**
+   * 跳跃键：先看正前方有没有可翻越的边缘，有就翻越，没有才起跳。
+   * 「贴住前方有障碍物时按跳跃会自动攀爬」就是这个优先级。
+   */
+  Player.prototype.tryJump = function () {
+    if (!this.alive || this.vault) return;
+    const P = C.Config.player;
+    const v = this.world.probeVault(this.pos, this.forwardFlat(), P.radius, P);
+    if (v) {
+      const cost = C.ModifierPipeline.query('stamina.climb_cost', P.stamina.climbCost, this.id);
+      if (this.stamina < cost) { this.lastAction = '体力不足，翻不上去'; return; }
+      this.stamina -= cost;
+      this.vault = { t: 0, dur: P.vaultDuration, from: V.copy(this.pos), to: v.target };
+      this.vaultRise = v.rise;
+      this.lastAction = '翻越 ' + v.rise.toFixed(2) + 'm';
+      // 翻窗(完好窗) 响度 30 —— 声音规格 6.1
+      this.emit(C.ModifierPipeline.query('sound.footstep', C.Config.loudness.windowClimb, this.id),
+                C.SoundCategory.Impact, '翻越');
+      return;
+    }
+    if (this.airborne && this._coyote <= 0) return;
+    const cost = C.ModifierPipeline.query('stamina.jump_cost', P.stamina.jumpCost, this.id);
+    if (this.stamina < cost) { this.lastAction = '体力不足，跳不动'; return; }
+    this.stamina -= cost;
+    this.airborne = true; this.velY = P.jumpSpeed; this._coyote = 0;
+    this._fallFrom = this.pos.y; this._jumped = true;
+    this.lastAction = '跳跃';
+  };
+
+  /** 正前方是否有可翻越的边缘（HUD 用来提示「按跳跃可翻越」） */
+  Player.prototype.vaultTarget = function () {
+    if (this.vault || this.airborne) return null;
+    return this.world.probeVault(this.pos, this.forwardFlat(), C.Config.player.radius, C.Config.player);
   };
 
   Player.prototype.emit = function (loudness, category, label) {
@@ -287,11 +379,24 @@
     return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
   };
 
-  /** 落点预测弧线（按住时显示） */
-  Player.prototype.predictArc = function () {
+  /**
+   * 投掷预测：弹道 + 落点 + 该落点的引怪半径。
+   * 引怪半径 = (落地响度 − 丧尸阈值) / k，k 取落点所在节点（室内 2.0 / 室外 1.2）并乘夜间系数。
+   * 注意这是**路径长度**半径，不是直线半径 —— 隔着墙和门实际会短很多，圆圈只是同一空间内的上界。
+   */
+  Player.prototype.predictThrow = function () {
     const T = C.Config.throwing;
     const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-    return C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const points = C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const impact = points[points.length - 1];
+    const node = C.SoundSystem.graph.getNodeAt(impact);
+    const k = C.SoundSystem.kFor(node);
+    const loud = C.Config.loudness.stoneImpact;
+    return {
+      points, impact, node,
+      loudness: loud,
+      radius: Math.max(0, (loud - C.Config.hearing.zombie) / k)
+    };
   };
 
   Player.prototype.die = function (cause) {
@@ -318,8 +423,11 @@
         p.vel.y -= g * dt;
         const next = V.add(p.pos, V.scale(p.vel, dt));
         if (this._hit(p.pos, next)) {
+          /* 必须用「接触点」而不是 next。next 已经穿到面的另一侧了：
+             石头落在四楼地板上时，next 在楼板下方，getNodeAt 会把它判成三楼，
+             于是脚边扔一块石头会去惊动楼下的丧尸。 */
           C.SoundSystem.emit({
-            worldPosition: next, loudness: C.Config.loudness.stoneImpact,
+            worldPosition: this.contact(p.pos, next), loudness: C.Config.loudness.stoneImpact,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
           });
           this.list.splice(i, 1);
@@ -331,6 +439,15 @@
         p.life -= dt;
         if (p.life <= 0) this.list.splice(i, 1);
       }
+    },
+    /** 二分出最后一个未接触的点，保证落点留在被撞面的正确一侧 */
+    contact(a, b) {
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        if (this._hit(a, V.lerp(a, b, mid))) hi = mid; else lo = mid;
+      }
+      return V.lerp(a, b, lo);
     },
     _hit(a, b) {
       const w = this.world, tmp = [];
@@ -350,9 +467,9 @@
         world.query(Math.min(p.x, n.x) - 0.2, Math.min(p.z, n.z) - 0.2, Math.max(p.x, n.x) + 0.2, Math.max(p.z, n.z) + 0.2, tmp);
         let hit = false;
         for (const s of tmp) if (C.AABB.segmentIntersects(s.box, p, n)) { hit = true; break; }
+        if (hit) { pts.push(this.contact(p, n)); break; }
         pts.push(V.copy(n));
         p = n;
-        if (hit) break;
       }
       return pts;
     }
