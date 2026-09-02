@@ -36,6 +36,8 @@
     this._buildStatic();
     this._buildDoors();
     this._buildThrowPreview();
+    this._buildAvatar();
+    this._buildReveals();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
@@ -145,6 +147,52 @@
     }
   };
 
+  /* 第三人称才看得见的玩家身体 */
+  Renderer.prototype._buildAvatar = function () {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.3),
+      new THREE.MeshLambertMaterial({ color: 0x4c6b8a }));
+    body.position.y = 0.72;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28),
+      new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
+    head.position.y = 1.45;
+    g.add(body, head);
+    g.visible = false;
+    this.avatar = g;
+    this.scene.add(g);
+  };
+
+  /* 声纹透视标记：depthTest 关掉，隔墙也能看见 */
+  Renderer.prototype._buildReveals = function () {
+    this.reveals = [];
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.22),
+        new THREE.MeshBasicMaterial({ color: 0x6FD3E8, transparent: true, opacity: 0.85, depthTest: false }));
+      m.renderOrder = 12; m.visible = false;
+      this.reveals.push(m); this.scene.add(m);
+    }
+  };
+
+  Renderer.prototype._updateReveals = function (player) {
+    const now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
+    const show = (player.holdBreath || C.Config.debug.showSoundprintAlways) && C.Config.hearing.revealSource;
+    let i = 0;
+    if (show) {
+      for (const s of player.soundprints) {
+        if (i >= this.reveals.length || !s.src) continue;
+        const age = (now - s.born) / life;
+        if (age > 1) continue;
+        const m = this.reveals[i++];
+        m.visible = true;
+        m.position.set(s.src.x, s.src.y + 1.1, s.src.z);
+        m.material.opacity = (1 - age) * 0.85;
+        m.rotation.y += 0.03;
+        m.scale.setScalar(s.fromZombie ? 1 : 0.65);
+      }
+    }
+    for (; i < this.reveals.length; i++) this.reveals[i].visible = false;
+  };
+
   Renderer.prototype._zombieMesh = function (z) {
     let m = this.zombieMeshes.get(z.id);
     if (!m) {
@@ -173,12 +221,32 @@
     const eye = player.eyePos();
     const lean = player.lean;
     const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
-    this.camera.position.set(
-      eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
-    this.camera.rotation.set(0, 0, 0);
-    this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
-    this.camera.rotateX(player.pitch);
-    this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
+
+    this.avatar.visible = player.wallHug;
+    if (player.wallHug) {
+      /* 背贴墙 → 第三人称。相机不能往身后放（身后就是墙），改为沿墙面切线侧移，
+         并挑空间更大的那一侧。 */
+      this.avatar.position.set(player.pos.x, player.pos.y, player.pos.z);
+      this.avatar.rotation.y = player.yaw;
+      const fwd = player.forwardFlat();
+      const n = player.wallNormal || fwd;
+      // 身后 + 往走廊里推 + 抬高；身后是沿墙方向，不会撞墙
+      let back = P.thirdPersonBack;
+      const at = (d) => ({ x: eye.x - fwd.x * d + n.x * P.thirdPersonAway,
+                           y: eye.y + P.thirdPersonUp,
+                           z: eye.z - fwd.z * d + n.z * P.thirdPersonAway });
+      if (this.world && !this.world.lineOfSight(eye, at(back))) back = 1.1;   // 背后堵住就拉近
+      const cam = at(back);
+      this.camera.position.set(cam.x, cam.y, cam.z);
+      this.camera.lookAt(eye.x + fwd.x * 3, eye.y + Math.sin(player.pitch) * 3 - 0.1, eye.z + fwd.z * 3);
+    } else {
+      this.camera.position.set(
+        eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
+      this.camera.rotation.set(0, 0, 0);
+      this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
+      this.camera.rotateX(player.pitch);
+      this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
+    }
 
     // 光照随昼夜（主文档 3.1：19:00 后室内没有光源则接近全黑）
     const dl = time.getDaylight();
@@ -217,6 +285,7 @@
     });
 
     this._updateThrowPreview(player);
+    this._updateReveals(player);
   };
 
   Renderer.prototype._updateThrowPreview = function (player) {

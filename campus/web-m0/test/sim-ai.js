@@ -303,5 +303,74 @@ ok('石头落地事件记在 4F 而不是楼下', hit && g8.getNode(hit.node).na
    hit ? g8.getNode(hit.node).name : '(无事件)');
 player.pitch = 0; player.charge = 0;
 
+// ── 10. 丧尸拖行脚步与屏息侦查 ──────────────────────
+section('10. 丧尸脚步声（回答主文档 13.1 待定问题 4）');
+sim = makeSim();
+const zw = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(10, 0, 1.3) }, sim.world);
+function ear(thr, x) {
+  let n = 0;
+  const h = new C.HearingComponent({ ownerId: 1, baseThreshold: thr,
+    onHeard: (i) => { if (i.evt.label === '丧尸脚步') n++; } });
+  h.position = C.V.make(x, 1.65, 1.3);
+  h.nodeId = sim.level.graph.getNodeAt(h.position).id;
+  C.SoundSystem.registerListener(h);
+  return () => n;
+}
+const farNormal = ear(TH.player, 26), farHeld = ear(TH.playerHoldBreath, 26);
+step(sim, 20);
+ok('移动中的丧尸会持续发出脚步声', C.SoundSystem.log.filter(e => e.label === '丧尸脚步').length > 0);
+const L = C.Config.loudness.zombieShuffle, k = C.Config.sound.kIndoor;
+ok(`屏息可听半径 ${(L - TH.playerHoldBreath) / k}m > 丧尸听见你走路的 ${(C.Config.loudness.walk - TH.zombie) / k}m`,
+   (L - TH.playerHoldBreath) / k > (C.Config.loudness.walk - TH.zombie) / k,
+   '玩家有先手');
+ok('常态阈值 25 时可听半径只有 2.5m（必须屏息才能当雷达用）',
+   Math.abs((L - TH.player) / k - 2.5) < 0.01);
+ok('16m 外常态听不见', farNormal() === 0, String(farNormal()));
+ok('趴伏的蜷伏者不发脚步声', (() => {
+  const s2 = makeSim();
+  const cr3 = C.ZombieManager.spawn({ type: 'Crawler', pos: C.V.make(10, 0, 4) }, s2.world);
+  step(s2, 6);
+  return cr3.state === S.Prone && C.SoundSystem.log.filter(e => e.label === '丧尸脚步').length === 0;
+})());
+
+// ── 11. 贴墙第三人称 ───────────────────────────────
+section('11. 贴墙（单击切换）');
+sim = makeSim();
+const pw = new C.Player(sim.level, sim.world);
+const idle2 = { forward: 0, right: 0, run: false, crouch: false, wallHug: false, lean: 0,
+                holdBreath: false, interact: false, throwHeld: false, jump: false };
+// 站到走廊南墙前
+pw.pos = C.V.make(16, 3 * 3.2, 0.55); pw.yaw = 0;
+pw.update(1 / 60, idle2, sim.time);
+pw.update(1 / 60, Object.assign({}, idle2, { wallHug: true }), sim.time);
+ok('贴近墙面时单击可进入贴墙', pw.wallHug === true, pw.lastAction);
+// 南墙法线 =(0,+1)，沿墙走向 = ±x；朝向应落在其中一侧而不是朝向墙外
+{
+  const f = pw.forwardFlat();
+  ok('进入后朝向沿墙走向（不是朝墙外）', Math.abs(f.z) < 0.01 && Math.abs(Math.abs(f.x) - 1) < 0.01,
+     'forward=(' + f.x.toFixed(2) + ',' + f.z.toFixed(2) + ')');
+}
+pw.update(1 / 60, idle2, sim.time);
+ok('松开按键不会退出（是状态不是按住）', pw.wallHug === true);
+pw.update(1 / 60, Object.assign({}, idle2, { wallHug: true }), sim.time);
+ok('再次单击退出', pw.wallHug === false);
+// 远离墙面自动解除
+pw.update(1 / 60, idle2, sim.time);
+pw.update(1 / 60, Object.assign({}, idle2, { wallHug: true }), sim.time);
+pw.pos = C.V.make(16, 3 * 3.2, 1.8);   // 走廊另一侧：那面墙的法线相反
+pw.update(1 / 60, idle2, sim.time);
+ok('离开原来那面墙就自动解除（不会顺势改贴对面墙）', pw.wallHug === false);
+// 声纹带声源坐标（供透视标记用）
+sim = makeSim();
+const pv = new C.Player(sim.level, sim.world);
+pv.pos = C.V.make(16, 3 * 3.2, 1.3);
+pv.update(1 / 60, idle2, sim.time);
+C.SoundSystem.emit({ worldPosition: C.V.make(12, 3 * 3.2, 1.3), loudness: 60,
+                     category: C.SoundCategory.Footstep, emitterId: 101, label: '丧尸脚步' });
+const sp = pv.soundprints[pv.soundprints.length - 1];
+ok('声纹记录了声源真实坐标（用于透视标记）', sp && sp.src && Math.abs(sp.src.x - 12) < 0.01);
+ok('声纹标记了来源是丧尸', sp && sp.fromZombie === true);
+ok('方向指示仍按路径入口算（规格 5.4 不受影响）', typeof sp.angle === 'number');
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

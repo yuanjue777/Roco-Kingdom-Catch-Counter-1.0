@@ -75,6 +75,9 @@
     const offset = (rng.next() * 2 - 1) * err;
     const trueAngle = Math.atan2(info.dir.x, info.dir.z);
     this.soundprints.push({
+      // 透视标记用真实声源位置；方向指示仍按规格 5.4 用路径入口方向，两者互不干扰
+      src: C.Config.hearing.revealSource ? V.copy(info.evt.worldPosition) : null,
+      fromZombie: info.evt.emitterId >= 100,
       angle: trueAngle + offset,
       category: info.evt.category,
       band: C.Reaction.distanceBand(info.margin),
@@ -83,6 +86,21 @@
       evtId: info.evt.id
     });
     if (this.soundprints.length > 24) this.soundprints.shift();
+  };
+
+  /** 单击贴墙：背贴墙面，视角切第三人称（渲染层据此切换），仍可投掷 */
+  Player.prototype.toggleWallHug = function () {
+    if (this.wallHug) { this.wallHug = false; this.wallNormal = null; this.lastAction = '离开墙面'; return; }
+    const w = this.world.probeWall(this.pos, 1.5, C.Config.player.wallProbeDistance);
+    if (!w) { this.lastAction = '附近没有可贴的墙'; return; }
+    this.wallHug = true; this.wallNormal = w.normal;
+    /* 身体背贴墙，但朝向取「沿墙走向」中与当前朝向更接近的一侧。
+       朝墙外的话在 2.6m 宽的走廊里等于脸贴对面墙，第三人称毫无用处。 */
+    const n = w.normal, f = this.forwardFlat();
+    const t = { x: n.z, z: -n.x };
+    const dir = (f.x * t.x + f.z * t.z) >= 0 ? 1 : -1;
+    this.yaw = Math.atan2(-t.x * dir, -t.z * dir);
+    this.lastAction = '贴墙';
   };
 
   Player.prototype.eyeHeight = function () {
@@ -115,10 +133,18 @@
     this.posture = input.crouch ? 'crouch' : 'stand';
     this.lean = input.lean;
     this.holdBreath = input.holdBreath && this.stamina > 0;
-    const wall = input.wallHug ? this.world.probeWall(this.pos, 1.5, 0.95) : null;
-    this.wallHug = !!wall;
-    this.wallNormal = wall ? wall.normal : null;
+    if (input.wallHug && !this._wallPrev) this.toggleWallHug();
+    this._wallPrev = !!input.wallHug;
+    if (this.wallHug) {
+      /* 离开墙面就自动解除。必须认准进入时那面墙：走廊只有 2.6m 宽，
+         任何位置都离某面墙不到 1.35m，只判「附近有没有墙」的话永远解除不了。 */
+      const w = this.world.probeWall(this.pos, 1.5, P.wallExitDistance);
+      const same = w && this.wallNormal &&
+        (w.normal.x * this.wallNormal.x + w.normal.z * this.wallNormal.z) > 0.7;
+      if (!same) { this.wallHug = false; this.wallNormal = null; }
+    }
     this.running = input.run && !input.crouch && !this.holdBreath && !this.wallHug && this.stamina > 0;
+    if (this.wallHug) this.lean = 0;   // 贴墙时整个人已经在掩体后，探头交给第三人称视角
 
     // ── 屏息：阈值 25→8，同时提升定位精度（声音规格 5.4）──
     const hasHB = C.ModifierPipeline.has('hearing.threshold', 'holdBreath');

@@ -8,7 +8,7 @@
   const { M } = C;
 
   const Game = {
-    keys: {}, mouse: { dx: 0, dy: 0 }, locked: false,
+    keys: {}, tapped: {}, mouse: { dx: 0, dy: 0 }, locked: false,
     timeScales: [1, 4, 20], timeScaleIndex: 0,
 
     start() {
@@ -49,6 +49,7 @@
       // 渲染器持有场景对象，重开时整体重建
       if (this.renderer) this.renderer.three.dispose();
       this.renderer = new C.Renderer(this.canvas3d, this.level);
+      this.renderer.world = this.world;      // 第三人称选边需要射线检测
       this._resize();
 
       // 音频：把听觉组件的结果接到耳朵上
@@ -73,6 +74,9 @@
         if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
         if (this.keys[e.code]) return;
         this.keys[e.code] = true;
+        // 记一笔「本帧内按下过」：快速点击可能整个发生在两帧之间，
+        // 只看 keys 会让贴墙、跳跃这类边沿触发的键被吃掉
+        this.tapped[e.code] = true;
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
@@ -117,7 +121,7 @@
       addEventListener('mousedown', (e) => { if (e.button === 2) this.rmb = true; });
       addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
       addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
-      addEventListener('blur', () => { this.rmb = false; this.keys = {}; });
+      addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
     },
 
     _input() {
@@ -127,12 +131,12 @@
         right: (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0),
         run: !!(k.ShiftLeft || k.ShiftRight),
         crouch: !!(k.ControlLeft || k.ControlRight || k.KeyC),
-        wallHug: !!k.KeyV,
+        wallHug: !!k.KeyV || !!this.tapped.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF,
         throwHeld: !!k.KeyG,
-        jump: !!k.Space
+        jump: !!k.Space || !!this.tapped.Space
       };
       if (!C.Touch.enabled) return kb;
       // 触屏与键盘取并集：外接键盘的平板两种都能用
@@ -182,6 +186,7 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
+      this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));
     },

@@ -34,6 +34,7 @@
     this.lostTimer = 0;
     this.growlTimer = 0;
     this.breathTimer = 0;
+    this.shuffleTimer = Math.random() * 1.1;
     this.visionTimer = Math.random() * C.Config.zombieReaction.visionCheckInterval;
     this.recognition = 0;        // 识别条 0–0.8
     this.currentMargin = 0;
@@ -162,6 +163,20 @@
         }
       } else this.stuckTimer = 0;
     }
+    /* 未趴伏的丧尸只要在动就会拖出脚步声 —— 玩家屏息时靠这个提前发现它们。
+       必须放在帧末：lastPos 是上一帧末尾的快照，在帧首比较的话两者永远相等。 */
+    if (this.state !== State.Prone && V.distXZ(this.pos, this.lastPos) > 0.004) {
+      this.shuffleTimer -= dt;
+      if (this.shuffleTimer <= 0) {
+        this.shuffleTimer = this.def.shuffleInterval || 1.1;
+        C.SoundSystem.emit({
+          worldPosition: this.pos, loudness: C.Config.loudness.zombieShuffle,
+          category: C.SoundCategory.Footstep, emitterId: this.id,
+          nodeIdHint: this.nodeId, label: '丧尸脚步'
+        });
+      }
+    }
+
     this.lastPos = V.copy(this.pos);
   };
 

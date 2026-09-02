@@ -54,6 +54,10 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      zombieShuffle: 30,           // 丧尸未发现玩家时的拖行脚步声。
+                                   // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
+                                   // 30 意味着屏息(阈值8)可听 11m、常态(阈值25)只有 2.5m ——
+                                   // 屏息因此成为真正的侦查工具，而丧尸听见你走路只有 5m。
       jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
     },
 
@@ -81,6 +85,9 @@
       player: 25,
       playerHoldBreath: 8,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
+      // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
+      // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
+      revealSource: true,
       // 距离模糊分级的 margin 门槛（声音规格 5.4：只给很近/中等/很远）
       distanceBands: { near: 35, mid: 12 }
     },
@@ -108,19 +115,21 @@
         speedWander: 1.0, speedChase: 3.2,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
-        breathLoudness: 0, breathInterval: 3.0
+        breathLoudness: 0, breathInterval: 3.0,
+        shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
         speedWander: 1.0, speedChase: 3.2,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         riseDistance: 8,            // 声源在 8 米内才起身
-        breathInterval: 2.5         // 呼吸声间隔（文档未给频率，此值为实测占位）
+        breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
+        shuffleInterval: 1.1
       },
       Runner: {                     // 第 12 天后才出现，M0 不放置，仅保留定义
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.2, speedChase: 5.4,
-        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6
+        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
       }
     },
     // 视觉修正（主文档 4.5）
@@ -152,6 +161,12 @@
       vaultDuration: 0.42,         // 翻越动作时长
       vaultLift: 0.35,             // 翻越轨迹的抬升幅度，纯表现
       leanOffset: 0.55, leanAngle: 12,
+      // 贴墙改为「单击进入/退出」的状态，进入后背贴墙面并切第三人称
+      wallProbeDistance: 1.0, wallExitDistance: 1.35,
+      /* 贴墙后朝向沿墙走向（不是朝墙外）：走廊只有 2.6m 深，朝墙外等于脸贴 2 米外的另一面墙，
+         第三人称什么也看不见。掩体系统的通行做法就是「背贴墙、视线沿墙」。
+         相机因此可以正常放在身后，再往走廊里推一点、抬高一点。 */
+      thirdPersonBack: 2.8, thirdPersonAway: 0.6, thirdPersonUp: 0.6,
       peekYaw: 35,                  // 侧身探头的视角偏移
       // 脚步事件间隔（声音规格 4.4：跑约 0.35s，走约 0.7s）
       stepIntervalWalk: 0.7, stepIntervalRun: 0.35,

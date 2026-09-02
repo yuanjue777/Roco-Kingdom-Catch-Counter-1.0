@@ -168,6 +168,9 @@
       }
       const b = document.getElementById('btnBreath');
       if (b) b.classList.toggle('avail', player.holdBreath);
+      // 贴墙键显示的是「玩家当前是否贴着墙」，不是「按钮有没有被按下」
+      const w = document.getElementById('btnWall');
+      if (w) w.classList.toggle('on', !!player.wallHug);
       // 前方有可翻越的边缘时把跳跃键点亮，手机上没有文字提示的空间
       const j = document.getElementById('btnJump');
       if (j) j.classList.toggle('avail', !!player.vaultTarget());

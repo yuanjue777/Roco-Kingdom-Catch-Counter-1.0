@@ -119,6 +119,10 @@
     width: 52px; height: 52px; padding: 0;
   }
   .tb small { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .tb svg { width: 21px; height: 21px; stroke: currentColor; fill: none;
+            stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .tb.sm svg { width: 18px; height: 18px; }
+  .tb.on svg, .tb.avail svg { stroke: currentColor; }
   .tb.big { width: 72px; height: 72px; font-size: 14px; }
   .tb.sm { width: 44px; height: 44px; font-size: 11.5px; }
   .tb.tiny { width: auto; height: 27px; border-radius: 14px; padding: 0 11px; font-size: 11px; }
@@ -142,8 +146,12 @@
 
   /* 竖屏：宽度只有 390px，探头键夹在摇杆区和动作区中间必然打架，整排上移 */
   @media (orientation: portrait) {
+    /* 竖屏只有 390px 宽，右侧动作区已占掉 194px，左侧修饰键放不进摇杆旁边，
+       改为横排摞在摇杆上方 */
     .pad-lean { bottom: calc(212px + env(safe-area-inset-bottom)); }
-    .pad-mods { left: calc(134px + env(safe-area-inset-left)); }
+    .pad-mods { left: calc(18px + env(safe-area-inset-left));
+                bottom: calc(138px + env(safe-area-inset-bottom));
+                flex-direction: row; }
   }
 
   #rotateHint {
@@ -181,9 +189,8 @@
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
   <div class="pad pad-mods">
-    <button id="btnCrouch" class="tb sm" type="button">蹲</button>
-    <button id="btnRun" class="tb sm" type="button">跑</button>
-    <button id="btnWall" class="tb sm" type="button">贴墙</button>
+    <button id="btnCrouch" class="tb sm" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M12 4v10"/><path d="M7 9l5 5 5-5"/></svg><small>蹲</small></button>
+    <button id="btnWall" class="tb sm" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18"/><circle cx="14" cy="7" r="2.4"/><path d="M14 10v6M14 16l-3 4M14 16l3 4"/></svg><small>贴墙</small></button>
   </div>
   <div class="pad pad-lean">
     <button id="btnLeanL" class="tb sm" type="button">◀探</button>
@@ -195,9 +202,10 @@
       <button id="btnThrow" class="tb" type="button">G<small>投石</small></button>
     </div>
     <div class="col">
-      <button id="btnJump" class="tb" type="button">跳<small>翻越</small></button>
-      <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
+      <button id="btnRun" class="tb" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l6 6-6 6M12 6l6 6-6 6"/></svg><small>跑</small></button>
+      <button id="btnJump" class="tb" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/></svg><small>跳/翻</small></button>
     </div>
+    <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
   </div>
   <div class="pad pad-util">
     <button id="btnTorch" class="tb tiny" type="button">手电</button>
@@ -224,7 +232,7 @@
       <div class="row"><span><kbd>W A S D</kbd></span><span class="act">移动</span><span class="val">20</span></div>
       <div class="row"><span><kbd>Shift</kbd></span><span class="act">奔跑</span><span class="val">45</span></div>
       <div class="row"><span><kbd>Ctrl</kbd> <kbd>C</kbd></span><span class="act">蹲行</span><span class="val">10</span></div>
-      <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙</span><span class="val">14</span></div>
+      <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙（单击切换 · 转第三人称）</span><span class="val">14</span></div>
       <div class="row"><span><kbd>右键</kbd> <kbd>Z</kbd></span><span class="act">屏息 · 出声纹</span><span class="val">0</span></div>
       <div class="row"><span><kbd>Space</kbd></span><span class="act">跳跃 · 贴障碍自动翻越</span><span class="val">35·30</span></div>
       <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
@@ -388,6 +396,10 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      zombieShuffle: 30,           // 丧尸未发现玩家时的拖行脚步声。
+                                   // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
+                                   // 30 意味着屏息(阈值8)可听 11m、常态(阈值25)只有 2.5m ——
+                                   // 屏息因此成为真正的侦查工具，而丧尸听见你走路只有 5m。
       jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
     },
 
@@ -415,6 +427,9 @@
       player: 25,
       playerHoldBreath: 8,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
+      // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
+      // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
+      revealSource: true,
       // 距离模糊分级的 margin 门槛（声音规格 5.4：只给很近/中等/很远）
       distanceBands: { near: 35, mid: 12 }
     },
@@ -442,19 +457,21 @@
         speedWander: 1.0, speedChase: 3.2,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
-        breathLoudness: 0, breathInterval: 3.0
+        breathLoudness: 0, breathInterval: 3.0,
+        shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
         speedWander: 1.0, speedChase: 3.2,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         riseDistance: 8,            // 声源在 8 米内才起身
-        breathInterval: 2.5         // 呼吸声间隔（文档未给频率，此值为实测占位）
+        breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
+        shuffleInterval: 1.1
       },
       Runner: {                     // 第 12 天后才出现，M0 不放置，仅保留定义
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.2, speedChase: 5.4,
-        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6
+        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
       }
     },
     // 视觉修正（主文档 4.5）
@@ -486,6 +503,12 @@
       vaultDuration: 0.42,         // 翻越动作时长
       vaultLift: 0.35,             // 翻越轨迹的抬升幅度，纯表现
       leanOffset: 0.55, leanAngle: 12,
+      // 贴墙改为「单击进入/退出」的状态，进入后背贴墙面并切第三人称
+      wallProbeDistance: 1.0, wallExitDistance: 1.35,
+      /* 贴墙后朝向沿墙走向（不是朝墙外）：走廊只有 2.6m 深，朝墙外等于脸贴 2 米外的另一面墙，
+         第三人称什么也看不见。掩体系统的通行做法就是「背贴墙、视线沿墙」。
+         相机因此可以正常放在身后，再往走廊里推一点、抬高一点。 */
+      thirdPersonBack: 2.8, thirdPersonAway: 0.6, thirdPersonUp: 0.6,
       peekYaw: 35,                  // 侧身探头的视角偏移
       // 脚步事件间隔（声音规格 4.4：跑约 0.35s，走约 0.7s）
       stepIntervalWalk: 0.7, stepIntervalRun: 0.35,
@@ -1726,6 +1749,9 @@
     const offset = (rng.next() * 2 - 1) * err;
     const trueAngle = Math.atan2(info.dir.x, info.dir.z);
     this.soundprints.push({
+      // 透视标记用真实声源位置；方向指示仍按规格 5.4 用路径入口方向，两者互不干扰
+      src: C.Config.hearing.revealSource ? V.copy(info.evt.worldPosition) : null,
+      fromZombie: info.evt.emitterId >= 100,
       angle: trueAngle + offset,
       category: info.evt.category,
       band: C.Reaction.distanceBand(info.margin),
@@ -1734,6 +1760,21 @@
       evtId: info.evt.id
     });
     if (this.soundprints.length > 24) this.soundprints.shift();
+  };
+
+  /** 单击贴墙：背贴墙面，视角切第三人称（渲染层据此切换），仍可投掷 */
+  Player.prototype.toggleWallHug = function () {
+    if (this.wallHug) { this.wallHug = false; this.wallNormal = null; this.lastAction = '离开墙面'; return; }
+    const w = this.world.probeWall(this.pos, 1.5, C.Config.player.wallProbeDistance);
+    if (!w) { this.lastAction = '附近没有可贴的墙'; return; }
+    this.wallHug = true; this.wallNormal = w.normal;
+    /* 身体背贴墙，但朝向取「沿墙走向」中与当前朝向更接近的一侧。
+       朝墙外的话在 2.6m 宽的走廊里等于脸贴对面墙，第三人称毫无用处。 */
+    const n = w.normal, f = this.forwardFlat();
+    const t = { x: n.z, z: -n.x };
+    const dir = (f.x * t.x + f.z * t.z) >= 0 ? 1 : -1;
+    this.yaw = Math.atan2(-t.x * dir, -t.z * dir);
+    this.lastAction = '贴墙';
   };
 
   Player.prototype.eyeHeight = function () {
@@ -1766,10 +1807,18 @@
     this.posture = input.crouch ? 'crouch' : 'stand';
     this.lean = input.lean;
     this.holdBreath = input.holdBreath && this.stamina > 0;
-    const wall = input.wallHug ? this.world.probeWall(this.pos, 1.5, 0.95) : null;
-    this.wallHug = !!wall;
-    this.wallNormal = wall ? wall.normal : null;
+    if (input.wallHug && !this._wallPrev) this.toggleWallHug();
+    this._wallPrev = !!input.wallHug;
+    if (this.wallHug) {
+      /* 离开墙面就自动解除。必须认准进入时那面墙：走廊只有 2.6m 宽，
+         任何位置都离某面墙不到 1.35m，只判「附近有没有墙」的话永远解除不了。 */
+      const w = this.world.probeWall(this.pos, 1.5, P.wallExitDistance);
+      const same = w && this.wallNormal &&
+        (w.normal.x * this.wallNormal.x + w.normal.z * this.wallNormal.z) > 0.7;
+      if (!same) { this.wallHug = false; this.wallNormal = null; }
+    }
     this.running = input.run && !input.crouch && !this.holdBreath && !this.wallHug && this.stamina > 0;
+    if (this.wallHug) this.lean = 0;   // 贴墙时整个人已经在掩体后，探头交给第三人称视角
 
     // ── 屏息：阈值 25→8，同时提升定位精度（声音规格 5.4）──
     const hasHB = C.ModifierPipeline.has('hearing.threshold', 'holdBreath');
@@ -2167,6 +2216,7 @@
     this.lostTimer = 0;
     this.growlTimer = 0;
     this.breathTimer = 0;
+    this.shuffleTimer = Math.random() * 1.1;
     this.visionTimer = Math.random() * C.Config.zombieReaction.visionCheckInterval;
     this.recognition = 0;        // 识别条 0–0.8
     this.currentMargin = 0;
@@ -2295,6 +2345,20 @@
         }
       } else this.stuckTimer = 0;
     }
+    /* 未趴伏的丧尸只要在动就会拖出脚步声 —— 玩家屏息时靠这个提前发现它们。
+       必须放在帧末：lastPos 是上一帧末尾的快照，在帧首比较的话两者永远相等。 */
+    if (this.state !== State.Prone && V.distXZ(this.pos, this.lastPos) > 0.004) {
+      this.shuffleTimer -= dt;
+      if (this.shuffleTimer <= 0) {
+        this.shuffleTimer = this.def.shuffleInterval || 1.1;
+        C.SoundSystem.emit({
+          worldPosition: this.pos, loudness: C.Config.loudness.zombieShuffle,
+          category: C.SoundCategory.Footstep, emitterId: this.id,
+          nodeIdHint: this.nodeId, label: '丧尸脚步'
+        });
+      }
+    }
+
     this.lastPos = V.copy(this.pos);
   };
 
@@ -2550,6 +2614,8 @@
     this._buildStatic();
     this._buildDoors();
     this._buildThrowPreview();
+    this._buildAvatar();
+    this._buildReveals();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
@@ -2659,6 +2725,52 @@
     }
   };
 
+  /* 第三人称才看得见的玩家身体 */
+  Renderer.prototype._buildAvatar = function () {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.3),
+      new THREE.MeshLambertMaterial({ color: 0x4c6b8a }));
+    body.position.y = 0.72;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28),
+      new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
+    head.position.y = 1.45;
+    g.add(body, head);
+    g.visible = false;
+    this.avatar = g;
+    this.scene.add(g);
+  };
+
+  /* 声纹透视标记：depthTest 关掉，隔墙也能看见 */
+  Renderer.prototype._buildReveals = function () {
+    this.reveals = [];
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.22),
+        new THREE.MeshBasicMaterial({ color: 0x6FD3E8, transparent: true, opacity: 0.85, depthTest: false }));
+      m.renderOrder = 12; m.visible = false;
+      this.reveals.push(m); this.scene.add(m);
+    }
+  };
+
+  Renderer.prototype._updateReveals = function (player) {
+    const now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
+    const show = (player.holdBreath || C.Config.debug.showSoundprintAlways) && C.Config.hearing.revealSource;
+    let i = 0;
+    if (show) {
+      for (const s of player.soundprints) {
+        if (i >= this.reveals.length || !s.src) continue;
+        const age = (now - s.born) / life;
+        if (age > 1) continue;
+        const m = this.reveals[i++];
+        m.visible = true;
+        m.position.set(s.src.x, s.src.y + 1.1, s.src.z);
+        m.material.opacity = (1 - age) * 0.85;
+        m.rotation.y += 0.03;
+        m.scale.setScalar(s.fromZombie ? 1 : 0.65);
+      }
+    }
+    for (; i < this.reveals.length; i++) this.reveals[i].visible = false;
+  };
+
   Renderer.prototype._zombieMesh = function (z) {
     let m = this.zombieMeshes.get(z.id);
     if (!m) {
@@ -2687,12 +2799,32 @@
     const eye = player.eyePos();
     const lean = player.lean;
     const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
-    this.camera.position.set(
-      eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
-    this.camera.rotation.set(0, 0, 0);
-    this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
-    this.camera.rotateX(player.pitch);
-    this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
+
+    this.avatar.visible = player.wallHug;
+    if (player.wallHug) {
+      /* 背贴墙 → 第三人称。相机不能往身后放（身后就是墙），改为沿墙面切线侧移，
+         并挑空间更大的那一侧。 */
+      this.avatar.position.set(player.pos.x, player.pos.y, player.pos.z);
+      this.avatar.rotation.y = player.yaw;
+      const fwd = player.forwardFlat();
+      const n = player.wallNormal || fwd;
+      // 身后 + 往走廊里推 + 抬高；身后是沿墙方向，不会撞墙
+      let back = P.thirdPersonBack;
+      const at = (d) => ({ x: eye.x - fwd.x * d + n.x * P.thirdPersonAway,
+                           y: eye.y + P.thirdPersonUp,
+                           z: eye.z - fwd.z * d + n.z * P.thirdPersonAway });
+      if (this.world && !this.world.lineOfSight(eye, at(back))) back = 1.1;   // 背后堵住就拉近
+      const cam = at(back);
+      this.camera.position.set(cam.x, cam.y, cam.z);
+      this.camera.lookAt(eye.x + fwd.x * 3, eye.y + Math.sin(player.pitch) * 3 - 0.1, eye.z + fwd.z * 3);
+    } else {
+      this.camera.position.set(
+        eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
+      this.camera.rotation.set(0, 0, 0);
+      this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
+      this.camera.rotateX(player.pitch);
+      this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
+    }
 
     // 光照随昼夜（主文档 3.1：19:00 后室内没有光源则接近全黑）
     const dl = time.getDaylight();
@@ -2731,6 +2863,7 @@
     });
 
     this._updateThrowPreview(player);
+    this._updateReveals(player);
   };
 
   Renderer.prototype._updateThrowPreview = function (player) {
@@ -3425,6 +3558,9 @@
       }
       const b = document.getElementById('btnBreath');
       if (b) b.classList.toggle('avail', player.holdBreath);
+      // 贴墙键显示的是「玩家当前是否贴着墙」，不是「按钮有没有被按下」
+      const w = document.getElementById('btnWall');
+      if (w) w.classList.toggle('on', !!player.wallHug);
       // 前方有可翻越的边缘时把跳跃键点亮，手机上没有文字提示的空间
       const j = document.getElementById('btnJump');
       if (j) j.classList.toggle('avail', !!player.vaultTarget());
@@ -3445,7 +3581,7 @@
   const { M } = C;
 
   const Game = {
-    keys: {}, mouse: { dx: 0, dy: 0 }, locked: false,
+    keys: {}, tapped: {}, mouse: { dx: 0, dy: 0 }, locked: false,
     timeScales: [1, 4, 20], timeScaleIndex: 0,
 
     start() {
@@ -3486,6 +3622,7 @@
       // 渲染器持有场景对象，重开时整体重建
       if (this.renderer) this.renderer.three.dispose();
       this.renderer = new C.Renderer(this.canvas3d, this.level);
+      this.renderer.world = this.world;      // 第三人称选边需要射线检测
       this._resize();
 
       // 音频：把听觉组件的结果接到耳朵上
@@ -3510,6 +3647,9 @@
         if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
         if (this.keys[e.code]) return;
         this.keys[e.code] = true;
+        // 记一笔「本帧内按下过」：快速点击可能整个发生在两帧之间，
+        // 只看 keys 会让贴墙、跳跃这类边沿触发的键被吃掉
+        this.tapped[e.code] = true;
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
@@ -3554,7 +3694,7 @@
       addEventListener('mousedown', (e) => { if (e.button === 2) this.rmb = true; });
       addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
       addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
-      addEventListener('blur', () => { this.rmb = false; this.keys = {}; });
+      addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
     },
 
     _input() {
@@ -3564,12 +3704,12 @@
         right: (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0),
         run: !!(k.ShiftLeft || k.ShiftRight),
         crouch: !!(k.ControlLeft || k.ControlRight || k.KeyC),
-        wallHug: !!k.KeyV,
+        wallHug: !!k.KeyV || !!this.tapped.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF,
         throwHeld: !!k.KeyG,
-        jump: !!k.Space
+        jump: !!k.Space || !!this.tapped.Space
       };
       if (!C.Touch.enabled) return kb;
       // 触屏与键盘取并集：外接键盘的平板两种都能用
@@ -3619,6 +3759,7 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
+      this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));
     },

@@ -125,6 +125,10 @@
     width: 52px; height: 52px; padding: 0;
   }
   .tb small { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .tb svg { width: 21px; height: 21px; stroke: currentColor; fill: none;
+            stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .tb.sm svg { width: 18px; height: 18px; }
+  .tb.on svg, .tb.avail svg { stroke: currentColor; }
   .tb.big { width: 72px; height: 72px; font-size: 14px; }
   .tb.sm { width: 44px; height: 44px; font-size: 11.5px; }
   .tb.tiny { width: auto; height: 27px; border-radius: 14px; padding: 0 11px; font-size: 11px; }
@@ -148,8 +152,12 @@
 
   /* 竖屏：宽度只有 390px，探头键夹在摇杆区和动作区中间必然打架，整排上移 */
   @media (orientation: portrait) {
+    /* 竖屏只有 390px 宽，右侧动作区已占掉 194px，左侧修饰键放不进摇杆旁边，
+       改为横排摞在摇杆上方 */
     .pad-lean { bottom: calc(212px + env(safe-area-inset-bottom)); }
-    .pad-mods { left: calc(134px + env(safe-area-inset-left)); }
+    .pad-mods { left: calc(18px + env(safe-area-inset-left));
+                bottom: calc(138px + env(safe-area-inset-bottom));
+                flex-direction: row; }
   }
 
   #rotateHint {
@@ -191,9 +199,8 @@
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
   <div class="pad pad-mods">
-    <button id="btnCrouch" class="tb sm" type="button">蹲</button>
-    <button id="btnRun" class="tb sm" type="button">跑</button>
-    <button id="btnWall" class="tb sm" type="button">贴墙</button>
+    <button id="btnCrouch" class="tb sm" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M12 4v10"/><path d="M7 9l5 5 5-5"/></svg><small>蹲</small></button>
+    <button id="btnWall" class="tb sm" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18"/><circle cx="14" cy="7" r="2.4"/><path d="M14 10v6M14 16l-3 4M14 16l3 4"/></svg><small>贴墙</small></button>
   </div>
   <div class="pad pad-lean">
     <button id="btnLeanL" class="tb sm" type="button">◀探</button>
@@ -205,9 +212,10 @@
       <button id="btnThrow" class="tb" type="button">G<small>投石</small></button>
     </div>
     <div class="col">
-      <button id="btnJump" class="tb" type="button">跳<small>翻越</small></button>
-      <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
+      <button id="btnRun" class="tb" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l6 6-6 6M12 6l6 6-6 6"/></svg><small>跑</small></button>
+      <button id="btnJump" class="tb" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/></svg><small>跳/翻</small></button>
     </div>
+    <button id="btnBreath" class="tb big" type="button">屏息<small>声纹</small></button>
   </div>
   <div class="pad pad-util">
     <button id="btnTorch" class="tb tiny" type="button">手电</button>
@@ -234,7 +242,7 @@
       <div class="row"><span><kbd>W A S D</kbd></span><span class="act">移动</span><span class="val">20</span></div>
       <div class="row"><span><kbd>Shift</kbd></span><span class="act">奔跑</span><span class="val">45</span></div>
       <div class="row"><span><kbd>Ctrl</kbd> <kbd>C</kbd></span><span class="act">蹲行</span><span class="val">10</span></div>
-      <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙</span><span class="val">14</span></div>
+      <div class="row"><span><kbd>V</kbd></span><span class="act">贴墙（单击切换 · 转第三人称）</span><span class="val">14</span></div>
       <div class="row"><span><kbd>右键</kbd> <kbd>Z</kbd></span><span class="act">屏息 · 出声纹</span><span class="val">0</span></div>
       <div class="row"><span><kbd>Space</kbd></span><span class="act">跳跃 · 贴障碍自动翻越</span><span class="val">35·30</span></div>
       <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
