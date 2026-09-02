@@ -73,12 +73,14 @@
     // 误差用事件 id 做种子，同一个事件的指示方向不会每帧抖动
     const rng = new C.Rng(info.evt.id * 2654435761 + 17);
     const offset = (rng.next() * 2 - 1) * err;
+    // 扇区宽度直接就是这次的方向不确定度：听觉越好，扇区越窄
+    const spread = Math.max(8 * M.deg2rad, err);
     const trueAngle = Math.atan2(info.dir.x, info.dir.z);
     this.soundprints.push({
       // 透视标记用真实声源位置；方向指示仍按规格 5.4 用路径入口方向，两者互不干扰
       src: C.Config.hearing.revealSource ? V.copy(info.evt.worldPosition) : null,
       fromZombie: info.evt.emitterId >= 100,
-      angle: trueAngle + offset,
+      angle: trueAngle + offset, spread,
       category: info.evt.category,
       band: C.Reaction.distanceBand(info.margin),
       margin: info.margin,
@@ -108,7 +110,13 @@
     return this.posture === 'crouch' ? P.eyeHeightCrouch : P.eyeHeightStand;
   };
   Player.prototype.eyePos = function () {
-    return { x: this.pos.x, y: this.pos.y + this.eyeHeight(), z: this.pos.z };
+    const P = C.Config.player;
+    const y = this.pos.y + this.eyeHeight();
+    if (!this.lean) return { x: this.pos.x, y, z: this.pos.z };
+    // 侧头时探出去的是脑袋：投掷起点、听觉位置、被发现判定都按探出后的位置算
+    const r = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
+    return { x: this.pos.x + r.x * this.lean * P.leanOffset, y: y - 0.12,
+             z: this.pos.z + r.z * this.lean * P.leanOffset };
   };
   /** 丧尸看见玩家的半径乘数（主文档 4.5） */
   Player.prototype.detectMultiplier = function () {
@@ -163,7 +171,7 @@
     else if (this.posture === 'crouch') speed = P.speedCrouch;
     else speed = P.speedWalk;
     if (this.holdBreath) speed = P.speedCrouch * P.holdBreathSpeedMul;   // 允许缓慢移动（主文档 4.2）
-    if (this.lean !== 0) speed = 0;                                       // 侧身探头时移动速度为 0
+    if (this.lean !== 0 && !this.wallHug) speed = 0;   // 侧身探头时移动速度为 0（贴墙时仍可沿墙挪）
     if (this.exhausted) speed *= S.exhaustedSpeedMul;
 
     // ── 移动 ──────────────────────────────────────────
@@ -401,6 +409,9 @@
   };
 
   Player.prototype.aimDir = function () {
+    /* 第三人称时相机不在眼位上，若直接按 yaw/pitch 投掷，准星与落点会横着差开一截。
+       装配层每帧把「准星指向的那个远点」写进 aimTarget，这里改为朝那个点投。 */
+    if (this.aimTarget) return V.norm(V.sub(this.aimTarget, this.eyePos()));
     const cp = Math.cos(this.pitch);
     return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
   };
@@ -435,32 +446,39 @@
   C.Projectiles = {
     list: [],
     world: null,
-    init(world) { this.world = world; this.list.length = 0; },
+    FIXED: 0.04,          // 预览与实弹必须用同一个步长，否则预测的落点不是真落点
+    _acc: 0,
+    init(world) { this.world = world; this.list.length = 0; this._acc = 0; },
     spawn(pos, dir, speed, ownerId) {
-      this.list.push({
-        pos: V.copy(pos), vel: V.scale(dir, speed), ownerId, life: 6,
-        trail: [V.copy(pos)]
-      });
+      this.list.push({ pos: V.copy(pos), vel: V.scale(dir, speed), ownerId, life: 6, trail: [V.copy(pos)] });
+    },
+    /** 一步积分：先加重力再位移，预览与实弹保持完全一致的顺序 */
+    _step(pos, vel, dt) {
+      const v = { x: vel.x, y: vel.y - C.Config.throwing.gravity * dt, z: vel.z };
+      return { pos: V.add(pos, V.scale(v, dt)), vel: v };
     },
     update(dt) {
-      const g = C.Config.throwing.gravity;
+      this._acc += dt;
+      let guard = 20;
+      while (this._acc >= this.FIXED && guard-- > 0) {
+        this._acc -= this.FIXED;
+        this._tick(this.FIXED);
+      }
+    },
+    _tick(dt) {
       for (let i = this.list.length - 1; i >= 0; i--) {
         const p = this.list[i];
-        p.vel.y -= g * dt;
-        const next = V.add(p.pos, V.scale(p.vel, dt));
-        if (this._hit(p.pos, next)) {
-          /* 必须用「接触点」而不是 next。next 已经穿到面的另一侧了：
-             石头落在四楼地板上时，next 在楼板下方，getNodeAt 会把它判成三楼，
-             于是脚边扔一块石头会去惊动楼下的丧尸。 */
+        const r = this._step(p.pos, p.vel, dt);
+        if (this._hit(p.pos, r.pos)) {
           C.SoundSystem.emit({
-            worldPosition: this.contact(p.pos, next), loudness: C.Config.loudness.stoneImpact,
+            worldPosition: this.contact(p.pos, r.pos), loudness: C.Config.loudness.stoneImpact,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
           });
           this.list.splice(i, 1);
           continue;
         }
-        p.pos = next;
-        p.trail.push(V.copy(next));
+        p.pos = r.pos; p.vel = r.vel;
+        p.trail.push(V.copy(r.pos));
         if (p.trail.length > 30) p.trail.shift();
         p.life -= dt;
         if (p.life <= 0) this.list.splice(i, 1);
@@ -481,21 +499,15 @@
       for (const s of tmp) if (C.AABB.segmentIntersects(s.box, a, b)) return true;
       return false;
     },
-    /** 纯预测，不产生副作用 */
+    /** 纯预测，与 _tick 用同一个 _step 和同一个步长，所以落点与实弹一致 */
     simulate(pos, dir, speed, world, samples) {
-      const g = C.Config.throwing.gravity, dt = 0.06;
       let p = V.copy(pos), v = V.scale(dir, speed);
       const pts = [V.copy(p)];
       for (let i = 0; i < samples; i++) {
-        v = { x: v.x, y: v.y - g * dt, z: v.z };
-        const n = V.add(p, V.scale(v, dt));
-        const tmp = [];
-        world.query(Math.min(p.x, n.x) - 0.2, Math.min(p.z, n.z) - 0.2, Math.max(p.x, n.x) + 0.2, Math.max(p.z, n.z) + 0.2, tmp);
-        let hit = false;
-        for (const s of tmp) if (C.AABB.segmentIntersects(s.box, p, n)) { hit = true; break; }
-        if (hit) { pts.push(this.contact(p, n)); break; }
-        pts.push(V.copy(n));
-        p = n;
+        const r = this._step(p, v, this.FIXED);
+        if (this._hit(p, r.pos)) { pts.push(this.contact(p, r.pos)); break; }
+        pts.push(V.copy(r.pos));
+        p = r.pos; v = r.vel;
       }
       return pts;
     }

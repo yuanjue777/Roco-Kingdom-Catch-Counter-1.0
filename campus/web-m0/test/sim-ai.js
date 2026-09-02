@@ -303,6 +303,38 @@ ok('石头落地事件记在 4F 而不是楼下', hit && g8.getNode(hit.node).na
    hit ? g8.getNode(hit.node).name : '(无事件)');
 player.pitch = 0; player.charge = 0;
 
+/* 预览的落点必须就是实弹的落点。之前预览用固定 0.06 步长、实弹用逐帧变长的 dt，
+   两条轨迹算出来不是同一条，玩家看到的抛物线和石头真正落的地方对不上。 */
+{
+  player.pos = C.V.make(16, floorY, 1.3); player.yaw = Math.PI / 2; player.pitch = -0.15;
+  player.charge = 0.7;
+  const pr = player.predictThrow();
+  C.SoundSystem.log.length = 0; C.Projectiles.list.length = 0; C.Projectiles._acc = 0;
+  const sp = C.M.lerp(C.Config.throwing.speedMin, C.Config.throwing.speedMax, player.charge);
+  C.Projectiles.spawn(player.eyePos(), player.aimDir(), sp, player.id);
+  let landed = null;
+  const off = C.SoundSystem.emit.bind(C.SoundSystem);
+  C.SoundSystem.emit = (d) => { if (d.label === '石头落地') landed = d.worldPosition; return off(d); };
+  for (let i = 0; i < 400 && !landed; i++) C.Projectiles.update(1 / 60);
+  C.SoundSystem.emit = off;
+  ok('实弹落地了', !!landed);
+  ok('预览落点与实弹落点完全一致（误差 < 1cm）',
+     landed && C.V.dist(landed, pr.impact) < 0.01,
+     landed ? C.V.dist(landed, pr.impact).toFixed(4) + 'm' : '—');
+  player.pitch = 0; player.charge = 0;
+}
+
+// 侧头时投掷起点跟着脑袋一起探出去
+{
+  player.pos = C.V.make(16, floorY, 1.3); player.yaw = 0; player.lean = 0;
+  const a = player.eyePos();
+  player.lean = 1;
+  const b = player.eyePos();
+  ok('侧头会把眼位（也就是投掷起点）横向探出去',
+     Math.abs(b.x - a.x) > 0.4 && b.y < a.y, '偏移 ' + Math.abs(b.x - a.x).toFixed(2) + 'm');
+  player.lean = 0;
+}
+
 // ── 10. 丧尸拖行脚步与屏息侦查 ──────────────────────
 section('10. 丧尸脚步声（回答主文档 13.1 待定问题 4）');
 sim = makeSim();

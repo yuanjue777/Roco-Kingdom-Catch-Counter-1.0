@@ -565,7 +565,9 @@
 
     // ── 调试 ──────────────────────────────────────────
     debug: {
-      showSoundprintAlways: false,  // 非屏息时也显示声纹（仅调试用，正式规则见 10.1）
+      /* 常态也显示声纹。主文档 10.1 原本写「非屏息时不显示」，但阈值本身已经是过滤器：
+       常态阈值 25 只有近处的大动静过得来，画面并不会糊。关掉它等于让玩家听见了却看不见。 */
+    showSoundprintAlways: true,
       soundprintLifetime: 1.6,
       logMaxEntries: 60
     }
@@ -1747,12 +1749,14 @@
     // 误差用事件 id 做种子，同一个事件的指示方向不会每帧抖动
     const rng = new C.Rng(info.evt.id * 2654435761 + 17);
     const offset = (rng.next() * 2 - 1) * err;
+    // 扇区宽度直接就是这次的方向不确定度：听觉越好，扇区越窄
+    const spread = Math.max(8 * M.deg2rad, err);
     const trueAngle = Math.atan2(info.dir.x, info.dir.z);
     this.soundprints.push({
       // 透视标记用真实声源位置；方向指示仍按规格 5.4 用路径入口方向，两者互不干扰
       src: C.Config.hearing.revealSource ? V.copy(info.evt.worldPosition) : null,
       fromZombie: info.evt.emitterId >= 100,
-      angle: trueAngle + offset,
+      angle: trueAngle + offset, spread,
       category: info.evt.category,
       band: C.Reaction.distanceBand(info.margin),
       margin: info.margin,
@@ -1782,7 +1786,13 @@
     return this.posture === 'crouch' ? P.eyeHeightCrouch : P.eyeHeightStand;
   };
   Player.prototype.eyePos = function () {
-    return { x: this.pos.x, y: this.pos.y + this.eyeHeight(), z: this.pos.z };
+    const P = C.Config.player;
+    const y = this.pos.y + this.eyeHeight();
+    if (!this.lean) return { x: this.pos.x, y, z: this.pos.z };
+    // 侧头时探出去的是脑袋：投掷起点、听觉位置、被发现判定都按探出后的位置算
+    const r = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
+    return { x: this.pos.x + r.x * this.lean * P.leanOffset, y: y - 0.12,
+             z: this.pos.z + r.z * this.lean * P.leanOffset };
   };
   /** 丧尸看见玩家的半径乘数（主文档 4.5） */
   Player.prototype.detectMultiplier = function () {
@@ -1837,7 +1847,7 @@
     else if (this.posture === 'crouch') speed = P.speedCrouch;
     else speed = P.speedWalk;
     if (this.holdBreath) speed = P.speedCrouch * P.holdBreathSpeedMul;   // 允许缓慢移动（主文档 4.2）
-    if (this.lean !== 0) speed = 0;                                       // 侧身探头时移动速度为 0
+    if (this.lean !== 0 && !this.wallHug) speed = 0;   // 侧身探头时移动速度为 0（贴墙时仍可沿墙挪）
     if (this.exhausted) speed *= S.exhaustedSpeedMul;
 
     // ── 移动 ──────────────────────────────────────────
@@ -2075,6 +2085,9 @@
   };
 
   Player.prototype.aimDir = function () {
+    /* 第三人称时相机不在眼位上，若直接按 yaw/pitch 投掷，准星与落点会横着差开一截。
+       装配层每帧把「准星指向的那个远点」写进 aimTarget，这里改为朝那个点投。 */
+    if (this.aimTarget) return V.norm(V.sub(this.aimTarget, this.eyePos()));
     const cp = Math.cos(this.pitch);
     return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
   };
@@ -2109,32 +2122,39 @@
   C.Projectiles = {
     list: [],
     world: null,
-    init(world) { this.world = world; this.list.length = 0; },
+    FIXED: 0.04,          // 预览与实弹必须用同一个步长，否则预测的落点不是真落点
+    _acc: 0,
+    init(world) { this.world = world; this.list.length = 0; this._acc = 0; },
     spawn(pos, dir, speed, ownerId) {
-      this.list.push({
-        pos: V.copy(pos), vel: V.scale(dir, speed), ownerId, life: 6,
-        trail: [V.copy(pos)]
-      });
+      this.list.push({ pos: V.copy(pos), vel: V.scale(dir, speed), ownerId, life: 6, trail: [V.copy(pos)] });
+    },
+    /** 一步积分：先加重力再位移，预览与实弹保持完全一致的顺序 */
+    _step(pos, vel, dt) {
+      const v = { x: vel.x, y: vel.y - C.Config.throwing.gravity * dt, z: vel.z };
+      return { pos: V.add(pos, V.scale(v, dt)), vel: v };
     },
     update(dt) {
-      const g = C.Config.throwing.gravity;
+      this._acc += dt;
+      let guard = 20;
+      while (this._acc >= this.FIXED && guard-- > 0) {
+        this._acc -= this.FIXED;
+        this._tick(this.FIXED);
+      }
+    },
+    _tick(dt) {
       for (let i = this.list.length - 1; i >= 0; i--) {
         const p = this.list[i];
-        p.vel.y -= g * dt;
-        const next = V.add(p.pos, V.scale(p.vel, dt));
-        if (this._hit(p.pos, next)) {
-          /* 必须用「接触点」而不是 next。next 已经穿到面的另一侧了：
-             石头落在四楼地板上时，next 在楼板下方，getNodeAt 会把它判成三楼，
-             于是脚边扔一块石头会去惊动楼下的丧尸。 */
+        const r = this._step(p.pos, p.vel, dt);
+        if (this._hit(p.pos, r.pos)) {
           C.SoundSystem.emit({
-            worldPosition: this.contact(p.pos, next), loudness: C.Config.loudness.stoneImpact,
+            worldPosition: this.contact(p.pos, r.pos), loudness: C.Config.loudness.stoneImpact,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
           });
           this.list.splice(i, 1);
           continue;
         }
-        p.pos = next;
-        p.trail.push(V.copy(next));
+        p.pos = r.pos; p.vel = r.vel;
+        p.trail.push(V.copy(r.pos));
         if (p.trail.length > 30) p.trail.shift();
         p.life -= dt;
         if (p.life <= 0) this.list.splice(i, 1);
@@ -2155,21 +2175,15 @@
       for (const s of tmp) if (C.AABB.segmentIntersects(s.box, a, b)) return true;
       return false;
     },
-    /** 纯预测，不产生副作用 */
+    /** 纯预测，与 _tick 用同一个 _step 和同一个步长，所以落点与实弹一致 */
     simulate(pos, dir, speed, world, samples) {
-      const g = C.Config.throwing.gravity, dt = 0.06;
       let p = V.copy(pos), v = V.scale(dir, speed);
       const pts = [V.copy(p)];
       for (let i = 0; i < samples; i++) {
-        v = { x: v.x, y: v.y - g * dt, z: v.z };
-        const n = V.add(p, V.scale(v, dt));
-        const tmp = [];
-        world.query(Math.min(p.x, n.x) - 0.2, Math.min(p.z, n.z) - 0.2, Math.max(p.x, n.x) + 0.2, Math.max(p.z, n.z) + 0.2, tmp);
-        let hit = false;
-        for (const s of tmp) if (C.AABB.segmentIntersects(s.box, p, n)) { hit = true; break; }
-        if (hit) { pts.push(this.contact(p, n)); break; }
-        pts.push(V.copy(n));
-        p = n;
+        const r = this._step(p, v, this.FIXED);
+        if (this._hit(p, r.pos)) { pts.push(this.contact(p, r.pos)); break; }
+        pts.push(V.copy(r.pos));
+        p = r.pos; v = r.vel;
       }
       return pts;
     }
@@ -2734,6 +2748,7 @@
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28),
       new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
     head.position.y = 1.45;
+    this.avatarHead = head;
     g.add(body, head);
     g.visible = false;
     this.avatar = g;
@@ -2802,10 +2817,16 @@
 
     this.avatar.visible = player.wallHug;
     if (player.wallHug) {
+      const wn = player.wallNormal;
       /* 背贴墙 → 第三人称。相机不能往身后放（身后就是墙），改为沿墙面切线侧移，
          并挑空间更大的那一侧。 */
-      this.avatar.position.set(player.pos.x, player.pos.y, player.pos.z);
-      this.avatar.rotation.y = player.yaw;
+      /* 屁股靠墙：身体面朝墙外（背贴墙），并往墙里贴 0.14m 让后背真的挨上；
+         头单独转向行进方向，做出「贴着墙侧头看走廊」的姿态。 */
+      const bodyYaw = wn ? Math.atan2(-wn.x, -wn.z) : player.yaw;
+      this.avatar.position.set(
+        player.pos.x - (wn ? wn.x * 0.14 : 0), player.pos.y, player.pos.z - (wn ? wn.z * 0.14 : 0));
+      this.avatar.rotation.y = bodyYaw;
+      if (this.avatarHead) this.avatarHead.rotation.y = C.M.wrapAngle(player.yaw - bodyYaw);
       const fwd = player.forwardFlat();
       const n = player.wallNormal || fwd;
       // 身后 + 往走廊里推 + 抬高；身后是沿墙方向，不会撞墙
@@ -2816,10 +2837,22 @@
       if (this.world && !this.world.lineOfSight(eye, at(back))) back = 1.1;   // 背后堵住就拉近
       const cam = at(back);
       this.camera.position.set(cam.x, cam.y, cam.z);
-      this.camera.lookAt(eye.x + fwd.x * 3, eye.y + Math.sin(player.pitch) * 3 - 0.1, eye.z + fwd.z * 3);
+      /* 朝向与第一人称完全一致，只是位置退到身后。
+         用 lookAt 盯住身前某一点的话，相机光轴与投掷方向会在那一点之后越岔越开，
+         准星就对不上落点了 —— 贴墙投石之所以别扭就是这个原因。 */
+      this.camera.rotation.set(0, 0, 0);
+      this.camera.rotateY(player.yaw);
+      this.camera.rotateX(player.pitch);
+      // 准星指向的远点：投掷方向对准它，落点标记才会落在准星上
+      const cp = Math.cos(player.pitch), AIM = 20;
+      player.aimTarget = {
+        x: cam.x - Math.sin(player.yaw) * cp * AIM,
+        y: cam.y + Math.sin(player.pitch) * AIM,
+        z: cam.z - Math.cos(player.yaw) * cp * AIM
+      };
     } else {
-      this.camera.position.set(
-        eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
+      player.aimTarget = null;
+      this.camera.position.set(eye.x, eye.y, eye.z);   // eyePos 里已含侧身偏移
       this.camera.rotation.set(0, 0, 0);
       this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
       this.camera.rotateX(player.pitch);
@@ -3019,6 +3052,9 @@
   const ACCENT = '#E4573D', SIGNAL = '#6FD3E8';
 
   const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
+  // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
+  const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
+                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
@@ -3134,25 +3170,36 @@
 
   Hud.prototype._soundprint = function (player, cx, cy) {
     const ctx = this.ctx, now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
-    // 半径跟着屏幕短边走：横屏手机只有 390px 高，写死 150 会把指示环画到屏幕外
-    const R_OUT = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(180,220,255,0.14)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, R_OUT, 0, Math.PI * 2); ctx.stroke();
+    const R = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
     const forward = player.yaw + Math.PI;
+    ctx.save();
+    // 底环
+    ctx.strokeStyle = 'rgba(180,220,255,0.10)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
     for (const s of player.soundprints) {
       const age = (now - s.born) / life;
       if (age > 1) continue;
       const rel = M.wrapAngle(s.angle - forward);
-      // 距离分级决定指示环半径：很近的画在里圈
-      const R = R_OUT * (s.band === '很近' ? 0.61 : s.band === '中等' ? 0.83 : 1.0);
-      const x = cx + Math.sin(rel) * R, y = cy - Math.cos(rel) * R;
-      const a = (1 - age) * 0.95;
-      ctx.fillStyle = `rgba(111,211,232,${a})`;
-      ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(8,14,22,${a})`;
-      ctx.font = '11px ' + MONO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ICONS[s.category] || '?', x, y + 0.5);
+      // 距离分级决定扇区所在的圈层，越近越靠内
+      const rr = R * (s.band === '很近' ? 0.62 : s.band === '中等' ? 0.82 : 1.0);
+      const half = (s.spread || 0.35) * 0.5;
+      const a = (1 - age);
+      const col = COLORS[s.category] || COLORS._;
+      // 屏幕角与世界角的换算：0 在正上方，顺时针为正
+      const a0 = rel - half - Math.PI / 2, a1 = rel + half - Math.PI / 2;
+      const w = 9 + 5 * a;
+      const grad = ctx.createRadialGradient(cx, cy, rr - w, cx, cy, rr + w);
+      grad.addColorStop(0, 'rgba(' + col + ',0)');
+      grad.addColorStop(0.5, 'rgba(' + col + ',' + (0.85 * a).toFixed(3) + ')');
+      grad.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.strokeStyle = grad; ctx.lineWidth = w * 2; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a1); ctx.stroke();
+      // 扇区中点的类别图标
+      const mx = cx + Math.cos(rel - Math.PI / 2) * rr, my = cy + Math.sin(rel - Math.PI / 2) * rr;
+      ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')';
+      ctx.font = '11px ' + SANS; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ICONS[s.category] || '?', mx, my);
     }
     ctx.textBaseline = 'alphabetic';
     ctx.restore();

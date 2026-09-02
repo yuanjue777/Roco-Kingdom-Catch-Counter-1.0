@@ -11,6 +11,9 @@
   const ACCENT = '#E4573D', SIGNAL = '#6FD3E8';
 
   const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
+  // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
+  const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
+                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
@@ -126,25 +129,36 @@
 
   Hud.prototype._soundprint = function (player, cx, cy) {
     const ctx = this.ctx, now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
-    // 半径跟着屏幕短边走：横屏手机只有 390px 高，写死 150 会把指示环画到屏幕外
-    const R_OUT = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(180,220,255,0.14)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, R_OUT, 0, Math.PI * 2); ctx.stroke();
+    const R = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
     const forward = player.yaw + Math.PI;
+    ctx.save();
+    // 底环
+    ctx.strokeStyle = 'rgba(180,220,255,0.10)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
     for (const s of player.soundprints) {
       const age = (now - s.born) / life;
       if (age > 1) continue;
       const rel = M.wrapAngle(s.angle - forward);
-      // 距离分级决定指示环半径：很近的画在里圈
-      const R = R_OUT * (s.band === '很近' ? 0.61 : s.band === '中等' ? 0.83 : 1.0);
-      const x = cx + Math.sin(rel) * R, y = cy - Math.cos(rel) * R;
-      const a = (1 - age) * 0.95;
-      ctx.fillStyle = `rgba(111,211,232,${a})`;
-      ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = `rgba(8,14,22,${a})`;
-      ctx.font = '11px ' + MONO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ICONS[s.category] || '?', x, y + 0.5);
+      // 距离分级决定扇区所在的圈层，越近越靠内
+      const rr = R * (s.band === '很近' ? 0.62 : s.band === '中等' ? 0.82 : 1.0);
+      const half = (s.spread || 0.35) * 0.5;
+      const a = (1 - age);
+      const col = COLORS[s.category] || COLORS._;
+      // 屏幕角与世界角的换算：0 在正上方，顺时针为正
+      const a0 = rel - half - Math.PI / 2, a1 = rel + half - Math.PI / 2;
+      const w = 9 + 5 * a;
+      const grad = ctx.createRadialGradient(cx, cy, rr - w, cx, cy, rr + w);
+      grad.addColorStop(0, 'rgba(' + col + ',0)');
+      grad.addColorStop(0.5, 'rgba(' + col + ',' + (0.85 * a).toFixed(3) + ')');
+      grad.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.strokeStyle = grad; ctx.lineWidth = w * 2; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a1); ctx.stroke();
+      // 扇区中点的类别图标
+      const mx = cx + Math.cos(rel - Math.PI / 2) * rr, my = cy + Math.sin(rel - Math.PI / 2) * rr;
+      ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')';
+      ctx.font = '11px ' + SANS; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ICONS[s.category] || '?', mx, my);
     }
     ctx.textBaseline = 'alphabetic';
     ctx.restore();

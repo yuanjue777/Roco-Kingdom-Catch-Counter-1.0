@@ -223,7 +223,9 @@
 
     // ── 调试 ──────────────────────────────────────────
     debug: {
-      showSoundprintAlways: false,  // 非屏息时也显示声纹（仅调试用，正式规则见 10.1）
+      /* 常态也显示声纹。主文档 10.1 原本写「非屏息时不显示」，但阈值本身已经是过滤器：
+       常态阈值 25 只有近处的大动静过得来，画面并不会糊。关掉它等于让玩家听见了却看不见。 */
+    showSoundprintAlways: true,
       soundprintLifetime: 1.6,
       logMaxEntries: 60
     }

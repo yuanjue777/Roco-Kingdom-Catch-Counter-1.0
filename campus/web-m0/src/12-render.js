@@ -156,6 +156,7 @@
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28),
       new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
     head.position.y = 1.45;
+    this.avatarHead = head;
     g.add(body, head);
     g.visible = false;
     this.avatar = g;
@@ -224,10 +225,16 @@
 
     this.avatar.visible = player.wallHug;
     if (player.wallHug) {
+      const wn = player.wallNormal;
       /* 背贴墙 → 第三人称。相机不能往身后放（身后就是墙），改为沿墙面切线侧移，
          并挑空间更大的那一侧。 */
-      this.avatar.position.set(player.pos.x, player.pos.y, player.pos.z);
-      this.avatar.rotation.y = player.yaw;
+      /* 屁股靠墙：身体面朝墙外（背贴墙），并往墙里贴 0.14m 让后背真的挨上；
+         头单独转向行进方向，做出「贴着墙侧头看走廊」的姿态。 */
+      const bodyYaw = wn ? Math.atan2(-wn.x, -wn.z) : player.yaw;
+      this.avatar.position.set(
+        player.pos.x - (wn ? wn.x * 0.14 : 0), player.pos.y, player.pos.z - (wn ? wn.z * 0.14 : 0));
+      this.avatar.rotation.y = bodyYaw;
+      if (this.avatarHead) this.avatarHead.rotation.y = C.M.wrapAngle(player.yaw - bodyYaw);
       const fwd = player.forwardFlat();
       const n = player.wallNormal || fwd;
       // 身后 + 往走廊里推 + 抬高；身后是沿墙方向，不会撞墙
@@ -238,10 +245,22 @@
       if (this.world && !this.world.lineOfSight(eye, at(back))) back = 1.1;   // 背后堵住就拉近
       const cam = at(back);
       this.camera.position.set(cam.x, cam.y, cam.z);
-      this.camera.lookAt(eye.x + fwd.x * 3, eye.y + Math.sin(player.pitch) * 3 - 0.1, eye.z + fwd.z * 3);
+      /* 朝向与第一人称完全一致，只是位置退到身后。
+         用 lookAt 盯住身前某一点的话，相机光轴与投掷方向会在那一点之后越岔越开，
+         准星就对不上落点了 —— 贴墙投石之所以别扭就是这个原因。 */
+      this.camera.rotation.set(0, 0, 0);
+      this.camera.rotateY(player.yaw);
+      this.camera.rotateX(player.pitch);
+      // 准星指向的远点：投掷方向对准它，落点标记才会落在准星上
+      const cp = Math.cos(player.pitch), AIM = 20;
+      player.aimTarget = {
+        x: cam.x - Math.sin(player.yaw) * cp * AIM,
+        y: cam.y + Math.sin(player.pitch) * AIM,
+        z: cam.z - Math.cos(player.yaw) * cp * AIM
+      };
     } else {
-      this.camera.position.set(
-        eye.x + right.x * lean * P.leanOffset, eye.y - (lean ? 0.12 : 0), eye.z + right.z * lean * P.leanOffset);
+      player.aimTarget = null;
+      this.camera.position.set(eye.x, eye.y, eye.z);   // eyePos 里已含侧身偏移
       this.camera.rotation.set(0, 0, 0);
       this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
       this.camera.rotateX(player.pitch);
