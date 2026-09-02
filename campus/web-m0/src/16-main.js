@@ -182,7 +182,7 @@
 
       this.renderer.update(this.player, this.time, dt);
       this.renderer.render();
-      this.hud.draw(this.player, this.time, dt);
+      this.hud.draw(this.player, this.time, dt, this.renderer.camera);
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);

@@ -17,7 +17,7 @@
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
-  Hud.prototype.draw = function (player, time, dt) {
+  Hud.prototype.draw = function (player, time, dt, camera) {
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
     const cx = W / 2, cy = H / 2;
@@ -27,7 +27,7 @@
     ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.stroke();
 
     // 声纹指示环（只在屏息时显示）
-    if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, cx, cy);
+    if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
 
     // 体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
     const touch = C.Touch && C.Touch.enabled;
@@ -127,41 +127,60 @@
     }
   };
 
-  Hud.prototype._soundprint = function (player, cx, cy) {
+  /**
+   * 声纹标记：画在声源头顶的世界坐标上，穿墙可见。
+   * 做法是把世界坐标投影到屏幕，而不是在屏幕中心画方向环 ——
+   * 后者只能告诉你「那边有动静」，前者直接告诉你「它就在那儿」。
+   * 声源跑到画面外时收到屏幕边缘，变成一个指向它的三角。
+   */
+  Hud.prototype._soundprint = function (player, camera) {
+    if (!camera || !root.THREE) return;
     const ctx = this.ctx, now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
-    const R = Math.min(150, Math.min(this.canvas.width, this.canvas.height) * 0.40);
-    const forward = player.yaw + Math.PI;
-    ctx.save();
-    // 底环
-    ctx.strokeStyle = 'rgba(180,220,255,0.10)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    const W = this.canvas.width, H = this.canvas.height, cx = W / 2, cy = H / 2;
+    const v = this._proj || (this._proj = new root.THREE.Vector3());
+    const pad = 46;
 
     for (const s of player.soundprints) {
       const age = (now - s.born) / life;
-      if (age > 1) continue;
-      const rel = M.wrapAngle(s.angle - forward);
-      // 距离分级决定扇区所在的圈层，越近越靠内
-      const rr = R * (s.band === '很近' ? 0.62 : s.band === '中等' ? 0.82 : 1.0);
-      const half = (s.spread || 0.35) * 0.5;
-      const a = (1 - age);
+      if (age > 1 || !s.src) continue;
+      const a = 1 - age;
       const col = COLORS[s.category] || COLORS._;
-      // 屏幕角与世界角的换算：0 在正上方，顺时针为正
-      const a0 = rel - half - Math.PI / 2, a1 = rel + half - Math.PI / 2;
-      const w = 9 + 5 * a;
-      const grad = ctx.createRadialGradient(cx, cy, rr - w, cx, cy, rr + w);
-      grad.addColorStop(0, 'rgba(' + col + ',0)');
-      grad.addColorStop(0.5, 'rgba(' + col + ',' + (0.85 * a).toFixed(3) + ')');
-      grad.addColorStop(1, 'rgba(' + col + ',0)');
-      ctx.strokeStyle = grad; ctx.lineWidth = w * 2; ctx.lineCap = 'butt';
-      ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a1); ctx.stroke();
-      // 扇区中点的类别图标
-      const mx = cx + Math.cos(rel - Math.PI / 2) * rr, my = cy + Math.sin(rel - Math.PI / 2) * rr;
+
+      v.set(s.src.x, s.src.y + 1.75, s.src.z);   // 挂在头顶
+      v.project(camera);
+      const behind = v.z > 1;
+      let x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+      if (behind) { x = W - x; y = H - y; }
+      const off = behind || x < pad || x > W - pad || y < pad || y > H - pad;
+
+      if (off) {
+        // 收到屏幕边缘：沿中心→目标的方向压到内缩矩形上，画一个指向它的三角
+        let dx = x - cx, dy = y - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        dx /= len; dy /= len;
+        const t = Math.min((W / 2 - pad) / Math.abs(dx || 1e-6), (H / 2 - pad) / Math.abs(dy || 1e-6));
+        const ex = cx + dx * t, ey = cy + dy * t;
+        ctx.save();
+        ctx.translate(ex, ey); ctx.rotate(Math.atan2(dy, dx));
+        ctx.fillStyle = 'rgba(' + col + ',' + (0.8 * a).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, 6); ctx.lineTo(-6, -6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
+      const bob = Math.sin(now * 3 + s.evtId) * 2.5;
+      const r = 11;
+      ctx.beginPath(); ctx.arc(x, y + bob, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
       ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')';
       ctx.font = '11px ' + SANS; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ICONS[s.category] || '?', mx, my);
+      ctx.fillText(ICONS[s.category] || '?', x, y + bob + 0.5);
+      // 一条短引线落到声源脚下，说明标记贴的是哪个东西
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.35 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y + bob + r); ctx.lineTo(x, y + bob + r + 10); ctx.stroke();
+      ctx.textBaseline = 'alphabetic';
     }
-    ctx.textBaseline = 'alphabetic';
-    ctx.restore();
   };
 
   C.Hud = Hud;

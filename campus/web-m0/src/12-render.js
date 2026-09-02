@@ -37,7 +37,6 @@
     this._buildDoors();
     this._buildThrowPreview();
     this._buildAvatar();
-    this._buildReveals();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
@@ -163,37 +162,6 @@
     this.scene.add(g);
   };
 
-  /* 声纹透视标记：depthTest 关掉，隔墙也能看见 */
-  Renderer.prototype._buildReveals = function () {
-    this.reveals = [];
-    for (let i = 0; i < 12; i++) {
-      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.22),
-        new THREE.MeshBasicMaterial({ color: 0x6FD3E8, transparent: true, opacity: 0.85, depthTest: false }));
-      m.renderOrder = 12; m.visible = false;
-      this.reveals.push(m); this.scene.add(m);
-    }
-  };
-
-  Renderer.prototype._updateReveals = function (player) {
-    const now = performance.now() / 1000, life = C.Config.debug.soundprintLifetime;
-    const show = (player.holdBreath || C.Config.debug.showSoundprintAlways) && C.Config.hearing.revealSource;
-    let i = 0;
-    if (show) {
-      for (const s of player.soundprints) {
-        if (i >= this.reveals.length || !s.src) continue;
-        const age = (now - s.born) / life;
-        if (age > 1) continue;
-        const m = this.reveals[i++];
-        m.visible = true;
-        m.position.set(s.src.x, s.src.y + 1.1, s.src.z);
-        m.material.opacity = (1 - age) * 0.85;
-        m.rotation.y += 0.03;
-        m.scale.setScalar(s.fromZombie ? 1 : 0.65);
-      }
-    }
-    for (; i < this.reveals.length; i++) this.reveals[i].visible = false;
-  };
-
   Renderer.prototype._zombieMesh = function (z) {
     let m = this.zombieMeshes.get(z.id);
     if (!m) {
@@ -304,7 +272,6 @@
     });
 
     this._updateThrowPreview(player);
-    this._updateReveals(player);
   };
 
   Renderer.prototype._updateThrowPreview = function (player) {
