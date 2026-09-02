@@ -409,10 +409,12 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
-      zombieShuffle: 30,           // 丧尸未发现玩家时的拖行脚步声。
+      zombieShuffle: 40,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
-                                   // 30 意味着屏息(阈值8)可听 11m、常态(阈值25)只有 2.5m ——
-                                   // 屏息因此成为真正的侦查工具，而丧尸听见你走路只有 5m。
+                                   // 40 是反推出来的：瓶颈从来不是「穿墙扣得太多」，而是声源太轻。
+                                   // 阈值 8 时同房间 16m、隔一扇开着的门 13.5m、隔一个楼梯口 11m ——
+                                   // 关着的木门(衰减45)仍然完全挡死，这一点保持不变。
+                                   // 尸体拖着脚在空楼里走本来就该很吵，介于玩家走路 20 与奔跑 45 之间。
       jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
     },
 
@@ -442,8 +444,8 @@
          熟练度每级降阈值，也就是每级扩范围；屏息在当前等级上再减 holdBreathBonus。
          注意范围上限由**声源响度**决定，不由听力决定：所以等级对「很轻的声音」
          影响巨大（蜷伏者呼吸 12：Lv0 1.5m → Lv5 5m），对「很响的声音」影响有限。 */
-      player: 9,
-      playerLevelThreshold: [9, 7.6, 6.2, 4.8, 3.4, 2],
+      player: 8,
+      playerLevelThreshold: [8, 6.8, 5.6, 4.4, 3.2, 2],
       holdBreathBonus: 4,
       minThreshold: 1,
       // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
@@ -524,7 +526,9 @@
       vaultClearance: 0.95,        // 落点上方需要的净空（按蹲姿通过算，正好能钻窗）
       vaultDuration: 0.42,         // 翻越动作时长
       vaultLift: 0.35,             // 翻越轨迹的抬升幅度，纯表现
-      leanOffset: 0.55, leanAngle: 12,
+      /* 侧身：身体倾约 30°，但第一人称里唯一看得见的线索是画面翻滚，翻滚给一半（15°）
+         就够读，再多就晕。违和感主要来自「瞬间切换」，所以加了 0.12s 的过渡。 */
+      leanOffset: 0.45, leanAngle: 15, leanBodyAngle: 30, leanSmooth: 0.12,
       // 贴墙改为「单击进入/退出」的状态，进入后背贴墙面并切第三人称
       wallProbeDistance: 1.0, wallExitDistance: 1.35,
       /* 贴墙后朝向沿墙走向（不是朝墙外）：走廊只有 2.6m 深，朝墙外等于脸贴 2 米外的另一面墙，
@@ -1719,7 +1723,8 @@
     this.yaw = level.spawn.yaw; this.pitch = 0;
     this.posture = 'stand';           // stand / crouch
     this.wallHug = false; this.wallNormal = null;
-    this.lean = 0;                    // -1 左 / 0 / +1 右
+    this.lean = 0;                    // -1 左 / 0 / +1 右（输入）
+    this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
     this.stamina = P.stamina.max;
     this.exhausted = false;
@@ -1817,18 +1822,18 @@
   Player.prototype.eyePos = function () {
     const P = C.Config.player;
     const y = this.pos.y + this.eyeHeight();
-    if (!this.lean) return { x: this.pos.x, y, z: this.pos.z };
+    if (!this.leanAmount) return { x: this.pos.x, y, z: this.pos.z };
     // 侧头时探出去的是脑袋：投掷起点、听觉位置、被发现判定都按探出后的位置算
     const r = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
-    return { x: this.pos.x + r.x * this.lean * P.leanOffset, y: y - 0.12,
-             z: this.pos.z + r.z * this.lean * P.leanOffset };
+    return { x: this.pos.x + r.x * this.leanAmount * P.leanOffset, y: y - 0.12 * Math.abs(this.leanAmount),
+             z: this.pos.z + r.z * this.leanAmount * P.leanOffset };
   };
   /** 丧尸看见玩家的半径乘数（主文档 4.5） */
   Player.prototype.detectMultiplier = function () {
     const v = C.Config.vision;
-    if (this.lean !== 0) return v.peekDetectMul;
-    if (this.posture === 'crouch') return v.crouchDetectMul;
-    return 1.0;
+    const base = this.posture === 'crouch' ? v.crouchDetectMul : 1.0;
+    // 侧身到一半就只减一半：探出去多少，暴露多少
+    return M.lerp(base, v.peekDetectMul, Math.abs(this.leanAmount));
   };
 
   Player.prototype.baseLoudnessKey = function () {
@@ -1845,6 +1850,10 @@
     // ── 姿态 ──────────────────────────────────────────
     this.posture = input.crouch ? 'crouch' : 'stand';
     this.lean = input.lean;
+    // 平滑跟随：瞬间切换是违和感的主要来源
+    const ls = Math.min(1, dt / Math.max(0.001, P.leanSmooth));
+    this.leanAmount += (this.lean - this.leanAmount) * ls;
+    if (Math.abs(this.leanAmount) < 0.002) this.leanAmount = 0;
     this.holdBreath = input.holdBreath && this.stamina > 0;
     if (input.wallHug && !this._wallPrev) this.toggleWallHug();
     this._wallPrev = !!input.wallHug;
@@ -2305,8 +2314,11 @@
     const R = C.Config.zombieReaction;
     const evt = info.evt;
 
-    // 连锁上限：低吼属于 Voice，超过 chainMaxDepth 层不再引人（主文档 5.5）
-    if (evt.category === C.SoundCategory.Voice && evt.emitterId >= 100) {
+    if (evt.emitterId >= 100) {
+      /* 同类发出的声音：只有低吼会引人，且受连锁层数上限约束（主文档 5.5）。
+         脚步与呼吸一概忽略 —— 否则 A 的脚步引来 B，B 一走又发出脚步再引来 C，
+         整层楼会自激成一锅粥。这些声音的存在意义是让玩家听见，不是让丧尸互相听见。 */
+      if (evt.category !== C.SoundCategory.Voice) return;
       if (evt.chainDepth >= R.chainMaxDepth) return;
     }
     if (this.state === State.Chase) return;                       // 已经看见玩家，不被声音打断
@@ -2814,7 +2826,7 @@
     const P = C.Config.player;
     // 相机：眼位 + 探头横向偏移 + 轻微翻滚
     const eye = player.eyePos();
-    const lean = player.lean;
+    const lean = player.leanAmount;
     const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
 
     this.avatar.visible = player.wallHug;
@@ -2856,7 +2868,7 @@
       player.aimTarget = null;
       this.camera.position.set(eye.x, eye.y, eye.z);   // eyePos 里已含侧身偏移
       this.camera.rotation.set(0, 0, 0);
-      this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
+      this.camera.rotateY(player.yaw);
       this.camera.rotateX(player.pitch);
       this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
     }
@@ -3052,7 +3064,52 @@
   const SANS = '"PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
   const ACCENT = '#E4573D', SIGNAL = '#6FD3E8';
 
-  const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
+  /* 声纹图标：矢量画，不用文字。文字标签在小尺寸下认不出来，也不像游戏 HUD。
+     脚步＝脚印，低吼＝声波弧，撞击＝爆点，门＝门板加开合弧。 */
+  function drawIcon(ctx, cat, x, y, s, col, a) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1, s * 0.16);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (cat === 'Footstep') {
+      // 脚掌 + 三个脚趾
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.18, s * 0.30, s * 0.44, 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.ellipse(i * s * 0.26 + s * 0.06, -s * 0.44, s * 0.10, s * 0.13, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (cat === 'Voice' || cat === 'Ambient') {
+      // 声波弧
+      const n = cat === 'Voice' ? 3 : 2;
+      for (let i = 1; i <= n; i++) {
+        ctx.beginPath();
+        ctx.arc(-s * 0.45, 0, s * 0.3 * i, -0.85, 0.85);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(-s * 0.45, 0, s * 0.11, 0, Math.PI * 2); ctx.fill();
+    } else if (cat === 'Door') {
+      ctx.beginPath();
+      ctx.rect(-s * 0.5, -s * 0.55, s * 0.55, s * 1.1);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s * 0.5, s * 0.55, s * 0.95, -1.05, -0.15); ctx.stroke();
+    } else {
+      // 爆点
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang) * s * 0.22, Math.sin(ang) * s * 0.22);
+        ctx.lineTo(Math.cos(ang) * s * 0.62, Math.sin(ang) * s * 0.62);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.13, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
   // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
   const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
                    Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
@@ -3210,18 +3267,22 @@
         continue;
       }
 
-      const bob = Math.sin(now * 3 + s.evtId) * 2.5;
-      const r = 11;
-      ctx.beginPath(); ctx.arc(x, y + bob, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fill();
+      const bob = Math.sin(now * 3 + s.evtId) * 2.0;
+      const yy = y + bob, r = 13;
+      // 刚响起的一瞬间往外扩一圈，用来抓眼睛
+      if (age < 0.35) {
+        const p = age / 0.35;
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * (1 - p)).toFixed(3) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a).toFixed(3) + ')'; ctx.fill();
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')';
-      ctx.font = '11px ' + SANS; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ICONS[s.category] || '?', x, y + bob + 0.5);
+      drawIcon(ctx, s.category, x, yy, 11, col, 0.95 * a);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.35 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, y + bob + r); ctx.lineTo(x, y + bob + r + 10); ctx.stroke();
-      ctx.textBaseline = 'alphabetic';
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, yy + r); ctx.lineTo(x, yy + r + 11); ctx.stroke();
     }
   };
 

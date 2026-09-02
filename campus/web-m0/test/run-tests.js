@@ -163,31 +163,33 @@ ok('自己发出的声音被过滤', heardCount === 1);
 C.SoundSystem.emit({ worldPosition: src, loudness: 6, category: 'Footstep', emitterId: 1 });
 ok('低于阈值的声音不触发', heardCount === 1);
 
-// 玩家听觉：阈值即范围
-const HH = C.Config.hearing;
+// 玩家听觉：阈值即范围。断言全部从配置推导，调参不必回来改测试。
+const HH = C.Config.hearing, KI = C.Config.sound.kIndoor;
+const rng = (L, t) => (L - t) / KI;
 const player = new C.HearingComponent({ ownerId: 1, baseThreshold: HH.player });
-ok('玩家初始阈值 9，只比丧尸的 10 好一点点', player.finalThreshold() === 9 && HH.player < HH.zombie);
-ok('对丧尸脚步(30)的初始可听半径 10.5m',
-   near(player.audibleRange(C.Config.loudness.zombieShuffle), 10.5, 0.01),
-   player.audibleRange(C.Config.loudness.zombieShuffle).toFixed(2) + 'm');
+ok(`玩家初始阈值 ${HH.player}，只比丧尸的 ${HH.zombie} 好一点点`,
+   HH.player < HH.zombie && HH.zombie - HH.player <= 3);
+const shuffle = C.Config.loudness.zombieShuffle;
+ok(`对丧尸脚步(${shuffle})的初始可听半径 ${rng(shuffle, HH.player).toFixed(1)}m`,
+   near(player.audibleRange(shuffle), rng(shuffle, HH.player), 0.01));
+ok('初始可听半径够用（≥14m，同房间能听见走廊另一头）', rng(shuffle, HH.player) >= 14,
+   rng(shuffle, HH.player).toFixed(1) + 'm');
+ok(`玩家听丧尸(${rng(shuffle, HH.player).toFixed(1)}m) 远于 丧尸听玩家走路(${rng(C.Config.loudness.walk, HH.zombie).toFixed(1)}m) —— 玩家有先手`,
+   rng(shuffle, HH.player) > rng(C.Config.loudness.walk, HH.zombie));
 C.Mod.add('hearing.threshold', 'holdBreath', () => -HH.holdBreathBonus, 1);
-ok('屏息是在当前阈值上做减法（9−4=5），不是覆盖', player.finalThreshold() === 5);
-ok('屏息后可听半径扩到 12.5m', near(player.audibleRange(C.Config.loudness.zombieShuffle), 12.5, 0.01));
+ok('屏息是在当前阈值上做减法，不是覆盖', player.finalThreshold() === HH.player - HH.holdBreathBonus);
+ok('屏息把可听半径再扩 ' + (HH.holdBreathBonus / KI) + 'm',
+   near(player.audibleRange(shuffle) - rng(shuffle, HH.player), HH.holdBreathBonus / KI, 0.01));
 C.Mod.remove('hearing.threshold', 'holdBreath');
-ok('松开屏息恢复 9', player.finalThreshold() === 9);
-// 熟练度逐级降阈值 = 逐级扩范围
+ok('松开屏息恢复原值', player.finalThreshold() === HH.player);
 let prevT = Infinity, mono = true;
-for (let l = 0; l <= 5; l++) {
-  const t = HH.playerLevelThreshold[l];
-  if (t >= prevT) mono = false;
-  prevT = t;
-}
+for (let l = 0; l <= 5; l++) { if (HH.playerLevelThreshold[l] >= prevT) mono = false; prevT = HH.playerLevelThreshold[l]; }
 ok('听觉 Lv0→Lv5 阈值单调下降', mono, HH.playerLevelThreshold.join(' → '));
-const rng = (L, t) => (L - t) / C.Config.sound.kIndoor;
-ok('等级对很轻的声音影响巨大：蜷伏者呼吸 1.5m → 5.0m',
-   near(rng(12, HH.playerLevelThreshold[0]), 1.5, 0.01) && near(rng(12, HH.playerLevelThreshold[5]), 5.0, 0.01));
-ok('对很响的声音影响有限：追击低吼 23m → 26.5m（上限由声源响度决定）',
-   near(rng(55, HH.playerLevelThreshold[0]), 23, 0.01) && near(rng(55, HH.playerLevelThreshold[5]), 26.5, 0.01));
+const lvT0 = HH.playerLevelThreshold[0], lvT5 = HH.playerLevelThreshold[5];
+const gainQuiet = rng(C.Config.loudness.crawlerBreath, lvT5) / rng(C.Config.loudness.crawlerBreath, lvT0);
+const gainLoud = rng(C.Config.loudness.zombieGrowl, lvT5) / rng(C.Config.loudness.zombieGrowl, lvT0);
+ok(`等级对轻声的增益(×${gainQuiet.toFixed(1)}) 远大于对响声的增益(×${gainLoud.toFixed(2)})`,
+   gainQuiet > gainLoud * 2, `呼吸 ${rng(12, lvT0).toFixed(1)}→${rng(12, lvT5).toFixed(1)}m，低吼 ${rng(55, lvT0).toFixed(1)}→${rng(55, lvT5).toFixed(1)}m`);
 ok('阈值有下限，不会出现负阈值', (() => {
   const h = new C.HearingComponent({ ownerId: 2, baseThreshold: 2 });
   C.Mod.add('hearing.threshold', 'hb2', () => -99, 2);
@@ -195,6 +197,10 @@ ok('阈值有下限，不会出现负阈值', (() => {
   C.Mod.remove('hearing.threshold', 'hb2');
   return t === HH.minThreshold;
 })());
+// 穿墙代价：瓶颈应当是声源响度而不是衰减
+ok('关着的木门(45) 仍然完全挡死丧尸脚步', shuffle - C.Config.portalAttenuation.WoodDoor.Closed <= HH.player);
+ok('隔一个楼梯口(10) 仍留有 10m 以上的余量',
+   (shuffle - 10 - HH.player) / KI >= 10, ((shuffle - 10 - HH.player) / KI).toFixed(1) + 'm');
 
 // ── 6. 夜间系数曲线（主文档 3.1）────────────────────
 section('6. 夜间系数平滑过渡');

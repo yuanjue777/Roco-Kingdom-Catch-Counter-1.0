@@ -10,7 +10,52 @@
   const SANS = '"PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
   const ACCENT = '#E4573D', SIGNAL = '#6FD3E8';
 
-  const ICONS = { Footstep: '足', Impact: '击', Voice: '吼', Door: '门', Ambient: '息', Gunshot: '枪' };
+  /* 声纹图标：矢量画，不用文字。文字标签在小尺寸下认不出来，也不像游戏 HUD。
+     脚步＝脚印，低吼＝声波弧，撞击＝爆点，门＝门板加开合弧。 */
+  function drawIcon(ctx, cat, x, y, s, col, a) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1, s * 0.16);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (cat === 'Footstep') {
+      // 脚掌 + 三个脚趾
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.18, s * 0.30, s * 0.44, 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.ellipse(i * s * 0.26 + s * 0.06, -s * 0.44, s * 0.10, s * 0.13, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (cat === 'Voice' || cat === 'Ambient') {
+      // 声波弧
+      const n = cat === 'Voice' ? 3 : 2;
+      for (let i = 1; i <= n; i++) {
+        ctx.beginPath();
+        ctx.arc(-s * 0.45, 0, s * 0.3 * i, -0.85, 0.85);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(-s * 0.45, 0, s * 0.11, 0, Math.PI * 2); ctx.fill();
+    } else if (cat === 'Door') {
+      ctx.beginPath();
+      ctx.rect(-s * 0.5, -s * 0.55, s * 0.55, s * 1.1);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s * 0.5, s * 0.55, s * 0.95, -1.05, -0.15); ctx.stroke();
+    } else {
+      // 爆点
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang) * s * 0.22, Math.sin(ang) * s * 0.22);
+        ctx.lineTo(Math.cos(ang) * s * 0.62, Math.sin(ang) * s * 0.62);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.13, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
   // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
   const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
                    Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
@@ -168,18 +213,22 @@
         continue;
       }
 
-      const bob = Math.sin(now * 3 + s.evtId) * 2.5;
-      const r = 11;
-      ctx.beginPath(); ctx.arc(x, y + bob, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fill();
+      const bob = Math.sin(now * 3 + s.evtId) * 2.0;
+      const yy = y + bob, r = 13;
+      // 刚响起的一瞬间往外扩一圈，用来抓眼睛
+      if (age < 0.35) {
+        const p = age / 0.35;
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * (1 - p)).toFixed(3) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a).toFixed(3) + ')'; ctx.fill();
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')';
-      ctx.font = '11px ' + SANS; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ICONS[s.category] || '?', x, y + bob + 0.5);
+      drawIcon(ctx, s.category, x, yy, 11, col, 0.95 * a);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.35 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, y + bob + r); ctx.lineTo(x, y + bob + r + 10); ctx.stroke();
-      ctx.textBaseline = 'alphabetic';
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, yy + r); ctx.lineTo(x, yy + r + 11); ctx.stroke();
     }
   };
 

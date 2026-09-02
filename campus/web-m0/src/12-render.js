@@ -188,7 +188,7 @@
     const P = C.Config.player;
     // 相机：眼位 + 探头横向偏移 + 轻微翻滚
     const eye = player.eyePos();
-    const lean = player.lean;
+    const lean = player.leanAmount;
     const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
 
     this.avatar.visible = player.wallHug;
@@ -230,7 +230,7 @@
       player.aimTarget = null;
       this.camera.position.set(eye.x, eye.y, eye.z);   // eyePos 里已含侧身偏移
       this.camera.rotation.set(0, 0, 0);
-      this.camera.rotateY(player.yaw + (lean ? -lean * P.peekYaw * 0.35 * Math.PI / 180 : 0));
+      this.camera.rotateY(player.yaw);
       this.camera.rotateX(player.pitch);
       this.camera.rotateZ(-lean * P.leanAngle * Math.PI / 180);
     }

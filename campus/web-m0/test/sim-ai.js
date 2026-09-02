@@ -178,16 +178,18 @@ function breathHeardWithin(dist, threshold) {
 const TH = C.Config.hearing;
 /* 常态阈值 9 对应可听半径 (12−9)/2 = 1.5m，而耳朵比趴在地上的声源高 1.65m —— 
    光是高度差就超了。也就是说常态根本听不见蜷伏者呼吸，必须屏息。 */
-ok('常态（阈值9）听不见蜷伏者呼吸：1.5m 半径还不够抵消 1.65m 的高度差',
-   breathHeardWithin(0.0, TH.player) === 0);
-ok('屏息（阈值5）能把呼吸的可听距离拉开', breathHeardWithin(2.0, TH.player - TH.holdBreathBonus) > 0);
-ok('屏息也只有 3.5m 半径，4m 外就听不见', breathHeardWithin(4.0, TH.player - TH.holdBreathBonus) === 0);
+const breathR = (C.Config.loudness.crawlerBreath - TH.player) / C.Config.sound.kIndoor;
+ok(`常态对呼吸声的可听半径只有 ${breathR.toFixed(1)}m，而耳朵比地面高 1.65m —— 几乎贴脸才行`,
+   breathR < 2.5 && breathHeardWithin(1.5, TH.player) === 0);
+ok('屏息能把呼吸的可听距离拉开', breathHeardWithin(1.5, TH.player - TH.holdBreathBonus) > 0);
+ok('但屏息也听不了多远，4m 外就没了', breathHeardWithin(4.0, TH.player - TH.holdBreathBonus) === 0);
 /* 雪上加霜：呼吸声从蜷伏者所在的地面高度发出，玩家耳朵在 1.65m，
    光是这个高度差就吃掉了 2m 可听预算里的 1.65m，水平可听距离只剩约 1.1m。 */
 ok('高度差吃掉大部分预算：水平 1.1m 时 3D 距离已接近 2m',
    Math.abs(Math.hypot(1.1, 1.65) - 1.98) < 0.05);
-ok('若把 crawlerBreath 提到 24，屏息可听半径变成 9.5m（超过它 8m 的起身范围）',
-   (24 - (TH.player - TH.holdBreathBonus)) / C.Config.sound.kIndoor === 9.5);
+ok('若把 crawlerBreath 提到 24，屏息可听半径 ' +
+   ((24 - (TH.player - TH.holdBreathBonus)) / C.Config.sound.kIndoor).toFixed(1) + 'm，超过它 8m 的起身范围',
+   (24 - (TH.player - TH.holdBreathBonus)) / C.Config.sound.kIndoor > 8);
 
 // ── 7. 追击上限 ────────────────────────────────────
 section('7. 同时追击上限');
@@ -331,11 +333,18 @@ player.pitch = 0; player.charge = 0;
 {
   player.pos = C.V.make(16, floorY, 1.3); player.yaw = 0; player.lean = 0;
   const a = player.eyePos();
-  player.lean = 1;
+  // 侧身是平滑量，得跑几帧让它到位
+  for (let i = 0; i < 40; i++) player.update(1 / 60, Object.assign({}, idle, { lean: 1 }), sim.time);
   const b = player.eyePos();
   ok('侧头会把眼位（也就是投掷起点）横向探出去',
-     Math.abs(b.x - a.x) > 0.4 && b.y < a.y, '偏移 ' + Math.abs(b.x - a.x).toFixed(2) + 'm');
-  player.lean = 0;
+     Math.abs(b.x - a.x) > 0.35 && b.y < a.y, '偏移 ' + Math.abs(b.x - a.x).toFixed(2) + 'm');
+  ok('侧身是平滑过渡，不是瞬间切换', (() => {
+    const p2 = new C.Player(sim.level, sim.world);
+    p2.pos = C.V.make(16, floorY, 1.3);
+    p2.update(1 / 60, Object.assign({}, idle, { lean: 1 }), sim.time);
+    return p2.leanAmount > 0 && p2.leanAmount < 0.4;
+  })(), '一帧后只走到一小部分');
+  for (let i = 0; i < 40; i++) player.update(1 / 60, idle, sim.time);
 }
 
 // ── 10. 丧尸拖行脚步与屏息侦查 ──────────────────────
@@ -359,7 +368,8 @@ ok(`常态可听 ${(L - TH.player) / k}m > 丧尸听见你走路的 ${(C.Config.
    (L - TH.player) / k > (C.Config.loudness.walk - TH.zombie) / k);
 ok('屏息在常态基础上再扩 2m', Math.abs((L - (TH.player - TH.holdBreathBonus)) / k - (L - TH.player) / k - 2) < 0.01);
 /* 直接量可听半径：在同一个节点里，正好 10.5m 处应当刚好听得见，12m 处听不见 */
-ok('丧尸脚步的常态可听半径就是 10.5m', (() => {
+const shufR = (C.Config.loudness.zombieShuffle - TH.player) / C.Config.sound.kIndoor;
+ok(`丧尸脚步的常态可听半径就是 ${shufR.toFixed(1)}m`, (() => {
   const s3 = makeSim();
   const at = (d) => {
     let n = 0;
@@ -373,7 +383,7 @@ ok('丧尸脚步的常态可听半径就是 10.5m', (() => {
     C.SoundSystem.unregisterListener(h);
     return n;
   };
-  return at(10.4) > 0 && at(10.6) === 0;
+  return at(shufR - 0.1) > 0 && at(shufR + 0.1) === 0;
 })());
 ok('趴伏的蜷伏者不发脚步声', (() => {
   const s2 = makeSim();

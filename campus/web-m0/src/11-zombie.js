@@ -75,8 +75,11 @@
     const R = C.Config.zombieReaction;
     const evt = info.evt;
 
-    // 连锁上限：低吼属于 Voice，超过 chainMaxDepth 层不再引人（主文档 5.5）
-    if (evt.category === C.SoundCategory.Voice && evt.emitterId >= 100) {
+    if (evt.emitterId >= 100) {
+      /* 同类发出的声音：只有低吼会引人，且受连锁层数上限约束（主文档 5.5）。
+         脚步与呼吸一概忽略 —— 否则 A 的脚步引来 B，B 一走又发出脚步再引来 C，
+         整层楼会自激成一锅粥。这些声音的存在意义是让玩家听见，不是让丧尸互相听见。 */
+      if (evt.category !== C.SoundCategory.Voice) return;
       if (evt.chainDepth >= R.chainMaxDepth) return;
     }
     if (this.state === State.Chase) return;                       // 已经看见玩家，不被声音打断

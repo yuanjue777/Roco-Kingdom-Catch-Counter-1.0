@@ -16,7 +16,8 @@
     this.yaw = level.spawn.yaw; this.pitch = 0;
     this.posture = 'stand';           // stand / crouch
     this.wallHug = false; this.wallNormal = null;
-    this.lean = 0;                    // -1 左 / 0 / +1 右
+    this.lean = 0;                    // -1 左 / 0 / +1 右（输入）
+    this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
     this.stamina = P.stamina.max;
     this.exhausted = false;
@@ -114,18 +115,18 @@
   Player.prototype.eyePos = function () {
     const P = C.Config.player;
     const y = this.pos.y + this.eyeHeight();
-    if (!this.lean) return { x: this.pos.x, y, z: this.pos.z };
+    if (!this.leanAmount) return { x: this.pos.x, y, z: this.pos.z };
     // 侧头时探出去的是脑袋：投掷起点、听觉位置、被发现判定都按探出后的位置算
     const r = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
-    return { x: this.pos.x + r.x * this.lean * P.leanOffset, y: y - 0.12,
-             z: this.pos.z + r.z * this.lean * P.leanOffset };
+    return { x: this.pos.x + r.x * this.leanAmount * P.leanOffset, y: y - 0.12 * Math.abs(this.leanAmount),
+             z: this.pos.z + r.z * this.leanAmount * P.leanOffset };
   };
   /** 丧尸看见玩家的半径乘数（主文档 4.5） */
   Player.prototype.detectMultiplier = function () {
     const v = C.Config.vision;
-    if (this.lean !== 0) return v.peekDetectMul;
-    if (this.posture === 'crouch') return v.crouchDetectMul;
-    return 1.0;
+    const base = this.posture === 'crouch' ? v.crouchDetectMul : 1.0;
+    // 侧身到一半就只减一半：探出去多少，暴露多少
+    return M.lerp(base, v.peekDetectMul, Math.abs(this.leanAmount));
   };
 
   Player.prototype.baseLoudnessKey = function () {
@@ -142,6 +143,10 @@
     // ── 姿态 ──────────────────────────────────────────
     this.posture = input.crouch ? 'crouch' : 'stand';
     this.lean = input.lean;
+    // 平滑跟随：瞬间切换是违和感的主要来源
+    const ls = Math.min(1, dt / Math.max(0.001, P.leanSmooth));
+    this.leanAmount += (this.lean - this.leanAmount) * ls;
+    if (Math.abs(this.leanAmount) < 0.002) this.leanAmount = 0;
     this.holdBreath = input.holdBreath && this.stamina > 0;
     if (input.wallHug && !this._wallPrev) this.toggleWallHug();
     this._wallPrev = !!input.wallHug;
