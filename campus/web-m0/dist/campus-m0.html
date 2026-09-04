@@ -238,7 +238,9 @@
       <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
       <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
-      <div class="row"><span><kbd>L</kbd> <kbd>X</kbd></span><span class="act">手电 / 看表</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>K</kbd></span><span class="act">睡觉（需安全睡点）</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span class="act">喝水 / 饼干 / 泡面</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>L</kbd> <kbd>X</kbd> <kbd>F5</kbd></span><span class="act">手电 / 看表 / 存档</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>N</kbd> <kbd>T</kbd></span><span class="act">昼夜 / 时间流速</span><span class="val none">—</span></div>
     </div>
     <div class="go desktop-only"><span class="dot"></span>点击画面开始 · 会锁定鼠标，<kbd>Esc</kbd> 退出锁定</div>
@@ -396,10 +398,11 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
-      zombieShuffle: 40,           // 丧尸未发现玩家时的拖行脚步声。
+      zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
-                                   // 40 是反推出来的：瓶颈从来不是「穿墙扣得太多」，而是声源太轻。
-                                   // 阈值 8 时同房间 16m、隔一扇开着的门 13.5m、隔一个楼梯口 11m ——
+                                   // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
+                                   // 它比玩家奔跑(45)还响，这是有意的 —— 丧尸不在乎自己发出声音，玩家在乎。
+                                   // 阈值 8 时同房间 20m、隔一扇开着的门 17.5m、隔一个楼梯口 15m ——
                                    // 关着的木门(衰减45)仍然完全挡死，这一点保持不变。
                                    // 尸体拖着脚在空楼里走本来就该很吵，介于玩家走路 20 与奔跑 45 之间。
       jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
@@ -437,6 +440,9 @@
       minThreshold: 1,
       // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
       soundprintZombiesOnly: true,
+      // 声纹明显度：margin 映射到 0~1 的强度，再决定标记大小与不透明度。
+      // 满强度所需的 margin，超过就不再更明显。
+      soundprintFullMargin: 26,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
@@ -576,11 +582,40 @@
       spawnRoomIndex: 1             // 402 = 4 楼第 2 间
     },
 
+    // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
+    needs: {
+      barLength: 100,
+      thirstFullHours: 30,       // 口渴从 0 涨满 100 需 30 游戏小时
+      hungerFullHours: 96,       // 饥饿 96 小时
+      fatigueRatePerHour: 5,     // 清醒时困乏 +5/小时（20 小时挤满）
+      fatigueSleepPerHour: 12,   // 睡眠时 −12/小时
+      diarrheaThirstMul: 2, diarrheaHours: 8,
+      // 精力充沛 buff
+      restedBeforeHour: 22, restedMinHours: 6, restedDurationHours: 24,
+      restedFatigueMul: 0.75, restedStaminaRegenMul: 1.15
+    },
+    // 消耗品（主文档 3.2 恢复量表）。M0 没有背包，用快取位存几样试数值。
+    items: {
+      water:    { name: '瓶装水 500ml', thirst: -25, hunger: 0 },
+      boiled:   { name: '煮沸的水',     thirst: -22, hunger: 0 },
+      raw:      { name: '未处理的水',   thirst: -25, hunger: 0, diarrheaChance: 0.4 },
+      biscuit:  { name: '饼干',         thirst: -3,  hunger: -12 },
+      noodleDry:{ name: '泡面(干吃)',   thirst: 5,   hunger: -15 },
+      noodleHot:{ name: '泡面(泡开)',   thirst: -8,  hunger: -25 },
+      cooked:   { name: '烹饪食物',     thirst: -5,  hunger: -35 }
+    },
+    sleep: {
+      maxHours: 10, defaultHours: 8,
+      interruptMargin: 15,       // 睡眠中 margin > 15 的声音会惊醒
+      timeScale: 90,             // 睡眠时时间加速倍率
+      bedRange: 1.6              // 离床多近才算「有床」
+    },
+
     // ── 调试 ──────────────────────────────────────────
     debug: {
-      /* 常态也显示声纹。主文档 10.1 原本写「非屏息时不显示」，但阈值本身已经是过滤器：
-       常态阈值 25 只有近处的大动静过得来，画面并不会糊。关掉它等于让玩家听见了却看不见。 */
-    showSoundprintAlways: true,
+      // 声纹只在屏息时可见（主文档 10.1）。听得见 ≠ 看得见：常态下你听见动静但屏幕上没有标记，
+    // 想确认它在哪就必须停下来屏息 —— 这正是屏息作为侦查动作的代价。
+    showSoundprintAlways: false,
       soundprintLifetime: 1.6,
       logMaxEntries: 60
     }
@@ -1493,6 +1528,8 @@
 
     return {
       graph: g, solids, doors, spawn, zombieSpawns,
+      // 出厂状态快照：存档只记与它不同的 Portal
+      portalInitialStates: g.portals.map(p => p.state),
       floorsMeta, corridorLen, roomZ0, roomZ1,
       bounds: { minX: westX0 - 12, maxX: eastX1 + 12, minZ: -16, maxZ: roomZ1 + 18, floors: L.floors, floorHeight: H }
     };
@@ -1691,6 +1728,113 @@
   C.World = World;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/18-needs.js ===== */
+/*
+ * 18-needs.js —— 生存需求（主文档 3.2 / 3.3）
+ *
+ * 生命条与体力条长度固定 100，饥饿/口渴/困乏从右端「挤占」可用上限。
+ *   可用生命上限 = 100 − 饥饿挤占 − 口渴挤占
+ *   可用体力上限 = 100 − 困乏挤占
+ * 进食饮水立即解除挤占、立即恢复上限，但**当前生命不会因此回血** ——
+ * 挤占解除只是解锁了上限，受过的伤要单独治。
+ *
+ * 本文件是规则层：只认游戏小时，不认帧、不认渲染。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  function Needs(ownerId) {
+    const N = C.Config.needs;
+    this.ownerId = ownerId;
+    this.hunger = 0;            // 挤占量 0–100
+    this.thirst = 0;
+    this.fatigue = 0;
+    this.health = N.barLength;  // 当前生命
+    this.diarrheaHours = 0;     // 腹泻剩余（游戏小时）
+    this.restedHours = 0;       // 精力充沛剩余
+    this.dead = false;
+    this.cause = '';
+  }
+
+  Needs.prototype.healthMax = function () {
+    return Math.max(0, C.Config.needs.barLength - this.hunger - this.thirst);
+  };
+  Needs.prototype.staminaMax = function () {
+    return Math.max(0, C.Config.needs.barLength - this.fatigue);
+  };
+  Needs.prototype.isRested = function () { return this.restedHours > 0; };
+
+  /**
+   * @param {number} dtHours 经过的游戏小时
+   * @param {boolean} sleeping 是否在睡眠中
+   */
+  Needs.prototype.update = function (dtHours, sleeping) {
+    if (this.dead || dtHours <= 0) return;
+    const N = C.Config.needs, L = N.barLength;
+
+    let thirstRate = L / N.thirstFullHours;
+    if (this.diarrheaHours > 0) {
+      thirstRate *= N.diarrheaThirstMul;
+      this.diarrheaHours = Math.max(0, this.diarrheaHours - dtHours);
+    }
+    this.thirst = M.clamp(this.thirst + thirstRate * dtHours, 0, L);
+    this.hunger = M.clamp(this.hunger + (L / N.hungerFullHours) * dtHours, 0, L);
+
+    // 困乏：清醒时涨、睡眠时退。精力充沛期间涨得慢
+    if (sleeping) {
+      this.fatigue = M.clamp(this.fatigue - N.fatigueSleepPerHour * dtHours, 0, L);
+    } else {
+      let rate = N.fatigueRatePerHour;
+      if (this.restedHours > 0) { rate *= N.restedFatigueMul; this.restedHours = Math.max(0, this.restedHours - dtHours); }
+      this.fatigue = M.clamp(this.fatigue + rate * dtHours, 0, L);
+    }
+
+    // 挤占增长把当前生命压低 —— 这就是饿死渴死的机制
+    const cap = this.healthMax();
+    if (this.health > cap) this.health = cap;
+    if (cap <= 0 && !this.dead) {
+      this.dead = true;
+      this.cause = this.thirst >= this.hunger ? '渴死' : '饿死';
+    }
+    C.EventBus.publish(C.Events.NeedChanged, { hunger: this.hunger, thirst: this.thirst, fatigue: this.fatigue, health: this.health });
+  };
+
+  Needs.prototype.damage = function (amount, cause) {
+    this.health = Math.max(0, this.health - amount);
+    if (this.health <= 0 && !this.dead) { this.dead = true; this.cause = cause || '失血过多'; }
+  };
+  /** 治疗只抬当前生命，抬不过当前上限 */
+  Needs.prototype.heal = function (amount) {
+    this.health = Math.min(this.healthMax(), this.health + amount);
+  };
+
+  /** 吃/喝。返回 {ok, msg}。rng 可注入以保证可复现（支柱三） */
+  Needs.prototype.consume = function (key, rng) {
+    const item = C.Config.items[key];
+    if (!item) return { ok: false, msg: '没有这个东西' };
+    const L = C.Config.needs.barLength;
+    this.thirst = M.clamp(this.thirst + item.thirst, 0, L);
+    this.hunger = M.clamp(this.hunger + item.hunger, 0, L);
+    let msg = item.name;
+    if (item.diarrheaChance && (rng ? rng.next() : Math.random()) < item.diarrheaChance) {
+      this.diarrheaHours = C.Config.needs.diarrheaHours;
+      msg += '（喝出了腹泻）';
+    }
+    return { ok: true, msg };
+  };
+
+  Needs.prototype.grantRested = function () { this.restedHours = C.Config.needs.restedDurationHours; };
+
+  Needs.prototype.serialize = function () {
+    return { hunger: this.hunger, thirst: this.thirst, fatigue: this.fatigue,
+             health: this.health, diarrheaHours: this.diarrheaHours, restedHours: this.restedHours };
+  };
+  Needs.prototype.deserialize = function (d) { Object.assign(this, d); this.dead = false; };
+
+  C.Needs = Needs;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/10-player.js ===== */
 /*
  * 10-player.js —— 玩家控制器（主文档 4.1–4.4，3.3）
@@ -1713,6 +1857,8 @@
     this.lean = 0;                    // -1 左 / 0 / +1 右（输入）
     this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
+    this.needs = new C.Needs(PLAYER_ID);
+    this.items = { water: 2, biscuit: 2, noodleDry: 1 };
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -1909,8 +2055,12 @@
     if (this.running && this.moving) drain += C.ModifierPipeline.query('stamina.run_cost', S.runCost, PLAYER_ID);
     if (this.holdBreath) drain += C.ModifierPipeline.query('hold_breath.stamina_cost', S.holdBreathCost, PLAYER_ID);
     if (drain > 0) this.stamina -= drain * dt;
-    else if (!this.moving) this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * dt;
-    this.stamina = M.clamp(this.stamina, 0, S.max);
+    else if (!this.moving) {
+      const mul = this.needs.isRested() ? C.Config.needs.restedStaminaRegenMul : 1;
+      this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * mul * dt;
+    }
+    // 体力上限被困乏挤占（主文档 3.3）
+    this.stamina = M.clamp(this.stamina, 0, this.needs.staminaMax());
     this.exhausted = this.stamina <= 0.01;
 
     // 体力耗尽的喘息：响度 25，潜行时是致命的
@@ -3115,14 +3265,34 @@
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
 
-    // 体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
+    // 生命条与体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
     const touch = C.Touch && C.Touch.enabled;
     const S = C.Config.player.stamina;
     const bw = touch ? 150 : 220, bh = touch ? 9 : 12;
     const bx = touch ? 16 : 28, by = touch ? 26 : H - 46;
+    const n = player.needs;
+    if (n) {
+      /* 生命条：长度固定，饥饿与口渴从右端挤占，剩下的才是可用生命上限。
+         深色段就是被吃掉的上限 —— 一眼看得出「我还剩多少余地」。 */
+      const hy = by - (touch ? 22 : 26), L = C.Config.needs.barLength;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, hy - 2, bw + 4, bh + 4);
+      ctx.fillStyle = '#B8443A'; ctx.fillRect(bx, hy, bw * (n.health / L), bh);
+      const hungerW = bw * (n.hunger / L), thirstW = bw * (n.thirst / L);
+      ctx.fillStyle = '#7a5a2a'; ctx.fillRect(bx + bw - hungerW - thirstW, hy, hungerW, bh);
+      ctx.fillStyle = '#2a5a7a'; ctx.fillRect(bx + bw - thirstW, hy, thirstW, bh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+      ctx.strokeRect(bx - 0.5, hy - 0.5, bw + 1, bh + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '10px ' + MONO; ctx.textAlign = 'left';
+      ctx.fillText('HP ' + n.health.toFixed(0) + '  饥' + n.hunger.toFixed(0) + '  渴' + n.thirst.toFixed(0)
+        + (n.diarrheaHours > 0 ? '  腹泻' : '') + (n.isRested() ? '  精力充沛' : ''), bx, hy - 5);
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
     ctx.fillStyle = player.exhausted ? ACCENT : SIGNAL;
     ctx.fillRect(bx, by, bw * (player.stamina / S.max), bh);
+    if (player.needs) {   // 困乏从右端挤占体力上限
+      const fw = bw * (player.needs.fatigue / C.Config.needs.barLength);
+      ctx.fillStyle = '#3a3f52'; ctx.fillRect(bx + bw - fw, by, fw, bh);
+    }
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
     ctx.strokeRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
     ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '11px ' + MONO;
@@ -3203,6 +3373,16 @@
       ctx.fillText('第 ' + time.day + ' 天  ' + time.format(), cx, H - 90);
     }
 
+    if (C.Sleep && C.Sleep.active) {
+      ctx.fillStyle = 'rgba(4,6,10,0.86)'; ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#DCE3EB'; ctx.font = '22px ' + SANS;
+      ctx.fillText('睡眠中…', cx, cy - 8);
+      ctx.font = '13px ' + MONO; ctx.fillStyle = SIGNAL;
+      ctx.fillText(C.Sleep.slept.toFixed(1) + ' / ' + C.Sleep.target + ' 小时　' + time.format(), cx, cy + 20);
+      ctx.fillStyle = 'rgba(220,227,235,0.5)'; ctx.font = '12px ' + SANS;
+      ctx.fillText('有响度 margin > 15 的声音就会惊醒 · 按 K 主动起床', cx, cy + 44);
+    }
+
     if (!player.alive) {
       ctx.fillStyle = 'rgba(20,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
       ctx.textAlign = 'center'; ctx.fillStyle = '#E4573D';
@@ -3248,25 +3428,33 @@
         const ex = cx + dx * t, ey = cy + dy * t;
         ctx.save();
         ctx.translate(ex, ey); ctx.rotate(Math.atan2(dy, dx));
-        ctx.fillStyle = 'rgba(' + col + ',' + (0.8 * a).toFixed(3) + ')';
-        ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, 6); ctx.lineTo(-6, -6); ctx.closePath(); ctx.fill();
+        const st2 = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
+        const sc = 0.65 + 0.5 * st2;
+        ctx.fillStyle = 'rgba(' + col + ',' + (0.8 * a * (0.35 + 0.65 * st2)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(9 * sc, 0); ctx.lineTo(-6 * sc, 6 * sc); ctx.lineTo(-6 * sc, -6 * sc);
+        ctx.closePath(); ctx.fill();
         ctx.restore();
         continue;
       }
 
+      /* 明显度随「玩家实际听到的强度」变化：贴脸的动静又大又亮，
+         勉强够到阈值的只是一个淡淡的小点。强度 = margin / 满强度 margin。 */
+      const st = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
+      const emph = 0.35 + 0.65 * st;
       const bob = Math.sin(now * 3 + s.evtId) * 2.0;
-      const yy = y + bob, r = 13;
+      const yy = y + bob, r = 8 + 8 * st;
       // 刚响起的一瞬间往外扩一圈，用来抓眼睛
       if (age < 0.35) {
         const p = age / 0.35;
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * (1 - p)).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * emph * (1 - p)).toFixed(3) + ')';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a).toFixed(3) + ')'; ctx.fill();
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
-      drawIcon(ctx, s.category, x, yy, 11, col, 0.95 * a);
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a * emph).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a * emph).toFixed(3) + ')';
+      ctx.lineWidth = 1.1 + 0.9 * st; ctx.stroke();
+      drawIcon(ctx, s.category, x, yy, r * 0.85, col, 0.95 * a * emph);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, yy + r); ctx.lineTo(x, yy + r + 11); ctx.stroke();
@@ -3504,6 +3692,189 @@
   };
 
   C.Debug = Debug;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/19-sleep.js ===== */
+/*
+ * 19-sleep.js —— 睡眠与安全睡点（主文档 3.4）
+ *
+ * 安全睡点三个条件缺一不可：
+ *   1. 所在房间的所有 Portal 处于 Closed 或 Blocked
+ *   2. 房间内及**相邻节点**没有丧尸
+ *   3. 有床或睡袋
+ * 睡眠期间时间加速，饥饿口渴正常累积；
+ * 有 margin > 15 的声音到达就惊醒，且**不获得当次睡眠的任何 buff**。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const Sleep = {
+    active: false, startHour: 0, endHour: 0, interrupted: false, wokeReason: '',
+
+    /** 逐条给出判定结果，UI 直接照着显示，玩家不用猜为什么睡不了 */
+    check(player, level, zombies) {
+      const g = level.graph;
+      const node = g.getNode(player.nodeId);
+      if (!node) return { ok: false, reasons: ['位置异常'] };
+      const reasons = [];
+
+      const openPortal = node.portals
+        .map(id => g.getPortal(id))
+        .find(p => g.isPassable(p));
+      if (openPortal) reasons.push('还有门窗没关上');
+
+      const near = new Set([node.id]);
+      for (const id of node.portals) { const p = g.getPortal(id); near.add(g.other(p, node.id)); }
+      if (zombies.some(z => z.alive && near.has(z.nodeId))) reasons.push('这间房或隔壁有丧尸');
+
+      const bed = Sleep.findBed(player, level);
+      if (!bed) reasons.push('附近没有床');
+
+      return { ok: reasons.length === 0, reasons, node };
+    },
+
+    findBed(player, level) {
+      const r = C.Config.sleep.bedRange;
+      for (const s of level.solids) {
+        if (s.tag !== 'bed') continue;
+        const b = s.box;
+        const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+        if (Math.abs(b.max.y - player.pos.y) > 1.2) continue;
+        if (C.V.distXZ({ x: cx, y: 0, z: cz }, player.pos) <= r + (b.max.z - b.min.z) / 2) return s;
+      }
+      return null;
+    },
+
+    begin(player, time, hours) {
+      const S = C.Config.sleep;
+      this.active = true;
+      this.interrupted = false;
+      this.wokeReason = '';
+      this.startHour = time.hour;
+      this.slept = 0;
+      this.target = Math.min(S.maxHours, hours || S.defaultHours);
+      time.timeScale = S.timeScale;
+    },
+
+    /** @returns 'sleeping' | 'done' | 'interrupted' */
+    update(dtHours, time) {
+      if (!this.active) return 'sleeping';
+      this.slept += dtHours;
+      if (this.slept >= this.target) { this.end(time); return 'done'; }
+      return 'sleeping';
+    },
+
+    interrupt(time, reason) {
+      if (!this.active) return;
+      this.interrupted = true;
+      this.wokeReason = reason || '被声音惊醒';
+      this.end(time);
+    },
+
+    end(time) {
+      this.active = false;
+      time.timeScale = 1;
+    },
+
+    /** 精力充沛：22:00 前入睡且连续睡足 6 小时未被中断 */
+    grantsRested() {
+      const N = C.Config.needs;
+      if (this.interrupted) return false;
+      const h = this.startHour;
+      const beforeCutoff = (h >= 12 && h < N.restedBeforeHour) || h < 6;
+      return beforeCutoff && this.slept >= N.restedMinHours;
+    },
+
+    reset() { this.active = false; this.interrupted = false; this.slept = 0; }
+  };
+
+  C.Sleep = Sleep;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/20-save.js ===== */
+/*
+ * 20-save.js —— 存档（主文档 11.5）
+ * 单存档、随时保存、死亡删除。JSON 便于调试。版本号写进存档头，不兼容时明确提示而不是崩溃。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const KEY = 'campus-save-v1';
+  const VERSION = 1;
+
+  C.Save = {
+    version: VERSION,
+
+    build(game) {
+      const p = game.player, t = game.time;
+      return {
+        version: VERSION,
+        savedAt: new Date().toISOString(),
+        time: { day: t.day, hour: t.hour, totalGameSeconds: t.totalGameSeconds },
+        player: {
+          pos: C.V.copy(p.pos), yaw: p.yaw, pitch: p.pitch,
+          stamina: p.stamina, stones: p.stones, flashlight: p.flashlight,
+          needs: p.needs.serialize(), items: p.items
+        },
+        skills: JSON.parse(JSON.stringify(C.Config.skills)),
+        // 丧尸：ID、类型、位置、生命、行为状态、目标点
+        zombies: C.ZombieManager.list.map(z => ({
+          id: z.id, type: z.typeName, pos: C.V.copy(z.pos), yaw: z.yaw,
+          hp: z.hp, alive: z.alive, state: z.state, homeNodeId: z.homeNodeId,
+          target: z.target ? C.V.copy(z.target) : null
+        })),
+        // 只存与出厂状态不同的 Portal，存档小且改地图后仍能读
+        portals: game.level.graph.portals
+          .map((p2, i) => ({ i, s: p2.state }))
+          .filter(r => r.s !== game.level.portalInitialStates[r.i])
+      };
+    },
+
+    save(game) {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(this.build(game)));
+        return { ok: true };
+      } catch (e) { return { ok: false, msg: String(e) }; }
+    },
+
+    read() {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (!raw) return null;
+        const d = JSON.parse(raw);
+        if (d.version !== VERSION) return { incompatible: true, version: d.version };
+        return d;
+      } catch (e) { return null; }
+    },
+
+    apply(game, d) {
+      if (!d || d.incompatible) return false;
+      const p = game.player, t = game.time;
+      t.day = d.time.day; t.hour = d.time.hour; t.totalGameSeconds = d.time.totalGameSeconds;
+      p.pos = C.V.copy(d.player.pos); p.yaw = d.player.yaw; p.pitch = d.player.pitch;
+      p.stamina = d.player.stamina; p.stones = d.player.stones; p.flashlight = !!d.player.flashlight;
+      p.needs.deserialize(d.player.needs);
+      if (d.player.items) p.items = d.player.items;
+      if (d.skills) Object.assign(C.Config.skills, d.skills);
+      for (const r of d.portals || []) {
+        const portal = game.level.graph.portals[r.i];
+        if (portal) portal.state = r.s;
+      }
+      C.EventBus.publish(C.Events.PortalStateChanged, { portalId: -1, prev: null, state: null });
+      // 丧尸按存档还原；数量不符时以存档为准
+      const byId = new Map(C.ZombieManager.list.map(z => [z.id, z]));
+      for (const zs of d.zombies || []) {
+        const z = byId.get(zs.id);
+        if (!z) continue;
+        z.pos = C.V.copy(zs.pos); z.yaw = zs.yaw; z.hp = zs.hp; z.alive = zs.alive;
+        z.homeNodeId = zs.homeNodeId; z.target = zs.target ? C.V.copy(zs.target) : null;
+        z._setState(zs.state);
+      }
+      return true;
+    },
+
+    clear() { try { localStorage.removeItem(KEY); } catch (e) {} },
+    exists() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /* ===== src/17-touch.js ===== */
@@ -3750,8 +4121,20 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
-      C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; });
-      this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
+      C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; C.Save.clear(); });
+      // 睡眠中被响度惊醒（主文档 3.4：margin > 15）
+      this.player.hearing.onHeard = ((prev) => (info) => {
+        prev(info);
+        if (C.Sleep.active && info.margin > C.Config.sleep.interruptMargin) {
+          C.Sleep.interrupt(this.time, '被' + (info.evt.label || '声音') + '惊醒');
+          this.msg(C.Sleep.wokeReason + '，没能睡好');
+        }
+      })(this.player.hearing.onHeard);
+      C.Sleep.reset();
+      const saved = C.Save.read();
+      if (saved && saved.incompatible) this.msg('存档版本不兼容（v' + saved.version + '），已忽略。');
+      else if (saved && C.Save.apply(this, saved)) this.msg('读取存档：第 ' + this.time.day + ' 天 ' + this.time.format());
+      else this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
     },
 
     msg(text) {
@@ -3782,6 +4165,11 @@
             this.time.timeScale = this.timeScales[this.timeScaleIndex];
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
+          case 'KeyK': this._toggleSleep(); break;
+          case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
+          case 'Digit1': this._consume('water'); break;
+          case 'Digit2': this._consume('biscuit'); break;
+          case 'Digit3': this._consume('noodleDry'); break;
           case 'KeyN':
             this.time.hour = (this.time.hour > 6 && this.time.hour < 19) ? 23 : 12;
             this.msg(this.time.isNight() ? '切到夜间：声音传播距离 +43%，丧尸视觉半径减半' : '切到白天');
@@ -3814,6 +4202,22 @@
       addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
       addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
       addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
+    },
+
+    _consume(key) {
+      const p = this.player;
+      if (!p.items[key]) { this.msg('没有' + (C.Config.items[key] || {}).name + '了'); return; }
+      p.items[key]--;
+      const r = p.needs.consume(key);
+      this.msg(r.msg + ' —— 口渴 ' + p.needs.thirst.toFixed(0) + ' / 饥饿 ' + p.needs.hunger.toFixed(0));
+    },
+
+    _toggleSleep() {
+      if (C.Sleep.active) { C.Sleep.interrupt(this.time, '主动醒来'); this.msg('起床'); return; }
+      const r = C.Sleep.check(this.player, this.level, C.ZombieManager.list);
+      if (!r.ok) { this.msg('睡不了：' + r.reasons.join('、')); return; }
+      C.Sleep.begin(this.player, this.time, C.Config.sleep.defaultHours);
+      this.msg('入睡…');
     },
 
     _input() {
@@ -3866,7 +4270,25 @@
       }
       this.hud.showWatch = !!this.keys.KeyX || !!C.Touch.toggle.watch;
 
+      const prevHour = this.time.totalGameSeconds;
       this.time.update(dt);
+      const dtHours = (this.time.totalGameSeconds - prevHour) / 3600;
+      this.player.needs.update(dtHours, C.Sleep.active);
+      if (this.player.needs.dead) this.player.die(this.player.needs.cause);
+
+      if (C.Sleep.active) {
+        if (C.Sleep.update(dtHours, this.time) === 'done') {
+          if (C.Sleep.grantsRested()) { this.player.needs.grantRested(); this.msg('睡了个好觉：精力充沛（24 小时内困乏 −25%、体力回复 +15%）'); }
+          else this.msg('醒来。第 ' + this.time.day + ' 天 ' + this.time.format());
+        }
+        C.ZombieManager.update(dt, this.player, this.time);
+        C.SoundSystem.tickStats(dt);
+        this.renderer.update(this.player, this.time, dt);
+        this.renderer.render();
+        this.hud.draw(this.player, this.time, dt, this.renderer.camera);
+        requestAnimationFrame((t) => this._frame(t));
+        return;
+      }
       this.player.update(dt, this._input(), this.time);
       C.Projectiles.update(dt);
       C.ZombieManager.update(dt, this.player, this.time);

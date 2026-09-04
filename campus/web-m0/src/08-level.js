@@ -244,6 +244,8 @@
 
     return {
       graph: g, solids, doors, spawn, zombieSpawns,
+      // 出厂状态快照：存档只记与它不同的 Portal
+      portalInitialStates: g.portals.map(p => p.state),
       floorsMeta, corridorLen, roomZ0, roomZ1,
       bounds: { minX: westX0 - 12, maxX: eastX1 + 12, minZ: -16, maxZ: roomZ1 + 18, floors: L.floors, floorHeight: H }
     };

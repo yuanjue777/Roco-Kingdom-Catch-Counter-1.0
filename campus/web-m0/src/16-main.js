@@ -58,8 +58,20 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
-      C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; });
-      this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
+      C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; C.Save.clear(); });
+      // 睡眠中被响度惊醒（主文档 3.4：margin > 15）
+      this.player.hearing.onHeard = ((prev) => (info) => {
+        prev(info);
+        if (C.Sleep.active && info.margin > C.Config.sleep.interruptMargin) {
+          C.Sleep.interrupt(this.time, '被' + (info.evt.label || '声音') + '惊醒');
+          this.msg(C.Sleep.wokeReason + '，没能睡好');
+        }
+      })(this.player.hearing.onHeard);
+      C.Sleep.reset();
+      const saved = C.Save.read();
+      if (saved && saved.incompatible) this.msg('存档版本不兼容（v' + saved.version + '），已忽略。');
+      else if (saved && C.Save.apply(this, saved)) this.msg('读取存档：第 ' + this.time.day + ' 天 ' + this.time.format());
+      else this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
     },
 
     msg(text) {
@@ -90,6 +102,11 @@
             this.time.timeScale = this.timeScales[this.timeScaleIndex];
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
+          case 'KeyK': this._toggleSleep(); break;
+          case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
+          case 'Digit1': this._consume('water'); break;
+          case 'Digit2': this._consume('biscuit'); break;
+          case 'Digit3': this._consume('noodleDry'); break;
           case 'KeyN':
             this.time.hour = (this.time.hour > 6 && this.time.hour < 19) ? 23 : 12;
             this.msg(this.time.isNight() ? '切到夜间：声音传播距离 +43%，丧尸视觉半径减半' : '切到白天');
@@ -122,6 +139,22 @@
       addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
       addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
       addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
+    },
+
+    _consume(key) {
+      const p = this.player;
+      if (!p.items[key]) { this.msg('没有' + (C.Config.items[key] || {}).name + '了'); return; }
+      p.items[key]--;
+      const r = p.needs.consume(key);
+      this.msg(r.msg + ' —— 口渴 ' + p.needs.thirst.toFixed(0) + ' / 饥饿 ' + p.needs.hunger.toFixed(0));
+    },
+
+    _toggleSleep() {
+      if (C.Sleep.active) { C.Sleep.interrupt(this.time, '主动醒来'); this.msg('起床'); return; }
+      const r = C.Sleep.check(this.player, this.level, C.ZombieManager.list);
+      if (!r.ok) { this.msg('睡不了：' + r.reasons.join('、')); return; }
+      C.Sleep.begin(this.player, this.time, C.Config.sleep.defaultHours);
+      this.msg('入睡…');
     },
 
     _input() {
@@ -174,7 +207,25 @@
       }
       this.hud.showWatch = !!this.keys.KeyX || !!C.Touch.toggle.watch;
 
+      const prevHour = this.time.totalGameSeconds;
       this.time.update(dt);
+      const dtHours = (this.time.totalGameSeconds - prevHour) / 3600;
+      this.player.needs.update(dtHours, C.Sleep.active);
+      if (this.player.needs.dead) this.player.die(this.player.needs.cause);
+
+      if (C.Sleep.active) {
+        if (C.Sleep.update(dtHours, this.time) === 'done') {
+          if (C.Sleep.grantsRested()) { this.player.needs.grantRested(); this.msg('睡了个好觉：精力充沛（24 小时内困乏 −25%、体力回复 +15%）'); }
+          else this.msg('醒来。第 ' + this.time.day + ' 天 ' + this.time.format());
+        }
+        C.ZombieManager.update(dt, this.player, this.time);
+        C.SoundSystem.tickStats(dt);
+        this.renderer.update(this.player, this.time, dt);
+        this.renderer.render();
+        this.hud.draw(this.player, this.time, dt, this.renderer.camera);
+        requestAnimationFrame((t) => this._frame(t));
+        return;
+      }
       this.player.update(dt, this._input(), this.time);
       C.Projectiles.update(dt);
       C.ZombieManager.update(dt, this.player, this.time);

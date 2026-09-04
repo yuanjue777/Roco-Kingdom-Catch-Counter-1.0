@@ -74,14 +74,34 @@
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
 
-    // 体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
+    // 生命条与体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
     const touch = C.Touch && C.Touch.enabled;
     const S = C.Config.player.stamina;
     const bw = touch ? 150 : 220, bh = touch ? 9 : 12;
     const bx = touch ? 16 : 28, by = touch ? 26 : H - 46;
+    const n = player.needs;
+    if (n) {
+      /* 生命条：长度固定，饥饿与口渴从右端挤占，剩下的才是可用生命上限。
+         深色段就是被吃掉的上限 —— 一眼看得出「我还剩多少余地」。 */
+      const hy = by - (touch ? 22 : 26), L = C.Config.needs.barLength;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, hy - 2, bw + 4, bh + 4);
+      ctx.fillStyle = '#B8443A'; ctx.fillRect(bx, hy, bw * (n.health / L), bh);
+      const hungerW = bw * (n.hunger / L), thirstW = bw * (n.thirst / L);
+      ctx.fillStyle = '#7a5a2a'; ctx.fillRect(bx + bw - hungerW - thirstW, hy, hungerW, bh);
+      ctx.fillStyle = '#2a5a7a'; ctx.fillRect(bx + bw - thirstW, hy, thirstW, bh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+      ctx.strokeRect(bx - 0.5, hy - 0.5, bw + 1, bh + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '10px ' + MONO; ctx.textAlign = 'left';
+      ctx.fillText('HP ' + n.health.toFixed(0) + '  饥' + n.hunger.toFixed(0) + '  渴' + n.thirst.toFixed(0)
+        + (n.diarrheaHours > 0 ? '  腹泻' : '') + (n.isRested() ? '  精力充沛' : ''), bx, hy - 5);
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
     ctx.fillStyle = player.exhausted ? ACCENT : SIGNAL;
     ctx.fillRect(bx, by, bw * (player.stamina / S.max), bh);
+    if (player.needs) {   // 困乏从右端挤占体力上限
+      const fw = bw * (player.needs.fatigue / C.Config.needs.barLength);
+      ctx.fillStyle = '#3a3f52'; ctx.fillRect(bx + bw - fw, by, fw, bh);
+    }
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
     ctx.strokeRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
     ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '11px ' + MONO;
@@ -162,6 +182,16 @@
       ctx.fillText('第 ' + time.day + ' 天  ' + time.format(), cx, H - 90);
     }
 
+    if (C.Sleep && C.Sleep.active) {
+      ctx.fillStyle = 'rgba(4,6,10,0.86)'; ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#DCE3EB'; ctx.font = '22px ' + SANS;
+      ctx.fillText('睡眠中…', cx, cy - 8);
+      ctx.font = '13px ' + MONO; ctx.fillStyle = SIGNAL;
+      ctx.fillText(C.Sleep.slept.toFixed(1) + ' / ' + C.Sleep.target + ' 小时　' + time.format(), cx, cy + 20);
+      ctx.fillStyle = 'rgba(220,227,235,0.5)'; ctx.font = '12px ' + SANS;
+      ctx.fillText('有响度 margin > 15 的声音就会惊醒 · 按 K 主动起床', cx, cy + 44);
+    }
+
     if (!player.alive) {
       ctx.fillStyle = 'rgba(20,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
       ctx.textAlign = 'center'; ctx.fillStyle = '#E4573D';
@@ -207,25 +237,33 @@
         const ex = cx + dx * t, ey = cy + dy * t;
         ctx.save();
         ctx.translate(ex, ey); ctx.rotate(Math.atan2(dy, dx));
-        ctx.fillStyle = 'rgba(' + col + ',' + (0.8 * a).toFixed(3) + ')';
-        ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, 6); ctx.lineTo(-6, -6); ctx.closePath(); ctx.fill();
+        const st2 = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
+        const sc = 0.65 + 0.5 * st2;
+        ctx.fillStyle = 'rgba(' + col + ',' + (0.8 * a * (0.35 + 0.65 * st2)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(9 * sc, 0); ctx.lineTo(-6 * sc, 6 * sc); ctx.lineTo(-6 * sc, -6 * sc);
+        ctx.closePath(); ctx.fill();
         ctx.restore();
         continue;
       }
 
+      /* 明显度随「玩家实际听到的强度」变化：贴脸的动静又大又亮，
+         勉强够到阈值的只是一个淡淡的小点。强度 = margin / 满强度 margin。 */
+      const st = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
+      const emph = 0.35 + 0.65 * st;
       const bob = Math.sin(now * 3 + s.evtId) * 2.0;
-      const yy = y + bob, r = 13;
+      const yy = y + bob, r = 8 + 8 * st;
       // 刚响起的一瞬间往外扩一圈，用来抓眼睛
       if (age < 0.35) {
         const p = age / 0.35;
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * (1 - p)).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * emph * (1 - p)).toFixed(3) + ')';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a).toFixed(3) + ')'; ctx.fill();
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
-      drawIcon(ctx, s.category, x, yy, 11, col, 0.95 * a);
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a * emph).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a * emph).toFixed(3) + ')';
+      ctx.lineWidth = 1.1 + 0.9 * st; ctx.stroke();
+      drawIcon(ctx, s.category, x, yy, r * 0.85, col, 0.95 * a * emph);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, yy + r); ctx.lineTo(x, yy + r + 11); ctx.stroke();

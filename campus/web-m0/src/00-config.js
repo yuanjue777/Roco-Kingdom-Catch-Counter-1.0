@@ -54,10 +54,11 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
-      zombieShuffle: 40,           // 丧尸未发现玩家时的拖行脚步声。
+      zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
-                                   // 40 是反推出来的：瓶颈从来不是「穿墙扣得太多」，而是声源太轻。
-                                   // 阈值 8 时同房间 16m、隔一扇开着的门 13.5m、隔一个楼梯口 11m ——
+                                   // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
+                                   // 它比玩家奔跑(45)还响，这是有意的 —— 丧尸不在乎自己发出声音，玩家在乎。
+                                   // 阈值 8 时同房间 20m、隔一扇开着的门 17.5m、隔一个楼梯口 15m ——
                                    // 关着的木门(衰减45)仍然完全挡死，这一点保持不变。
                                    // 尸体拖着脚在空楼里走本来就该很吵，介于玩家走路 20 与奔跑 45 之间。
       jumpLand: 35                 // 文档外：跳跃落地。翻越沿用 windowClimb(30)
@@ -95,6 +96,9 @@
       minThreshold: 1,
       // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
       soundprintZombiesOnly: true,
+      // 声纹明显度：margin 映射到 0~1 的强度，再决定标记大小与不透明度。
+      // 满强度所需的 margin，超过就不再更明显。
+      soundprintFullMargin: 26,
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
@@ -234,11 +238,40 @@
       spawnRoomIndex: 1             // 402 = 4 楼第 2 间
     },
 
+    // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
+    needs: {
+      barLength: 100,
+      thirstFullHours: 30,       // 口渴从 0 涨满 100 需 30 游戏小时
+      hungerFullHours: 96,       // 饥饿 96 小时
+      fatigueRatePerHour: 5,     // 清醒时困乏 +5/小时（20 小时挤满）
+      fatigueSleepPerHour: 12,   // 睡眠时 −12/小时
+      diarrheaThirstMul: 2, diarrheaHours: 8,
+      // 精力充沛 buff
+      restedBeforeHour: 22, restedMinHours: 6, restedDurationHours: 24,
+      restedFatigueMul: 0.75, restedStaminaRegenMul: 1.15
+    },
+    // 消耗品（主文档 3.2 恢复量表）。M0 没有背包，用快取位存几样试数值。
+    items: {
+      water:    { name: '瓶装水 500ml', thirst: -25, hunger: 0 },
+      boiled:   { name: '煮沸的水',     thirst: -22, hunger: 0 },
+      raw:      { name: '未处理的水',   thirst: -25, hunger: 0, diarrheaChance: 0.4 },
+      biscuit:  { name: '饼干',         thirst: -3,  hunger: -12 },
+      noodleDry:{ name: '泡面(干吃)',   thirst: 5,   hunger: -15 },
+      noodleHot:{ name: '泡面(泡开)',   thirst: -8,  hunger: -25 },
+      cooked:   { name: '烹饪食物',     thirst: -5,  hunger: -35 }
+    },
+    sleep: {
+      maxHours: 10, defaultHours: 8,
+      interruptMargin: 15,       // 睡眠中 margin > 15 的声音会惊醒
+      timeScale: 90,             // 睡眠时时间加速倍率
+      bedRange: 1.6              // 离床多近才算「有床」
+    },
+
     // ── 调试 ──────────────────────────────────────────
     debug: {
-      /* 常态也显示声纹。主文档 10.1 原本写「非屏息时不显示」，但阈值本身已经是过滤器：
-       常态阈值 25 只有近处的大动静过得来，画面并不会糊。关掉它等于让玩家听见了却看不见。 */
-    showSoundprintAlways: true,
+      // 声纹只在屏息时可见（主文档 10.1）。听得见 ≠ 看得见：常态下你听见动静但屏幕上没有标记，
+    // 想确认它在哪就必须停下来屏息 —— 这正是屏息作为侦查动作的代价。
+    showSoundprintAlways: false,
       soundprintLifetime: 1.6,
       logMaxEntries: 60
     }

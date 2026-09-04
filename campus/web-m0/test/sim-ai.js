@@ -6,7 +6,7 @@ const path = require('path');
 const SRC = path.join(__dirname, '..', 'src');
 for (const f of ['03-math', '00-config', '01-eventbus', '02-modifiers', '04-soundgraph',
                  '05-soundsystem', '06-hearing', '07-time', '08-level', '09-collision',
-                 '10-player', '11-zombie']) require(path.join(SRC, f + '.js'));
+                 '18-needs', '10-player', '11-zombie', '19-sleep', '20-save']) require(path.join(SRC, f + '.js'));
 const C = globalThis.Campus;
 
 let pass = 0, fail = 0;
@@ -436,6 +436,128 @@ ok('声纹记录了声源真实坐标（标记挂在它头顶）', sp && sp.src 
 }
 ok('声纹标记了来源是丧尸', sp && sp.fromZombie === true);
 ok('方向指示仍按路径入口算（规格 5.4 不受影响）', typeof sp.angle === 'number');
+
+// ── 12. 生存需求与睡眠（主文档 3.2 / 3.3 / 3.4）──────
+section('12. 需求挤占');
+const NC = C.Config.needs;
+{
+  const n = new C.Needs(1);
+  ok('初始满血且无挤占', n.health === 100 && n.healthMax() === 100);
+  n.update(NC.thirstFullHours / 2, false);
+  ok(`口渴 ${NC.thirstFullHours} 小时涨满：一半时间涨到 50`, Math.abs(n.thirst - 50) < 0.01, n.thirst.toFixed(1));
+  ok('可用生命上限被挤占压低', n.healthMax() < 100, n.healthMax().toFixed(1));
+  ok('当前生命被压到上限以内', n.health <= n.healthMax() + 1e-9, n.health.toFixed(1));
+  n.damage(30, '测试');
+  const before = n.health;
+  n.consume('water');
+  ok('喝水立即解除口渴挤占，上限回升', n.thirst === 50 - 25);
+  ok('但当前生命不因此回血 —— 挤占解除只是解锁上限', n.health === before, n.health.toFixed(1));
+  n.heal(10);
+  ok('治疗才抬当前生命', n.health === before + 10);
+}
+{
+  const n = new C.Needs(1);
+  n.update(NC.thirstFullHours, false);      // 口渴涨满
+  n.update(0.01, false);
+  ok('口渴涨满导致可用上限归零 → 死亡', n.dead && n.cause === '渴死', n.cause);
+}
+{
+  const n = new C.Needs(1);
+  n.update(20, false);
+  ok(`困乏清醒 ${NC.fatigueRatePerHour}/小时，20 小时挤满体力条`, Math.abs(n.fatigue - 100) < 0.01);
+  ok('可用体力上限归零', n.staminaMax() === 0);
+  n.update(100 / NC.fatigueSleepPerHour, true);
+  ok('睡眠把困乏清空', n.fatigue < 0.01);
+}
+{
+  const n = new C.Needs(1);
+  const rng = { next: () => 0.1 };          // 必定触发腹泻
+  n.update(10, false);
+  const t0 = n.thirst;
+  n.consume('raw', rng);
+  ok('未处理的水会喝出腹泻', n.diarrheaHours === NC.diarrheaHours);
+  n.update(1, false);
+  const rate = (n.thirst - (t0 - 25)) / 1;
+  ok('腹泻期间口渴增速翻倍', Math.abs(rate - (100 / NC.thirstFullHours) * NC.diarrheaThirstMul) < 0.01,
+     rate.toFixed(2) + '/小时');
+}
+{
+  const n = new C.Needs(1);
+  n.update(10, false);
+  const f0 = n.fatigue;
+  n.grantRested();
+  n.update(1, false);
+  ok('精力充沛期间困乏增速 −25%',
+     Math.abs((n.fatigue - f0) - NC.fatigueRatePerHour * NC.restedFatigueMul) < 0.01);
+}
+
+section('13. 睡眠与安全睡点');
+sim = makeSim();
+{
+  const ps = new C.Player(sim.level, sim.world);
+  const room = sim.level.graph.nodes.find(n => n.name === '402');
+  const rc = C.AABB.center(room.bounds);
+  ps.pos = C.V.make(rc.x - 2.4, 3 * 3.2, 4.0);      // 站在床边
+  ps.update(1 / 60, { forward: 0, right: 0, run: 0, crouch: 0, wallHug: 0, lean: 0,
+                      holdBreath: 0, interact: 0, throwHeld: 0, jump: 0 }, sim.time);
+  const g5 = sim.level.graph;
+  const door = g5.portals.find(p => (p.nodeA === room.id || p.nodeB === room.id) && p.type === 'WoodDoor');
+  const win = g5.portals.find(p => (p.nodeA === room.id || p.nodeB === room.id) && p.type === 'Window');
+  g5.setPortalState(door, 'Open');
+  let r = C.Sleep.check(ps, sim.level, C.ZombieManager.list);
+  ok('门开着不能睡', !r.ok && r.reasons.some(x => x.includes('门窗')), r.reasons.join('/'));
+  g5.setPortalState(door, 'Closed'); g5.setPortalState(win, 'Closed');
+  r = C.Sleep.check(ps, sim.level, C.ZombieManager.list);
+  ok('关好门窗 + 床边 → 可以睡', r.ok, r.reasons.join('/'));
+  const zz = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(rc.x, 3 * 3.2, rc.z) }, sim.world);
+  zz.nodeId = room.id;
+  r = C.Sleep.check(ps, sim.level, C.ZombieManager.list);
+  ok('房里有丧尸不能睡', !r.ok && r.reasons.some(x => x.includes('丧尸')));
+  zz.destroy(); C.ZombieManager.list.pop();
+  ps.pos = C.V.make(rc.x, 3 * 3.2, rc.z + 2.2);      // 离开床
+  r = C.Sleep.check(ps, sim.level, C.ZombieManager.list);
+  ok('离床太远不能睡', !r.ok && r.reasons.some(x => x.includes('床')));
+}
+{
+  sim.time.hour = 21; C.Sleep.reset();
+  C.Sleep.begin({}, sim.time, 8);
+  ok('入睡后时间加速', sim.time.timeScale === C.Config.sleep.timeScale);
+  C.Sleep.update(6.5, sim.time);
+  ok('睡满 6 小时且 22:00 前入睡 → 精力充沛', C.Sleep.grantsRested());
+  C.Sleep.interrupt(sim.time, '测试');
+  ok('被中断就拿不到 buff', !C.Sleep.grantsRested());
+  ok('醒来后时间流速恢复', sim.time.timeScale === 1);
+}
+
+section('14. 存档');
+{
+  const store = {};
+  global.localStorage = { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; }, removeItem: (k) => { delete store[k]; } };
+  const sim2 = makeSim();
+  const game = { player: new C.Player(sim2.level, sim2.world), time: sim2.time, level: sim2.level };
+  C.ZombieManager.spawnAll(sim2.level, sim2.world);
+  game.player.pos = C.V.make(11, 9.61, 1.7); game.player.stones = 7;
+  game.player.needs.thirst = 33; game.player.needs.hunger = 12;
+  game.time.day = 4; game.time.hour = 15.5;
+  const door2 = sim2.level.graph.portals.find(p => p.type === 'WoodDoor');
+  sim2.level.graph.setPortalState(door2, door2.state === 'Open' ? 'Closed' : 'Open');
+  ok('保存成功', C.Save.save(game).ok);
+  const raw = C.Save.read();
+  ok('存档带版本号', raw && raw.version === C.Save.version);
+  ok('只记录与出厂状态不同的 Portal', raw.portals.length === 1, raw.portals.length + ' 条');
+  // 打乱现场再读回
+  game.player.pos = C.V.make(0, 0, 0); game.player.stones = 0;
+  game.player.needs.thirst = 0; game.time.day = 1; game.time.hour = 9;
+  C.Save.apply(game, raw);
+  ok('读档还原位置与物品', Math.abs(game.player.pos.x - 11) < 0.01 && game.player.stones === 7);
+  ok('读档还原需求', Math.abs(game.player.needs.thirst - 33) < 0.01);
+  ok('读档还原时间', game.time.day === 4 && Math.abs(game.time.hour - 15.5) < 0.01);
+  ok('读档还原 Portal 状态', sim2.level.graph.portals[raw.portals[0].i].state === raw.portals[0].s);
+  store['campus-save-v1'] = JSON.stringify({ version: 999 });
+  ok('版本不兼容时明确报告而不是崩溃', C.Save.read().incompatible === true);
+  C.Save.clear();
+  ok('清档后读不到', C.Save.read() === null);
+}
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

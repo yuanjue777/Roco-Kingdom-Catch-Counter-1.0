@@ -19,6 +19,8 @@
     this.lean = 0;                    // -1 左 / 0 / +1 右（输入）
     this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
+    this.needs = new C.Needs(PLAYER_ID);
+    this.items = { water: 2, biscuit: 2, noodleDry: 1 };
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -215,8 +217,12 @@
     if (this.running && this.moving) drain += C.ModifierPipeline.query('stamina.run_cost', S.runCost, PLAYER_ID);
     if (this.holdBreath) drain += C.ModifierPipeline.query('hold_breath.stamina_cost', S.holdBreathCost, PLAYER_ID);
     if (drain > 0) this.stamina -= drain * dt;
-    else if (!this.moving) this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * dt;
-    this.stamina = M.clamp(this.stamina, 0, S.max);
+    else if (!this.moving) {
+      const mul = this.needs.isRested() ? C.Config.needs.restedStaminaRegenMul : 1;
+      this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * mul * dt;
+    }
+    // 体力上限被困乏挤占（主文档 3.3）
+    this.stamina = M.clamp(this.stamina, 0, this.needs.staminaMax());
     this.exhausted = this.stamina <= 0.01;
 
     // 体力耗尽的喘息：响度 25，潜行时是致命的
