@@ -197,7 +197,8 @@
         exhaustedSpeedMul: 0.7,     // 体力归零移动速度 −30%
         exhaustedBreathInterval: 1.5
       },
-      weightRatio: 0.0,             // M0 无背包，用调试面板模拟负重比 r
+      weightLimit: 20,              // 负重上限 kg（主文档 10.1）
+      weightRatio: 0.0,             // 由背包实时算出；调试面板可覆盖
       weightLoudnessCoef: 0.5,      // 脚步响度 ×(1+0.5r)
       weightStaminaCoef: 0.8,       // 体力消耗 ×(1+0.8r)
       weightSpeedCoef: 0.25         // 奔跑速度 ×(1−0.25r)

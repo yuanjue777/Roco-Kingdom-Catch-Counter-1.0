@@ -6,7 +6,7 @@ const path = require('path');
 const SRC = path.join(__dirname, '..', 'src');
 for (const f of ['03-math', '00-config', '01-eventbus', '02-modifiers', '04-soundgraph',
                  '05-soundsystem', '06-hearing', '07-time', '08-level', '09-collision',
-                 '18-needs', '10-player', '11-zombie', '19-sleep', '20-save']) require(path.join(SRC, f + '.js'));
+                 '18-needs', '21-items', '22-loot', '10-player', '11-zombie', '19-sleep', '20-save']) require(path.join(SRC, f + '.js'));
 const C = globalThis.Campus;
 
 let pass = 0, fail = 0;
@@ -16,6 +16,7 @@ const section = t => console.log('\n\x1b[1m' + t + '\x1b[0m');
 function makeSim() {
   C.SoundSystem.reset(); C.ZombieManager.reset(); C.ModifierPipeline.clear();
   const level = C.buildDormitory();
+  C.placeContainers(level); C.placeLooseItems(level);
   const world = new C.World(level);
   const time = new C.TimeSystem();
   C.SoundSystem.init(level.graph, time);
@@ -557,6 +558,96 @@ section('14. 存档');
   ok('版本不兼容时明确报告而不是崩溃', C.Save.read().incompatible === true);
   C.Save.clear();
   ok('清档后读不到', C.Save.read() === null);
+}
+
+// ── 15. 楼梯回归 ────────────────────────────────────
+section('15. 每层楼梯都要能上能下');
+{
+  const s5 = makeSim();
+  const walk = (from, dz, steps) => {
+    const p = C.V.copy(from);
+    for (let i = 0; i < steps; i++) s5.world.moveCharacter(p, 0, dz, 0.32, 1.7, 0.36);
+    return p;
+  };
+  const H5 = 3.2;
+  for (let f = 1; f < 4; f++) {
+    const down = walk(C.V.make(-4.9, f * H5 + 0.01, 5.6), -0.02, 600);
+    ok(`${f + 1}F 西楼梯能下到 ${f}F`, down.y < f * H5 - 0.2, 'y=' + down.y.toFixed(2));
+  }
+  for (let f = 0; f < 3; f++) {
+    const up = walk(C.V.make(-4.9, f * H5 + 0.01, 0.2), 0.02, 600);
+    ok(`${f + 1}F 西楼梯能上到 ${f + 2}F`, up.y > (f + 1) * H5 - 0.2, 'y=' + up.y.toFixed(2));
+  }
+}
+
+// ── 16. 格子背包 ────────────────────────────────────
+section('16. 格子容器');
+{
+  const g = new C.Grid(5, 4, '小书包');
+  ok('小书包 5×4 = 20 格', g.cellCount() === 20);
+  const water = C.makeItem('water');
+  ok('瓶装水 1×2 放得进去', g.autoAdd(water).ok);
+  ok('占用 2 格', g.usedCells() === 2);
+  // 塞满
+  const g2 = new C.Grid(2, 2, '小格');
+  g2.autoAdd(C.makeItem('biscuit')); g2.autoAdd(C.makeItem('biscuit'));
+  g2.autoAdd(C.makeItem('biscuit')); g2.autoAdd(C.makeItem('biscuit'));
+  const rFull = g2.autoAdd(C.makeItem('biscuit'));
+  ok('空格不够 → 背包已满', !rFull.ok && rFull.reason === 'full', rFull.reason);
+  // 碎片化：4×1 的格子，放 2 个 1×1 在两端，再塞 2×1 就拼不出来
+  const g3 = new C.Grid(4, 1, '细长');
+  g3.autoAdd(C.makeItem('biscuit'));
+  g3.placeAt(C.makeItem('sausage'), 2, 0, 0);
+  const rFrag = g3.autoAdd(C.makeItem('tarp'));   // tarp 是 2×1
+  ok('空格够但拼不出连续区域 → 请整理背包', !rFrag.ok && rFrag.reason === 'fragmented',
+     rFrag.reason + ' 剩' + rFrag.free + '格需' + rFrag.need);
+  ok('整理后就放得下', (() => { g3.tidy(); return g3.autoAdd(C.makeItem('tarp')).ok; })());
+  // 旋转
+  const g4 = new C.Grid(4, 1, '扁');
+  ok('放不下的竖着物品会自动转 90°', g4.autoAdd(C.makeItem('water')).ok && g4.items[0].rot === 1);
+  // 堆叠
+  const g5 = new C.Grid(3, 3, '堆');
+  g5.autoAdd(C.makeItem('stone', 5));
+  g5.autoAdd(C.makeItem('stone', 2));
+  ok('可堆叠物品会并进已有堆', g5.items.length === 1 && g5.items[0].count === 7,
+     g5.items.length + ' 堆 / ' + g5.items[0].count + ' 个');
+  ok('超过堆叠上限会另起一堆', (() => { g5.autoAdd(C.makeItem('stone', 5)); return g5.items.length === 2; })());
+}
+
+section('17. 玩家取物');
+{
+  const s6 = makeSim();
+  const pl = new C.Player(s6.level, s6.world);
+  ok('开局没有背包', pl.bag === null);
+  ok('没背包时东西进快取栏', pl.acquire(C.makeItem('biscuit')).ok && pl.hotbar[0] !== null);
+  const r = pl.acquire(C.makeItem('smallBag'));
+  ok('捡到书包直接背上', r.ok && pl.bag && pl.bag.w === 5 && pl.bag.h === 4, r.msg);
+  ok('负重把背包自重也算进去', pl.totalWeight() > 0.4, pl.totalWeight().toFixed(2) + 'kg');
+  pl.acquire(C.makeItem('stone', 4));
+  ok('石头数从背包里数', pl.stoneCount() === 4, String(pl.stoneCount()));
+  ok('投石消耗背包里的石头', pl.takeStone() && pl.stoneCount() === 3);
+  const before = pl.needs.thirst;
+  pl.needs.thirst = 40;
+  const w = C.makeItem('water');
+  pl.acquire(w);
+  ok('喝水减口渴', pl.useItem(w).ok && pl.needs.thirst === 15, String(pl.needs.thirst));
+}
+
+section('18. 物资布置');
+{
+  const s7 = makeSim();
+  ok('宿舍楼里有容器', s7.level.containers.length > 50, s7.level.containers.length + ' 个');
+  const items = s7.level.containers.reduce((n, c) => n + c.grid.items.length, 0);
+  ok('容器里有物资', items > 100, items + ' 件');
+  ok('地上有可直接拾取的东西', s7.level.looseItems.length > 0, s7.level.looseItems.length + ' 处');
+  // 可复现：同一张图两次生成完全一致（等价于落盘成固定数据）
+  const a = makeSim(), b2 = makeSim();
+  const sig = (lv) => JSON.stringify(lv.containers.map(c => c.grid.items.map(i => i.id + 'x' + i.count)));
+  ok('两次生成的物资分布完全一致（不是运行时随机）', sig(a.level) === sig(b2.level));
+  ok('稀有物资固定放置：抗生素在写死的位置',
+     s7.level.containers.filter(c => c.grid.find('antibiotic')).length === 2);
+  const kinds = new Set(s7.level.containers.map(c => c.kind));
+  ok('容器类型齐全（书桌/衣柜/床下箱/储物柜/垃圾桶）', kinds.size >= 5, [...kinds].join(','));
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

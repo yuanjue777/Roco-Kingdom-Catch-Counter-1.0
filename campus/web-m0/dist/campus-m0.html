@@ -89,6 +89,60 @@
     border: 1px solid var(--line); border-radius: 3px; cursor: pointer; font-family: var(--cjk); font-size: 12px;
   }
   #tuner button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── 背包与搜刮界面 ───────────────────────────────── */
+  #btnBag {
+    position: fixed; right: 16px; bottom: 16px; z-index: 7;
+    font-family: var(--cjk); font-size: 13px; padding: 9px 18px; cursor: pointer;
+    background: rgba(20,26,34,0.9); color: var(--ink); border: 1px solid var(--line); border-radius: 4px;
+  }
+  #btnBag:hover { border-color: var(--accent); color: var(--accent); }
+  body.touch #btnBag { right: auto; left: calc(18px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top));
+                       bottom: auto; padding: 6px 12px; font-size: 12px; }
+  #inv {
+    position: fixed; inset: 0; z-index: 8; display: none;
+    background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
+  }
+  #inv.open { display: block; }
+  .inv-wrap { display: flex; gap: 22px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  .inv-pane { background: rgba(20,26,34,0.92); border: 1px solid var(--line); border-radius: 6px;
+              padding: 14px 16px 16px; min-width: 260px; }
+  .inv-pane h4 { margin: 0 0 10px; font-size: 13.5px; color: var(--ink); font-weight: 600;
+                 display: flex; align-items: baseline; gap: 8px; }
+  .inv-pane h4 small { font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: 400; }
+  .inv-btn { margin-left: auto; font-family: var(--cjk); font-size: 11.5px; padding: 3px 10px; cursor: pointer;
+             background: var(--surface, #141A22); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; }
+  .inv-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .inv-grid { position: relative; margin-bottom: 10px; }
+  .inv-cell { position: absolute; width: 34px; height: 34px; border: 1px solid var(--line2, #1D2530);
+              background: rgba(255,255,255,0.02); border-radius: 2px; }
+  .inv-item {
+    position: absolute; border-radius: 3px; cursor: pointer; overflow: hidden;
+    background: #2b3a49; border: 1px solid #46586a; font-size: 10.5px; line-height: 1.15;
+    color: var(--ink); padding: 3px 4px; font-weight: 400; display: block;
+  }
+  .inv-item { border-color: #46586a; }
+  .inv-item:hover { border-color: var(--signal); background: #33465a; }
+  .inv-item.rare { border-color: var(--accent); background: #3a2a26; }
+  .inv-item.hid { background: #171d25; border-color: #232c36; color: transparent; cursor: default; }
+  .inv-item u { position: absolute; right: 3px; bottom: 1px; font-family: var(--mono);
+                font-size: 10px; text-decoration: none; color: var(--signal); }
+  .inv-hot { display: flex; gap: 6px; }
+  .hot-slot { position: relative; width: 52px; height: 46px; border: 1px solid var(--line);
+              border-radius: 3px; background: rgba(255,255,255,0.02); }
+  .hot-slot b { position: absolute; inset: 2px; font-size: 10px; font-weight: 400; line-height: 1.1;
+                padding: 3px; border-radius: 2px; background: #2b3a49; border: 1px solid #46586a;
+                color: var(--ink); cursor: pointer; overflow: hidden; }
+  .hot-slot b:hover { border-color: var(--signal); }
+  .hot-slot b u { position: absolute; right: 2px; bottom: 0; font-family: var(--mono);
+                  font-size: 10px; text-decoration: none; color: var(--signal); }
+  .hot-slot em { position: absolute; left: 3px; top: 1px; font-family: var(--mono); font-style: normal;
+                 font-size: 9px; color: var(--dim); }
+  .inv-load { height: 6px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; margin: 4px 0 3px; }
+  .inv-load i { display: block; height: 100%; }
+  .inv-load-txt { margin: 0 0 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .inv-empty { color: var(--muted); font-size: 12.5px; line-height: 1.9; margin: 8px 0 0; }
+  .inv-hint { text-align: center; color: var(--dim); font-size: 12px; margin: 20px auto 0; max-width: 700px; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ── 触屏层 ─────────────────────────────────────────
@@ -186,6 +240,8 @@
 <canvas id="dbg"></canvas>
 <div id="toast"></div>
 <div id="tuner"></div>
+<div id="inv"></div>
+<button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
   <div class="pad pad-mods">
@@ -238,8 +294,9 @@
       <div class="row"><span><kbd>Q</kbd> <kbd>E</kbd></span><span class="act">左右探头</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
       <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
+      <div class="row"><span><kbd>B</kbd></span><span class="act">背包 · 六格快取栏</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>K</kbd></span><span class="act">睡觉（需安全睡点）</span><span class="val none">—</span></div>
-      <div class="row"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span class="act">喝水 / 饼干 / 泡面</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>1</kbd>–<kbd>6</kbd></span><span class="act">使用快取栏</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>L</kbd> <kbd>X</kbd> <kbd>F5</kbd></span><span class="act">手电 / 看表 / 存档</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>N</kbd> <kbd>T</kbd></span><span class="act">昼夜 / 时间流速</span><span class="val none">—</span></div>
     </div>
@@ -541,7 +598,8 @@
         exhaustedSpeedMul: 0.7,     // 体力归零移动速度 −30%
         exhaustedBreathInterval: 1.5
       },
-      weightRatio: 0.0,             // M0 无背包，用调试面板模拟负重比 r
+      weightLimit: 20,              // 负重上限 kg（主文档 10.1）
+      weightRatio: 0.0,             // 由背包实时算出；调试面板可覆盖
       weightLoudnessCoef: 0.5,      // 脚步响度 ×(1+0.5r)
       weightStaminaCoef: 0.8,       // 体力消耗 ×(1+0.8r)
       weightSpeedCoef: 0.25         // 奔跑速度 ×(1−0.25r)
@@ -1442,9 +1500,11 @@
         const stairZ0 = 0.5, stairZ1 = stairZ0 + steps * L.stairStepD;
         node.stairZ1 = stairZ1;
 
+        /* 梯段上下两端的落脚平台每层都有；**梯段区必须留空** ——
+           那是从下一层上来的楼梯的洞。曾经把顶层整个铺平，结果出生的四楼下不去。 */
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
         if (f === L.floors - 1) {
-          // 顶层不再往上，整个楼梯间铺平，并封顶
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, L.stairWellD) });
           solids.push({ tag: 'roof', box: AABB.make(sx0 - T, y1, -0.1, sx1 + T, y1 + 0.2, L.stairWellD + T) });
         } else {
           /* 梯段：沿 +z 上行，占另外半幅。
@@ -1456,9 +1516,6 @@
             solids.push({ tag: 'stair',
               box: AABB.make(st0, top - L.stairSlabThickness, zz, st0 + L.stairWidth, top, zz + L.stairStepD) });
           }
-          // 梯段上下两端的平台：没有它们，上下楼的人到了梯口就无处落脚
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
         }
 
         // 楼梯间外墙
@@ -1728,6 +1785,330 @@
   C.World = World;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/21-items.js ===== */
+/*
+ * 21-items.js —— 物品定义与格子容器（主文档 10.1）
+ *
+ * 格子背包：每件物品占 w×h 个格子，可 90° 旋转。容器（背包、抽屉、衣柜）
+ * 全部是同一个 Grid 类 —— 玩家背包和地上的书包在规则上没有区别。
+ *
+ * 「放不下」分两种，必须分开告诉玩家：
+ *   背包已满   —— 空格总数就不够，得先扔东西
+ *   请整理背包 —— 空格够但拼不出连续区域，挪一挪就能塞下
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* 物品表。size 是 [宽, 高] 格；weight 千克。
+     kind: food 食物 / drink 饮水 / med 医疗 / tool 工具 / weapon 武器
+           / material 材料 / container 容器 / throwable 投掷物 / junk 杂物 */
+  const ITEMS = {
+    water:      { name: '瓶装水 500ml', size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -25 } },
+    boiled:     { name: '煮沸的水',     size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -22 } },
+    dirtyWater: { name: '来路不明的水', size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -25, diarrheaChance: 0.4 } },
+    emptyBottle:{ name: '空水瓶',       size: [1, 2], weight: 0.06, kind: 'tool' },
+    biscuit:    { name: '饼干',         size: [1, 1], weight: 0.18, kind: 'food', use: { hunger: -12, thirst: 3 } },
+    noodle:     { name: '方便面',       size: [2, 2], weight: 0.12, kind: 'food', use: { hunger: -15, thirst: 5 } },
+    sausage:    { name: '火腿肠',       size: [1, 1], weight: 0.09, kind: 'food', use: { hunger: -8 } },
+    canned:     { name: '午餐肉罐头',   size: [1, 1], weight: 0.34, kind: 'food', use: { hunger: -20, thirst: 2 } },
+    chocolate:  { name: '巧克力',       size: [1, 1], weight: 0.10, kind: 'food', use: { hunger: -10, thirst: 2 } },
+    flashlight: { name: '手电筒',       size: [1, 2], weight: 0.28, kind: 'tool' },
+    battery:    { name: '电池',         size: [1, 1], weight: 0.05, kind: 'tool', stack: 4 },
+    bandage:    { name: '绷带',         size: [1, 1], weight: 0.08, kind: 'med', stack: 3 },
+    alcohol:    { name: '医用酒精',     size: [1, 1], weight: 0.30, kind: 'med' },
+    antibiotic: { name: '抗生素',       size: [1, 1], weight: 0.04, kind: 'med', rare: true },
+    cloth:      { name: '布',           size: [1, 1], weight: 0.10, kind: 'material', stack: 5 },
+    lighter:    { name: '打火机',       size: [1, 1], weight: 0.03, kind: 'tool' },
+    clockPart:  { name: '闹钟零件',     size: [1, 1], weight: 0.12, kind: 'material', stack: 3 },
+    tarp:       { name: '塑料布',       size: [2, 1], weight: 0.45, kind: 'material' },
+    stone:      { name: '石头',         size: [1, 1], weight: 0.25, kind: 'throwable', stack: 8 },
+    glassBottle:{ name: '玻璃瓶',       size: [1, 2], weight: 0.38, kind: 'throwable' },
+    mop:        { name: '拖把杆',       size: [1, 4], weight: 1.10, kind: 'weapon' },
+    textbook:   { name: '课本',         size: [2, 2], weight: 0.70, kind: 'junk' },
+    key:        { name: '钥匙',         size: [1, 1], weight: 0.02, kind: 'tool' },
+    smallBag:   { name: '小书包',       size: [2, 2], weight: 0.40, kind: 'container', grid: [5, 4] },
+    schoolBag:  { name: '学生书包',     size: [2, 3], weight: 0.55, kind: 'container', grid: [5, 4] },
+    tacticalBag:{ name: '战术背包',     size: [3, 3], weight: 0.90, kind: 'container', grid: [6, 5], rare: true }
+  };
+
+  let nextUid = 1;
+
+  /** 造一个物品实例。count 只对可堆叠的有意义。 */
+  function makeItem(id, count) {
+    const def = ITEMS[id];
+    if (!def) throw new Error('未知物品 ' + id);
+    return { uid: nextUid++, id, count: Math.max(1, count || 1), rot: 0, x: -1, y: -1 };
+  }
+  function itemSize(item) {
+    const s = ITEMS[item.id].size;
+    return item.rot ? [s[1], s[0]] : [s[0], s[1]];
+  }
+
+  function Grid(w, h, label) {
+    this.w = w; this.h = h; this.label = label || '';
+    this.items = [];
+  }
+  Grid.prototype.cellCount = function () { return this.w * this.h; };
+  Grid.prototype.usedCells = function () {
+    let n = 0;
+    for (const it of this.items) { const s = itemSize(it); n += s[0] * s[1]; }
+    return n;
+  };
+  Grid.prototype.freeCells = function () { return this.cellCount() - this.usedCells(); };
+  Grid.prototype.weight = function () {
+    let kg = 0;
+    for (const it of this.items) kg += ITEMS[it.id].weight * it.count;
+    return kg;
+  };
+
+  Grid.prototype.occupied = function () {
+    const map = new Array(this.w * this.h).fill(null);
+    for (const it of this.items) {
+      const s = itemSize(it);
+      for (let dy = 0; dy < s[1]; dy++) for (let dx = 0; dx < s[0]; dx++) map[(it.y + dy) * this.w + it.x + dx] = it;
+    }
+    return map;
+  };
+
+  Grid.prototype.fits = function (w, h, x, y, map, ignore) {
+    if (x < 0 || y < 0 || x + w > this.w || y + h > this.h) return false;
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
+      const cell = map[(y + dy) * this.w + x + dx];
+      if (cell && cell !== ignore) return false;
+    }
+    return true;
+  };
+
+  /** 找第一个能放下的位置（行优先，先原朝向再转 90°） */
+  Grid.prototype.findSpot = function (item) {
+    const map = this.occupied();
+    const base = ITEMS[item.id].size;
+    for (const rot of [0, 1]) {
+      const w = rot ? base[1] : base[0], h = rot ? base[0] : base[1];
+      if (rot && w === h) continue;                    // 方的转了也一样
+      for (let y = 0; y <= this.h - h; y++) for (let x = 0; x <= this.w - w; x++) {
+        if (this.fits(w, h, x, y, map, item)) return { x, y, rot };
+      }
+    }
+    return null;
+  };
+
+  /**
+   * 自动放入。先尝试并进已有的同类堆叠，再找空位。
+   * @returns {ok:true, item} 或 {ok:false, reason:'full'|'fragmented', need, free}
+   */
+  Grid.prototype.autoAdd = function (item) {
+    const def = ITEMS[item.id];
+    if (def.stack) {
+      for (const it of this.items) {
+        if (it.id !== item.id || it.count >= def.stack) continue;
+        const room = def.stack - it.count;
+        const move = Math.min(room, item.count);
+        it.count += move; item.count -= move;
+        if (item.count <= 0) return { ok: true, item: it, stacked: true };
+      }
+    }
+    const spot = this.findSpot(item);
+    if (!spot) {
+      const need = def.size[0] * def.size[1], free = this.freeCells();
+      // 空格总数都不够 → 已满；够但拼不出连续区域 → 该整理了
+      return { ok: false, reason: free < need ? 'full' : 'fragmented', need, free };
+    }
+    item.x = spot.x; item.y = spot.y; item.rot = spot.rot;
+    this.items.push(item);
+    return { ok: true, item };
+  };
+
+  Grid.prototype.placeAt = function (item, x, y, rot) {
+    const base = ITEMS[item.id].size;
+    const w = rot ? base[1] : base[0], h = rot ? base[0] : base[1];
+    if (!this.fits(w, h, x, y, this.occupied(), item)) return false;
+    item.x = x; item.y = y; item.rot = rot ? 1 : 0;
+    if (this.items.indexOf(item) < 0) this.items.push(item);
+    return true;
+  };
+
+  Grid.prototype.remove = function (item) {
+    const i = this.items.indexOf(item);
+    if (i >= 0) { this.items.splice(i, 1); return true; }
+    return false;
+  };
+  Grid.prototype.find = function (id) { return this.items.find(it => it.id === id) || null; };
+  Grid.prototype.count = function (id) {
+    return this.items.filter(it => it.id === id).reduce((n, it) => n + it.count, 0);
+  };
+
+  /** 整理：按体积从大到小重排，把碎片挤掉 */
+  Grid.prototype.tidy = function () {
+    const all = this.items.slice().sort((a, b) => {
+      const sa = ITEMS[a.id].size, sb = ITEMS[b.id].size;
+      return (sb[0] * sb[1]) - (sa[0] * sa[1]);
+    });
+    this.items = [];
+    const failed = [];
+    for (const it of all) {
+      it.x = -1; it.y = -1; it.rot = 0;
+      const spot = this.findSpot(it);
+      if (spot) { it.x = spot.x; it.y = spot.y; it.rot = spot.rot; this.items.push(it); }
+      else failed.push(it);
+    }
+    return failed;      // 理论上不会有，除非容器被换小了
+  };
+
+  Grid.prototype.serialize = function () {
+    return { w: this.w, h: this.h, label: this.label,
+             items: this.items.map(i => ({ id: i.id, count: i.count, x: i.x, y: i.y, rot: i.rot })) };
+  };
+  Grid.deserialize = function (d) {
+    const g = new Grid(d.w, d.h, d.label);
+    g.items = (d.items || []).map(r => Object.assign(makeItem(r.id, r.count), { x: r.x, y: r.y, rot: r.rot }));
+    return g;
+  };
+
+  C.ITEMS = ITEMS;
+  C.makeItem = makeItem;
+  C.itemSize = itemSize;
+  C.Grid = Grid;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/22-loot.js ===== */
+/*
+ * 22-loot.js —— 容器与物资布置（主文档 10.2）
+ *
+ * 硬规则：**完全手工放置，不做随机生成，不刷新。**
+ * 玩家的地图知识是跨局的核心资产，随机化会摧毁它。
+ *
+ * 这里的做法是「按房间类型定义产出池 + 固定种子生成一次」：
+ * 结果对同一张地图**永远相同**，等价于把布置落盘成固定数据，
+ * 但省掉了手工填几百个容器的重复劳动（v1 第 13.2 节风险四的缓解方案）。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* 容器原型。searchSeconds 是「快速翻找」的总时长，慢速翻找 ×2.25（4s → 9s）。 */
+  const KINDS = {
+    desk:     { name: '书桌抽屉', grid: [3, 3], search: 4, color: 0x9a7f5f, size: [0.7, 0.5, 0.5] },
+    wardrobe: { name: '衣柜',     grid: [4, 4], search: 5, color: 0x8a6f52, size: [0.8, 1.8, 0.6] },
+    underBed: { name: '床下箱',   grid: [4, 3], search: 4, color: 0x6f5d4a, size: [0.9, 0.4, 0.6] },
+    bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3] },
+    trash:    { name: '垃圾桶',   grid: [2, 2], search: 2, color: 0x5a6a5a, size: [0.45, 0.6, 0.45] },
+    locker:   { name: '储物柜',   grid: [3, 4], search: 4, color: 0x74808c, size: [0.6, 1.7, 0.5] }
+  };
+
+  /* 产出池：[物品id, 权重, 最少, 最多]。抽 count 次，每次按权重挑一样。 */
+  const POOLS = {
+    desk:     { count: [1, 3], pool: [['clockPart', 3, 1, 2], ['battery', 3, 1, 2], ['lighter', 2, 1, 1],
+                                     ['textbook', 3, 1, 1], ['cloth', 2, 1, 2], ['key', 1, 1, 1], ['chocolate', 2, 1, 1]] },
+    wardrobe: { count: [1, 3], pool: [['cloth', 5, 1, 3], ['smallBag', 2, 1, 1], ['schoolBag', 1, 1, 1],
+                                     ['flashlight', 2, 1, 1], ['bandage', 2, 1, 1]] },
+    underBed: { count: [1, 3], pool: [['glassBottle', 3, 1, 1], ['mop', 1, 1, 1], ['textbook', 3, 1, 1],
+                                     ['stone', 3, 2, 4], ['tarp', 1, 1, 1], ['biscuit', 3, 1, 2]] },
+    bag:      { count: [2, 4], pool: [['water', 4, 1, 1], ['biscuit', 4, 1, 2], ['noodle', 3, 1, 1],
+                                     ['sausage', 3, 1, 2], ['textbook', 2, 1, 1], ['battery', 2, 1, 1]] },
+    trash:    { count: [1, 2], pool: [['emptyBottle', 5, 1, 1], ['cloth', 3, 1, 1], ['glassBottle', 2, 1, 1]] },
+    locker:   { count: [1, 3], pool: [['canned', 3, 1, 1], ['water', 3, 1, 1], ['bandage', 2, 1, 1],
+                                     ['alcohol', 1, 1, 1], ['cloth', 2, 1, 2], ['dirtyWater', 2, 1, 1]] }
+  };
+
+  /* 固定放置：不走随机池，写死在具体位置。稀有物资必须这样放，
+     否则玩家「知道医务室有抗生素」这条知识就没有意义了。 */
+  const FIXED = [
+    { room: '401', kind: 'wardrobe', items: ['antibiotic'] },
+    { room: '305', kind: 'underBed', items: ['tacticalBag'] },
+    { room: '203', kind: 'desk',     items: ['antibiotic'] }
+  ];
+
+  function pick(rng, pool) {
+    let total = 0;
+    for (const e of pool) total += e[1];
+    let r = rng.next() * total;
+    for (const e of pool) { r -= e[1]; if (r <= 0) return e; }
+    return pool[pool.length - 1];
+  }
+
+  function fill(grid, kind, rng, fixedItems) {
+    for (const id of fixedItems || []) grid.autoAdd(C.makeItem(id));
+    const spec = POOLS[kind];
+    if (!spec) return;
+    const n = rng.int(spec.count[0], spec.count[1]);
+    for (let i = 0; i < n; i++) {
+      const e = pick(rng, spec.pool);
+      grid.autoAdd(C.makeItem(e[0], rng.int(e[2], e[3])));
+    }
+  }
+
+  let nextId = 1;
+  function makeContainer(kind, pos, rng, fixedItems, roomName) {
+    const k = KINDS[kind];
+    const g = new C.Grid(k.grid[0], k.grid[1], k.name);
+    fill(g, kind, rng, fixedItems);
+    return {
+      id: nextId++, kind, name: k.name, roomName,
+      pos, size: k.size, color: k.color,
+      grid: g, searchSeconds: k.search,
+      revealed: 0,          // 已点亮的物品数（三角洲式逐个点亮）
+      opened: false
+    };
+  }
+
+  /**
+   * 在宿舍楼里布置容器。同一张地图**每次生成结果完全相同**（固定种子）。
+   * @returns 容器数组，同时挂到 level.containers
+   */
+  function placeInDormitory(level, seed) {
+    nextId = 1;
+    const rng = new C.Rng(seed === undefined ? 20260904 : seed);
+    const out = [];
+    const L = C.Config.level;
+
+    for (const meta of level.floorsMeta) {
+      const y = meta.y0;
+      for (const room of meta.rooms) {
+        const b = room.bounds;
+        const fx = (t) => b.min.x + (b.max.x - b.min.x) * t;
+        const fz = (t) => b.min.z + (b.max.z - b.min.z) * t;
+        const fixedHere = FIXED.filter(f => f.room === room.name);
+        const fixedOf = (kind) => (fixedHere.find(f => f.kind === kind) || {}).items;
+
+        out.push(makeContainer('desk',     C.V.make(fx(0.5), y + 0.78, fz(0.86)), rng, fixedOf('desk'), room.name));
+        out.push(makeContainer('wardrobe', C.V.make(fx(0.88), y + 0.9,  fz(0.20)), rng, fixedOf('wardrobe'), room.name));
+        out.push(makeContainer('underBed', C.V.make(fx(0.12), y + 0.2,  fz(0.42)), rng, fixedOf('underBed'), room.name));
+        // 约四成房间地上还扔着一个书包
+        if (rng.next() < 0.42) out.push(makeContainer('bag', C.V.make(fx(0.62), y + 0.25, fz(0.55)), rng, null, room.name));
+      }
+      // 走廊：两个储物柜 + 一个垃圾桶
+      const cb = meta.corridor.bounds;
+      const cz = cb.min.z + 0.45;
+      out.push(makeContainer('locker', C.V.make(cb.min.x + 6, y + 0.85, cz), rng, null, meta.corridor.name));
+      out.push(makeContainer('locker', C.V.make(cb.min.x + 20, y + 0.85, cz), rng, null, meta.corridor.name));
+      out.push(makeContainer('trash',  C.V.make(cb.min.x + 13, y + 0.3, cz), rng, null, meta.corridor.name));
+    }
+
+    level.containers = out;
+    return out;
+  }
+
+  /** 玩家脚边散落的物品（走廊里的石头之类），直接捡不用翻找 */
+  function placeLooseItems(level, seed) {
+    const rng = new C.Rng(seed === undefined ? 771 : seed);
+    const loose = [];
+    for (const meta of level.floorsMeta) {
+      const cb = meta.corridor.bounds;
+      for (let i = 0; i < 3; i++) {
+        const x = cb.min.x + rng.range(2, (cb.max.x - cb.min.x) - 2);
+        loose.push({ id: 'loose' + loose.length, item: C.makeItem('stone', rng.int(2, 4)),
+                     pos: C.V.make(x, meta.y0 + 0.12, cb.min.z + rng.range(0.5, 2.0)), taken: false });
+      }
+    }
+    level.looseItems = loose;
+    return loose;
+  }
+
+  C.ContainerKinds = KINDS;
+  C.placeContainers = placeInDormitory;
+  C.placeLooseItems = placeLooseItems;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/18-needs.js ===== */
 /*
  * 18-needs.js —— 生存需求（主文档 3.2 / 3.3）
@@ -1858,7 +2239,8 @@
     this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
     this.needs = new C.Needs(PLAYER_ID);
-    this.items = { water: 2, biscuit: 2, noodleDry: 1 };
+    this.bag = null;                       // 一开始没有背包，得自己找一个
+    this.hotbar = [null, null, null, null, null, null];   // 六格快取栏
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -1874,7 +2256,7 @@
     this.velY = 0; this.airborne = false; this._coyote = 0; this._jumpPrev = false;
     this.vault = null;                // 翻越中的插值状态
     this.charge = 0;                  // 投掷蓄力 0–1
-    this.stones = 12;
+
     this.soundprints = [];            // 声纹（HUD 用）
     this.lastAction = '';
 
@@ -1891,7 +2273,7 @@
   /* 所有加成一律注册进管线，业务代码只向管线要最终值（主文档 11.3） */
   Player.prototype._registerModifiers = function () {
     const P = () => C.Config.player;
-    const wr = () => M.clamp(P().weightRatio, 0, 2);
+    const wr = () => M.clamp(P().weightRatio || this.weightRatio(), 0, 2);
     // 负重（主文档 7.1）
     C.Mod.mul('sound.footstep', 'weight', () => 1 + P().weightLoudnessCoef * wr(), PLAYER_ID, 10);
     C.Mod.mul('stamina.run_cost', 'weight', () => 1 + P().weightStaminaCoef * wr(), PLAYER_ID, 10);
@@ -1946,6 +2328,90 @@
     const dir = (f.x * t.x + f.z * t.z) >= 0 ? 1 : -1;
     this.yaw = Math.atan2(-t.x * dir, -t.z * dir);
     this.lastAction = '贴墙';
+  };
+
+  Player.prototype.totalWeight = function () {
+    let kg = this.bag ? this.bag.weight() : 0;
+    if (this.bag) kg += C.ITEMS[this.bagItemId || 'smallBag'].weight;
+    for (const it of this.hotbar) if (it) kg += C.ITEMS[it.id].weight * it.count;
+    return kg;
+  };
+  /** 负重比 r = 当前重量 / 上限（主文档 10.1） */
+  Player.prototype.weightRatio = function () {
+    return this.totalWeight() / C.Config.player.weightLimit;
+  };
+  Player.prototype.stoneCount = function () {
+    let n = this.bag ? this.bag.count('stone') : 0;
+    for (const it of this.hotbar) if (it && it.id === 'stone') n += it.count;
+    return n;
+  };
+  Player.prototype.takeStone = function () {
+    for (const it of this.hotbar) {
+      if (it && it.id === 'stone') { it.count--; if (it.count <= 0) this.hotbar[this.hotbar.indexOf(it)] = null; return true; }
+    }
+    if (this.bag) {
+      const it = this.bag.find('stone');
+      if (it) { it.count--; if (it.count <= 0) this.bag.remove(it); return true; }
+    }
+    return false;
+  };
+
+  /** 捡起/拿取一件物品。容器类物品在没有背包时直接背上。 */
+  Player.prototype.acquire = function (item) {
+    const def = C.ITEMS[item.id];
+    if (def.kind === 'container' && !this.bag) {
+      this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
+      this.bagItemId = item.id;
+      return { ok: true, msg: '背上了' + def.name + '（' + def.grid[0] + '×' + def.grid[1] + '）' };
+    }
+    if (!this.bag) {
+      const slot = this.hotbar.indexOf(null);
+      if (slot < 0) return { ok: false, msg: '没有背包，快取栏也满了' };
+      this.hotbar[slot] = item;
+      return { ok: true, msg: def.name + ' → 快取栏 ' + (slot + 1) };
+    }
+    const r = this.bag.autoAdd(item);
+    if (r.ok) return { ok: true, msg: '拾取 ' + def.name };
+    // 分情况提示：空格不够 vs 拼不出连续区域
+    return { ok: false, msg: r.reason === 'full'
+      ? `背包已满（还剩 ${r.free} 格，${def.name} 需要 ${r.need} 格）`
+      : `请整理背包（还剩 ${r.free} 格，但拼不出 ${def.name} 需要的连续区域）` };
+  };
+
+  /** 使用一件物品：能吃能喝的吃掉，容器类的背上 */
+  Player.prototype.useItem = function (item) {
+    const def = C.ITEMS[item.id];
+    if (def.kind === 'container') {
+      const old = this.bag, oldId = this.bagItemId;
+      this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
+      this.bagItemId = item.id;
+      this._removeItem(item);
+      let spill = 0;
+      if (old) {
+        for (const it of old.items.slice()) { if (!this.bag.autoAdd(it).ok) spill++; }
+        if (oldId) this.bag.autoAdd(C.makeItem(oldId));
+      }
+      return { ok: true, msg: '换上' + def.name + (spill ? `，${spill} 件东西掉在地上` : '') };
+    }
+    if (!def.use) return { ok: false, msg: def.name + '现在用不上' };
+    const before = { t: this.needs.thirst, h: this.needs.hunger };
+    const L = C.Config.needs.barLength;
+    this.needs.thirst = M.clamp(this.needs.thirst + (def.use.thirst || 0), 0, L);
+    this.needs.hunger = M.clamp(this.needs.hunger + (def.use.hunger || 0), 0, L);
+    let msg = def.name;
+    if (def.use.diarrheaChance && Math.random() < def.use.diarrheaChance) {
+      this.needs.diarrheaHours = C.Config.needs.diarrheaHours;
+      msg += '（喝出了腹泻）';
+    }
+    item.count--;
+    if (item.count <= 0) this._removeItem(item);
+    return { ok: true, msg: msg + ' —— 渴 ' + this.needs.thirst.toFixed(0) + ' 饿 ' + this.needs.hunger.toFixed(0) };
+  };
+
+  Player.prototype._removeItem = function (item) {
+    const i = this.hotbar.indexOf(item);
+    if (i >= 0) { this.hotbar[i] = null; return; }
+    if (this.bag) this.bag.remove(item);
   };
 
   Player.prototype.eyeHeight = function () {
@@ -2193,7 +2659,28 @@
     while (this.soundprints.length && now - this.soundprints[0].born > life) this.soundprints.shift();
   };
 
-  /** 视线前方最近的可交互门/窗 */
+  /** 视线前方最近的可交互对象：门窗 / 容器 / 地上的物品 */
+  Player.prototype.findTarget = function () {
+    const eye = this.eyePos();
+    const fwd = this.aimDir();
+    const R = C.Config.interact.range;
+    let best = null, bestScore = 0.5;
+    const consider = (pos, obj, type, bonus) => {
+      const to = V.sub(pos, eye), dist = V.len(to);
+      if (dist > R + (bonus || 0)) return;
+      const dot = V.dot(V.norm(to), fwd);
+      if (dot < 0.45) return;
+      const score = dot + (bonus ? 0.06 : 0);
+      if (score > bestScore) { bestScore = score; best = { type, obj, dist }; }
+    };
+    const lv = this.world.level;
+    for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
+    for (const c of lv.containers || []) consider(c.pos, c, 'container', 0.4);
+    for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
+    return best;
+  };
+
+  /** 视线前方最近的可交互门/窗（旧接口，仅门窗） */
   Player.prototype.findInteractable = function () {
     const eye = this.eyePos();
     const fwd = { x: -Math.sin(this.yaw) * Math.cos(this.pitch), y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * Math.cos(this.pitch) };
@@ -2212,25 +2699,52 @@
 
   Player.prototype._updateInteract = function (dt, input) {
     const I = C.Config.interact;
-    const target = this.findInteractable();
-    this.interactTarget = target;
-    if (input.interact && target) {
-      if (this._interactTarget !== target) { this._interactTarget = target; this._interactHeld = 0; this._interactDone = false; }
+    const t = this.findTarget();
+    this.target = t;
+    this.interactTarget = t && t.type === 'door' ? t.obj : null;
+    if (input.interact && t) {
+      if (this._tObj !== t.obj) { this._tObj = t.obj; this._interactHeld = 0; this._interactDone = false; }
       this._interactHeld += dt;
-      const portal = C.SoundSystem.graph.getPortal(target.portalId);
-      const opening = !C.SoundSystem.graph.isPassable(portal);
-      const need = opening ? I.doorSlowHoldSeconds : I.doorCloseSlowHoldSeconds;
+      let need = 0.6;
+      if (t.type === 'door') {
+        const portal = C.SoundSystem.graph.getPortal(t.obj.portalId);
+        need = C.SoundSystem.graph.isPassable(portal) ? I.doorCloseSlowHoldSeconds : I.doorSlowHoldSeconds;
+      } else if (t.type === 'loose') need = 0.01;
       this.interactProgress = M.clamp(this._interactHeld / need, 0, 1);
       if (!this._interactDone && this._interactHeld >= need) {
-        this._doorAction(target, true);      // 缓慢版
         this._interactDone = true;
+        if (t.type === 'door') this._doorAction(t.obj, true);
+        else if (t.type === 'container') this.openContainer(t.obj, true);   // 按住 = 缓慢翻找
+        else this.pickUp(t.obj);
       }
     } else {
-      if (this._interactTarget && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
-        this._doorAction(this._interactTarget, false);   // 轻点 = 快速版
+      if (this._tObj && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
+        const o = this._tObj;
+        if (o.portalId !== undefined) this._doorAction(o, false);
+        else if (o.grid) this.openContainer(o, false);                      // 轻点 = 快速翻找
       }
-      this._interactTarget = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
+      this._tObj = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
     }
+  };
+
+  /** 打开容器开始翻找。快速 4s/响度40，缓慢 ×2.25/响度15（主文档 5.3） */
+  Player.prototype.openContainer = function (box, slow) {
+    box.opened = true; box.slow = !!slow; box._t = 0;
+    if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
+    else box.revealed = 0;
+    const loud = C.ModifierPipeline.query('sound.loot',
+      slow ? C.Config.loudness.lootSlow : C.Config.loudness.lootFast, this.id);
+    C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: (slow ? '缓慢' : '快速') + '翻找' });
+    this.lastAction = (slow ? '缓慢' : '快速') + '翻找 ' + box.name;
+    C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  Player.prototype.pickUp = function (loose) {
+    const r = this.acquire(loose.item);
+    if (r.ok) loose.taken = true;
+    this.lastAction = r.msg;
+    C.EventBus.publish('PickupEvent', { ok: r.ok, msg: r.msg });
   };
 
   Player.prototype._doorAction = function (door, slow) {
@@ -2251,13 +2765,12 @@
   // ── 投掷（主文档 4.4）──────────────────────────────
   Player.prototype._updateThrow = function (dt, input) {
     const T = C.Config.throwing;
-    if (input.throwHeld && this.stones > 0) {
+    if (input.throwHeld && this.stoneCount() > 0) {
       this.charge = M.clamp(this.charge + dt / T.chargeSeconds, 0, 1);
     } else if (this.charge > 0) {
-      if (this.stones > 0) {
+      if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
         C.Projectiles.spawn(this.eyePos(), this.aimDir(), speed, this.id);
-        this.stones--;
         this.lastAction = '投石';
       }
       this.charge = 0;
@@ -2812,6 +3325,7 @@
     this._buildDoors();
     this._buildThrowPreview();
     this._buildAvatar();
+    this._buildContainers();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
@@ -2922,6 +3436,34 @@
   };
 
   /* 第三人称才看得见的玩家身体 */
+  /* 容器与地上的物品：小盒子，颜色按类型分 */
+  Renderer.prototype._buildContainers = function () {
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const byColor = new Map();
+    for (const c of this.level.containers || []) {
+      if (!byColor.has(c.color)) byColor.set(c.color, []);
+      byColor.get(c.color).push(c);
+    }
+    const m4 = new THREE.Matrix4();
+    for (const [color, list] of byColor) {
+      const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
+      list.forEach((c, i) => {
+        m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
+        m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
+        inst.setMatrixAt(i, m4);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      this.scene.add(inst);
+    }
+    this.looseMeshes = (this.level.looseItems || []).map(l => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
+        new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+      m.position.set(l.pos.x, l.pos.y, l.pos.z);
+      this.scene.add(m);
+      return { mesh: m, loose: l };
+    });
+  };
+
   Renderer.prototype._buildAvatar = function () {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.3),
@@ -3046,6 +3588,7 @@
       if (p) m.position.set(p.pos.x, p.pos.y, p.pos.z);
     });
 
+    for (const l of this.looseMeshes || []) l.mesh.visible = !l.loose.taken;
     this._updateThrowPreview(player);
   };
 
@@ -3317,11 +3860,11 @@
     if (touch) {
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(220,227,235,0.85)'; ctx.font = '11px ' + MONO;
-      ctx.fillText('石头 ×' + player.stones, bx, by + bh + 30);
+      ctx.fillText('石头 ×' + player.stoneCount(), bx, by + bh + 30);
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
-      ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
+      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 28);
       if (player.charge > 0) {
         const cw = 120;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
@@ -3342,6 +3885,17 @@
     }
 
     // 交互提示
+    if (player.target && player.target.type !== 'door') {
+      const t = player.target;
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
+      ctx.fillText(t.type === 'container'
+        ? `[F] 轻点=快速翻找 ${t.obj.name}（响度 40）　按住=缓慢翻找（响度 15）`
+        : `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`, cx, cy + 46);
+      if (player.interactProgress > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
+      }
+    }
     if (player.interactTarget) {
       const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
       const opening = !g.isPassable(p);
@@ -3791,6 +4345,178 @@
   C.Sleep = Sleep;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/23-inventory-ui.js ===== */
+/*
+ * 23-inventory-ui.js —— 背包与搜刮界面（主文档 14.2）
+ * 用 DOM 而不是 canvas：格子拖放/点击/长按这些交互，DOM 天生就有。
+ * **打开背包时游戏不暂停** —— 搜刮和整理背包本身就是有风险的行为。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const CELL = 34, GAP = 2;
+
+  const UI = {
+    open: false, container: null, game: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('inv');
+      this.el.innerHTML =
+        '<div class="inv-wrap">' +
+          '<section class="inv-pane" id="invBagPane"></section>' +
+          '<section class="inv-pane" id="invBoxPane"></section>' +
+        '</div>' +
+        '<p class="inv-hint">点击容器里的物品拿取 · 点击背包里的物品使用 · ' +
+          '<b>Shift+点击</b>放进快取栏 · <b>右键</b>丢弃 · <kbd>B</kbd>/<kbd>Esc</kbd> 关闭</p>';
+      this.bagPane = document.getElementById('invBagPane');
+      this.boxPane = document.getElementById('invBoxPane');
+      document.getElementById('btnBag').addEventListener('click', () => this.toggle());
+    },
+
+    toggle(container) {
+      this.open = !this.open || (container && container !== this.container);
+      this.container = this.open ? (container || this.container) : null;
+      this.el.classList.toggle('open', this.open);
+      if (this.open) this.render();
+    },
+    close() { this.open = false; this.container = null; this.el.classList.remove('open'); },
+
+    /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */
+    tickSearch(dt) {
+      const box = this.container;
+      if (!box || !box.opened || box.revealed >= box.grid.items.length) return;
+      box._t = (box._t || 0) + dt;
+      const per = box.searchSeconds * (box.slow ? 2.25 : 1) / Math.max(1, box.grid.items.length);
+      while (box._t >= per && box.revealed < box.grid.items.length) { box._t -= per; box.revealed++; this.render(); }
+    },
+
+    render() {
+      if (!this.open) return;
+      const p = this.game.player;
+      this.bagPane.innerHTML = this._bagHtml(p);
+      this.boxPane.innerHTML = this._boxHtml();
+      this._bind();
+    },
+
+    _gridHtml(grid, revealLimit) {
+      const cells = `<div class="inv-grid" style="width:${grid.w * (CELL + GAP)}px;height:${grid.h * (CELL + GAP)}px">` +
+        new Array(grid.w * grid.h).fill(0).map((_, i) =>
+          `<i class="inv-cell" style="left:${(i % grid.w) * (CELL + GAP)}px;top:${Math.floor(i / grid.w) * (CELL + GAP)}px"></i>`).join('') +
+        grid.items.map((it, idx) => {
+          const hidden = revealLimit !== undefined && idx >= revealLimit;
+          const s = C.itemSize(it), d = C.ITEMS[it.id];
+          return `<b class="inv-item${hidden ? ' hid' : ''}${d.rare ? ' rare' : ''}" data-uid="${it.uid}"
+                     style="left:${it.x * (CELL + GAP)}px;top:${it.y * (CELL + GAP)}px;
+                            width:${s[0] * CELL + (s[0] - 1) * GAP}px;height:${s[1] * CELL + (s[1] - 1) * GAP}px"
+                     title="${d.name}　${d.weight}kg">${hidden ? '' : d.name}${it.count > 1 ? `<u>${it.count}</u>` : ''}</b>`;
+        }).join('') + '</div>';
+      return cells;
+    },
+
+    _bagHtml(p) {
+      const hot = `<div class="inv-hot">` + p.hotbar.map((it, i) =>
+        `<span class="hot-slot" data-slot="${i}">${it ? `<b data-uid="${it.uid}">${C.ITEMS[it.id].name}${it.count > 1 ? `<u>${it.count}</u>` : ''}</b>` : ''}<em>${i + 1}</em></span>`).join('') + '</div>';
+      if (!p.bag) {
+        return `<h4>快取栏 <small>6 格</small></h4>${hot}
+          <p class="inv-empty">你还没有背包。<br>宿舍里到处都是书包，找一个背上。</p>`;
+      }
+      const kg = p.totalWeight(), max = C.Config.player.weightLimit;
+      const r = Math.min(1, kg / max);
+      return `<h4>${p.bag.label} <small>${p.bag.w}×${p.bag.h}　空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格</small>
+                <button class="inv-btn" id="btnTidy">整理</button></h4>` +
+        this._gridHtml(p.bag) +
+        `<div class="inv-load"><i style="width:${r * 100}%;background:${kg > max ? 'var(--accent)' : 'var(--signal)'}"></i></div>
+         <p class="inv-load-txt">负重 ${kg.toFixed(2)} / ${max} kg　${kg > max ? '· 超重，无法奔跑' : ''}</p>
+         <h4>快取栏 <small>6 格</small></h4>${hot}`;
+    },
+
+    _boxHtml() {
+      const box = this.container;
+      if (!box) return '<p class="inv-empty">没有打开容器。<br>走到书桌、衣柜、床下箱或书包前按 <kbd>F</kbd>。</p>';
+      const total = box.grid.items.length;
+      const done = box.revealed >= total;
+      return `<h4>${box.name} <small>${box.roomName}　${done ? '已翻完' : `翻找中 ${box.revealed}/${total}`}</small></h4>` +
+        this._gridHtml(box.grid, box.revealed) +
+        (done ? '' : `<div class="inv-load"><i style="width:${(box.revealed / Math.max(1, total)) * 100}%;background:var(--part-fg,#E5B45C)"></i></div>`) +
+        `<p class="inv-load-txt">${box.slow ? '缓慢翻找（响度 15）' : '快速翻找（响度 40）'}</p>`;
+    },
+
+    _bind() {
+      const p = this.game.player;
+      const tidy = document.getElementById('btnTidy');
+      if (tidy) tidy.onclick = () => { p.bag.tidy(); this.render(); this.game.msg('整理完毕'); };
+
+      this.el.querySelectorAll('.inv-item, .hot-slot b').forEach(el => {
+        el.oncontextmenu = (e) => { e.preventDefault(); this._drop(el.dataset.uid); };
+        el.onclick = (e) => {
+          const uid = +el.dataset.uid;
+          const box = this.container;
+          const inBox = box && box.grid.items.some(i => i.uid === uid);
+          if (inBox) {
+            const idx = box.grid.items.findIndex(i => i.uid === uid);
+            if (idx >= box.revealed) { this.game.msg('还没翻到这件'); return; }
+            this._take(uid);
+          } else if (e.shiftKey) this._toHotbar(uid);
+          else this._use(uid);
+        };
+      });
+      this.el.querySelectorAll('.hot-slot').forEach(el => {
+        el.onclick = (e) => { if (!e.target.closest('b')) return; };
+      });
+    },
+
+    _findAnywhere(uid) {
+      const p = this.game.player;
+      if (this.container) { const it = this.container.grid.items.find(i => i.uid === uid); if (it) return { it, from: this.container.grid }; }
+      if (p.bag) { const it = p.bag.items.find(i => i.uid === uid); if (it) return { it, from: p.bag }; }
+      const hi = p.hotbar.findIndex(i => i && i.uid === uid);
+      if (hi >= 0) return { it: p.hotbar[hi], from: 'hotbar', slot: hi };
+      return null;
+    },
+
+    _take(uid) {
+      const p = this.game.player, box = this.container;
+      const it = box.grid.items.find(i => i.uid === uid);
+      if (!it) return;
+      const r = p.acquire(it);
+      if (!r.ok) { this.game.msg(r.msg); return; }
+      box.grid.remove(it);
+      box.revealed = Math.max(0, box.revealed - 1);
+      this.game.msg('拿走 ' + C.ITEMS[it.id].name);
+      this.render();
+    },
+
+    _use(uid) {
+      const f = this._findAnywhere(uid);
+      if (!f) return;
+      const r = this.game.player.useItem(f.it);
+      this.game.msg(r.msg);
+      this.render();
+    },
+
+    _toHotbar(uid) {
+      const p = this.game.player, f = this._findAnywhere(uid);
+      if (!f || f.from === 'hotbar') return;
+      const slot = p.hotbar.indexOf(null);
+      if (slot < 0) { this.game.msg('快取栏满了'); return; }
+      f.from.remove(f.it);
+      p.hotbar[slot] = f.it;
+      this.game.msg(C.ITEMS[f.it.id].name + ' → 快取栏 ' + (slot + 1));
+      this.render();
+    },
+
+    _drop(uid) {
+      const p = this.game.player, f = this._findAnywhere(+uid);
+      if (!f) return;
+      if (f.from === 'hotbar') p.hotbar[f.slot] = null; else f.from.remove(f.it);
+      this.game.msg('丢掉 ' + C.ITEMS[f.it.id].name);
+      this.render();
+    }
+  };
+
+  C.InventoryUI = UI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -4084,6 +4810,7 @@
       this.debug = new C.Debug(this.dbgCanvas);
       C.Debug.buildTuner(this.tuner);
       C.Touch.init(this);
+      C.InventoryUI.init(this);
 
       this._bindInput();
       this.restart();
@@ -4100,6 +4827,8 @@
       C.EventBus.clear();
 
       this.level = C.buildDormitory();
+      C.placeContainers(this.level);
+      C.placeLooseItems(this.level);
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -4121,6 +4850,11 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
+      C.EventBus.subscribe('ContainerOpenedEvent', (e) => {
+        C.InventoryUI.container = e.box; C.InventoryUI.open = true;
+        C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
+      });
+      C.EventBus.subscribe('PickupEvent', (e) => this.msg(e.msg));
       C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; C.Save.clear(); });
       // 睡眠中被响度惊醒（主文档 3.4：margin > 15）
       this.player.hearing.onHeard = ((prev) => (info) => {
@@ -4166,10 +4900,12 @@
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
           case 'KeyK': this._toggleSleep(); break;
+          case 'KeyB': C.InventoryUI.toggle(); break;
+          case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
-          case 'Digit1': this._consume('water'); break;
-          case 'Digit2': this._consume('biscuit'); break;
-          case 'Digit3': this._consume('noodleDry'); break;
+          case 'Digit1': case 'Digit2': case 'Digit3':
+          case 'Digit4': case 'Digit5': case 'Digit6':
+            this._useHotbar(+e.code.slice(5) - 1); break;
           case 'KeyN':
             this.time.hour = (this.time.hour > 6 && this.time.hour < 19) ? 23 : 12;
             this.msg(this.time.isNight() ? '切到夜间：声音传播距离 +43%，丧尸视觉半径减半' : '切到白天');
@@ -4204,12 +4940,11 @@
       addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
     },
 
-    _consume(key) {
-      const p = this.player;
-      if (!p.items[key]) { this.msg('没有' + (C.Config.items[key] || {}).name + '了'); return; }
-      p.items[key]--;
-      const r = p.needs.consume(key);
-      this.msg(r.msg + ' —— 口渴 ' + p.needs.thirst.toFixed(0) + ' / 饥饿 ' + p.needs.hunger.toFixed(0));
+    _useHotbar(i) {
+      const it = this.player.hotbar[i];
+      if (!it) { this.msg('快取栏 ' + (i + 1) + ' 是空的'); return; }
+      this.msg(this.player.useItem(it).msg);
+      C.InventoryUI.render();
     },
 
     _toggleSleep() {
@@ -4300,6 +5035,7 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
+      C.InventoryUI.tickSearch(dt);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));

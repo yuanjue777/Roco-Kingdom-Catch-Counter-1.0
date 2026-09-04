@@ -21,6 +21,7 @@
       this.debug = new C.Debug(this.dbgCanvas);
       C.Debug.buildTuner(this.tuner);
       C.Touch.init(this);
+      C.InventoryUI.init(this);
 
       this._bindInput();
       this.restart();
@@ -37,6 +38,8 @@
       C.EventBus.clear();
 
       this.level = C.buildDormitory();
+      C.placeContainers(this.level);
+      C.placeLooseItems(this.level);
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -58,6 +61,11 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
+      C.EventBus.subscribe('ContainerOpenedEvent', (e) => {
+        C.InventoryUI.container = e.box; C.InventoryUI.open = true;
+        C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
+      });
+      C.EventBus.subscribe('PickupEvent', (e) => this.msg(e.msg));
       C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; C.Save.clear(); });
       // 睡眠中被响度惊醒（主文档 3.4：margin > 15）
       this.player.hearing.onHeard = ((prev) => (info) => {
@@ -103,10 +111,12 @@
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
           case 'KeyK': this._toggleSleep(); break;
+          case 'KeyB': C.InventoryUI.toggle(); break;
+          case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
-          case 'Digit1': this._consume('water'); break;
-          case 'Digit2': this._consume('biscuit'); break;
-          case 'Digit3': this._consume('noodleDry'); break;
+          case 'Digit1': case 'Digit2': case 'Digit3':
+          case 'Digit4': case 'Digit5': case 'Digit6':
+            this._useHotbar(+e.code.slice(5) - 1); break;
           case 'KeyN':
             this.time.hour = (this.time.hour > 6 && this.time.hour < 19) ? 23 : 12;
             this.msg(this.time.isNight() ? '切到夜间：声音传播距离 +43%，丧尸视觉半径减半' : '切到白天');
@@ -141,12 +151,11 @@
       addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
     },
 
-    _consume(key) {
-      const p = this.player;
-      if (!p.items[key]) { this.msg('没有' + (C.Config.items[key] || {}).name + '了'); return; }
-      p.items[key]--;
-      const r = p.needs.consume(key);
-      this.msg(r.msg + ' —— 口渴 ' + p.needs.thirst.toFixed(0) + ' / 饥饿 ' + p.needs.hunger.toFixed(0));
+    _useHotbar(i) {
+      const it = this.player.hotbar[i];
+      if (!it) { this.msg('快取栏 ' + (i + 1) + ' 是空的'); return; }
+      this.msg(this.player.useItem(it).msg);
+      C.InventoryUI.render();
     },
 
     _toggleSleep() {
@@ -237,6 +246,7 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
+      C.InventoryUI.tickSearch(dt);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));

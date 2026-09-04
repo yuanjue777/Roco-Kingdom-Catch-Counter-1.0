@@ -20,7 +20,8 @@
     this.leanAmount = 0;              // 实际侧身量，平滑跟随 lean
     this.holdBreath = false;
     this.needs = new C.Needs(PLAYER_ID);
-    this.items = { water: 2, biscuit: 2, noodleDry: 1 };
+    this.bag = null;                       // 一开始没有背包，得自己找一个
+    this.hotbar = [null, null, null, null, null, null];   // 六格快取栏
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -36,7 +37,7 @@
     this.velY = 0; this.airborne = false; this._coyote = 0; this._jumpPrev = false;
     this.vault = null;                // 翻越中的插值状态
     this.charge = 0;                  // 投掷蓄力 0–1
-    this.stones = 12;
+
     this.soundprints = [];            // 声纹（HUD 用）
     this.lastAction = '';
 
@@ -53,7 +54,7 @@
   /* 所有加成一律注册进管线，业务代码只向管线要最终值（主文档 11.3） */
   Player.prototype._registerModifiers = function () {
     const P = () => C.Config.player;
-    const wr = () => M.clamp(P().weightRatio, 0, 2);
+    const wr = () => M.clamp(P().weightRatio || this.weightRatio(), 0, 2);
     // 负重（主文档 7.1）
     C.Mod.mul('sound.footstep', 'weight', () => 1 + P().weightLoudnessCoef * wr(), PLAYER_ID, 10);
     C.Mod.mul('stamina.run_cost', 'weight', () => 1 + P().weightStaminaCoef * wr(), PLAYER_ID, 10);
@@ -108,6 +109,90 @@
     const dir = (f.x * t.x + f.z * t.z) >= 0 ? 1 : -1;
     this.yaw = Math.atan2(-t.x * dir, -t.z * dir);
     this.lastAction = '贴墙';
+  };
+
+  Player.prototype.totalWeight = function () {
+    let kg = this.bag ? this.bag.weight() : 0;
+    if (this.bag) kg += C.ITEMS[this.bagItemId || 'smallBag'].weight;
+    for (const it of this.hotbar) if (it) kg += C.ITEMS[it.id].weight * it.count;
+    return kg;
+  };
+  /** 负重比 r = 当前重量 / 上限（主文档 10.1） */
+  Player.prototype.weightRatio = function () {
+    return this.totalWeight() / C.Config.player.weightLimit;
+  };
+  Player.prototype.stoneCount = function () {
+    let n = this.bag ? this.bag.count('stone') : 0;
+    for (const it of this.hotbar) if (it && it.id === 'stone') n += it.count;
+    return n;
+  };
+  Player.prototype.takeStone = function () {
+    for (const it of this.hotbar) {
+      if (it && it.id === 'stone') { it.count--; if (it.count <= 0) this.hotbar[this.hotbar.indexOf(it)] = null; return true; }
+    }
+    if (this.bag) {
+      const it = this.bag.find('stone');
+      if (it) { it.count--; if (it.count <= 0) this.bag.remove(it); return true; }
+    }
+    return false;
+  };
+
+  /** 捡起/拿取一件物品。容器类物品在没有背包时直接背上。 */
+  Player.prototype.acquire = function (item) {
+    const def = C.ITEMS[item.id];
+    if (def.kind === 'container' && !this.bag) {
+      this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
+      this.bagItemId = item.id;
+      return { ok: true, msg: '背上了' + def.name + '（' + def.grid[0] + '×' + def.grid[1] + '）' };
+    }
+    if (!this.bag) {
+      const slot = this.hotbar.indexOf(null);
+      if (slot < 0) return { ok: false, msg: '没有背包，快取栏也满了' };
+      this.hotbar[slot] = item;
+      return { ok: true, msg: def.name + ' → 快取栏 ' + (slot + 1) };
+    }
+    const r = this.bag.autoAdd(item);
+    if (r.ok) return { ok: true, msg: '拾取 ' + def.name };
+    // 分情况提示：空格不够 vs 拼不出连续区域
+    return { ok: false, msg: r.reason === 'full'
+      ? `背包已满（还剩 ${r.free} 格，${def.name} 需要 ${r.need} 格）`
+      : `请整理背包（还剩 ${r.free} 格，但拼不出 ${def.name} 需要的连续区域）` };
+  };
+
+  /** 使用一件物品：能吃能喝的吃掉，容器类的背上 */
+  Player.prototype.useItem = function (item) {
+    const def = C.ITEMS[item.id];
+    if (def.kind === 'container') {
+      const old = this.bag, oldId = this.bagItemId;
+      this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
+      this.bagItemId = item.id;
+      this._removeItem(item);
+      let spill = 0;
+      if (old) {
+        for (const it of old.items.slice()) { if (!this.bag.autoAdd(it).ok) spill++; }
+        if (oldId) this.bag.autoAdd(C.makeItem(oldId));
+      }
+      return { ok: true, msg: '换上' + def.name + (spill ? `，${spill} 件东西掉在地上` : '') };
+    }
+    if (!def.use) return { ok: false, msg: def.name + '现在用不上' };
+    const before = { t: this.needs.thirst, h: this.needs.hunger };
+    const L = C.Config.needs.barLength;
+    this.needs.thirst = M.clamp(this.needs.thirst + (def.use.thirst || 0), 0, L);
+    this.needs.hunger = M.clamp(this.needs.hunger + (def.use.hunger || 0), 0, L);
+    let msg = def.name;
+    if (def.use.diarrheaChance && Math.random() < def.use.diarrheaChance) {
+      this.needs.diarrheaHours = C.Config.needs.diarrheaHours;
+      msg += '（喝出了腹泻）';
+    }
+    item.count--;
+    if (item.count <= 0) this._removeItem(item);
+    return { ok: true, msg: msg + ' —— 渴 ' + this.needs.thirst.toFixed(0) + ' 饿 ' + this.needs.hunger.toFixed(0) };
+  };
+
+  Player.prototype._removeItem = function (item) {
+    const i = this.hotbar.indexOf(item);
+    if (i >= 0) { this.hotbar[i] = null; return; }
+    if (this.bag) this.bag.remove(item);
   };
 
   Player.prototype.eyeHeight = function () {
@@ -355,7 +440,28 @@
     while (this.soundprints.length && now - this.soundprints[0].born > life) this.soundprints.shift();
   };
 
-  /** 视线前方最近的可交互门/窗 */
+  /** 视线前方最近的可交互对象：门窗 / 容器 / 地上的物品 */
+  Player.prototype.findTarget = function () {
+    const eye = this.eyePos();
+    const fwd = this.aimDir();
+    const R = C.Config.interact.range;
+    let best = null, bestScore = 0.5;
+    const consider = (pos, obj, type, bonus) => {
+      const to = V.sub(pos, eye), dist = V.len(to);
+      if (dist > R + (bonus || 0)) return;
+      const dot = V.dot(V.norm(to), fwd);
+      if (dot < 0.45) return;
+      const score = dot + (bonus ? 0.06 : 0);
+      if (score > bestScore) { bestScore = score; best = { type, obj, dist }; }
+    };
+    const lv = this.world.level;
+    for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
+    for (const c of lv.containers || []) consider(c.pos, c, 'container', 0.4);
+    for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
+    return best;
+  };
+
+  /** 视线前方最近的可交互门/窗（旧接口，仅门窗） */
   Player.prototype.findInteractable = function () {
     const eye = this.eyePos();
     const fwd = { x: -Math.sin(this.yaw) * Math.cos(this.pitch), y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * Math.cos(this.pitch) };
@@ -374,25 +480,52 @@
 
   Player.prototype._updateInteract = function (dt, input) {
     const I = C.Config.interact;
-    const target = this.findInteractable();
-    this.interactTarget = target;
-    if (input.interact && target) {
-      if (this._interactTarget !== target) { this._interactTarget = target; this._interactHeld = 0; this._interactDone = false; }
+    const t = this.findTarget();
+    this.target = t;
+    this.interactTarget = t && t.type === 'door' ? t.obj : null;
+    if (input.interact && t) {
+      if (this._tObj !== t.obj) { this._tObj = t.obj; this._interactHeld = 0; this._interactDone = false; }
       this._interactHeld += dt;
-      const portal = C.SoundSystem.graph.getPortal(target.portalId);
-      const opening = !C.SoundSystem.graph.isPassable(portal);
-      const need = opening ? I.doorSlowHoldSeconds : I.doorCloseSlowHoldSeconds;
+      let need = 0.6;
+      if (t.type === 'door') {
+        const portal = C.SoundSystem.graph.getPortal(t.obj.portalId);
+        need = C.SoundSystem.graph.isPassable(portal) ? I.doorCloseSlowHoldSeconds : I.doorSlowHoldSeconds;
+      } else if (t.type === 'loose') need = 0.01;
       this.interactProgress = M.clamp(this._interactHeld / need, 0, 1);
       if (!this._interactDone && this._interactHeld >= need) {
-        this._doorAction(target, true);      // 缓慢版
         this._interactDone = true;
+        if (t.type === 'door') this._doorAction(t.obj, true);
+        else if (t.type === 'container') this.openContainer(t.obj, true);   // 按住 = 缓慢翻找
+        else this.pickUp(t.obj);
       }
     } else {
-      if (this._interactTarget && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
-        this._doorAction(this._interactTarget, false);   // 轻点 = 快速版
+      if (this._tObj && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
+        const o = this._tObj;
+        if (o.portalId !== undefined) this._doorAction(o, false);
+        else if (o.grid) this.openContainer(o, false);                      // 轻点 = 快速翻找
       }
-      this._interactTarget = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
+      this._tObj = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
     }
+  };
+
+  /** 打开容器开始翻找。快速 4s/响度40，缓慢 ×2.25/响度15（主文档 5.3） */
+  Player.prototype.openContainer = function (box, slow) {
+    box.opened = true; box.slow = !!slow; box._t = 0;
+    if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
+    else box.revealed = 0;
+    const loud = C.ModifierPipeline.query('sound.loot',
+      slow ? C.Config.loudness.lootSlow : C.Config.loudness.lootFast, this.id);
+    C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: (slow ? '缓慢' : '快速') + '翻找' });
+    this.lastAction = (slow ? '缓慢' : '快速') + '翻找 ' + box.name;
+    C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  Player.prototype.pickUp = function (loose) {
+    const r = this.acquire(loose.item);
+    if (r.ok) loose.taken = true;
+    this.lastAction = r.msg;
+    C.EventBus.publish('PickupEvent', { ok: r.ok, msg: r.msg });
   };
 
   Player.prototype._doorAction = function (door, slow) {
@@ -413,13 +546,12 @@
   // ── 投掷（主文档 4.4）──────────────────────────────
   Player.prototype._updateThrow = function (dt, input) {
     const T = C.Config.throwing;
-    if (input.throwHeld && this.stones > 0) {
+    if (input.throwHeld && this.stoneCount() > 0) {
       this.charge = M.clamp(this.charge + dt / T.chargeSeconds, 0, 1);
     } else if (this.charge > 0) {
-      if (this.stones > 0) {
+      if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
         C.Projectiles.spawn(this.eyePos(), this.aimDir(), speed, this.id);
-        this.stones--;
         this.lastAction = '投石';
       }
       this.charge = 0;

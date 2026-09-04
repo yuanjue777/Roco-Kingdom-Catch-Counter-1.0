@@ -126,11 +126,11 @@
     if (touch) {
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(220,227,235,0.85)'; ctx.font = '11px ' + MONO;
-      ctx.fillText('石头 ×' + player.stones, bx, by + bh + 30);
+      ctx.fillText('石头 ×' + player.stoneCount(), bx, by + bh + 30);
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
-      ctx.fillText('石头 ×' + player.stones, W - 28, H - 28);
+      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 28);
       if (player.charge > 0) {
         const cw = 120;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
@@ -151,6 +151,17 @@
     }
 
     // 交互提示
+    if (player.target && player.target.type !== 'door') {
+      const t = player.target;
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
+      ctx.fillText(t.type === 'container'
+        ? `[F] 轻点=快速翻找 ${t.obj.name}（响度 40）　按住=缓慢翻找（响度 15）`
+        : `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`, cx, cy + 46);
+      if (player.interactProgress > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
+      }
+    }
     if (player.interactTarget) {
       const g = C.SoundSystem.graph, p = g.getPortal(player.interactTarget.portalId);
       const opening = !g.isPassable(p);

@@ -158,9 +158,11 @@
         const stairZ0 = 0.5, stairZ1 = stairZ0 + steps * L.stairStepD;
         node.stairZ1 = stairZ1;
 
+        /* 梯段上下两端的落脚平台每层都有；**梯段区必须留空** ——
+           那是从下一层上来的楼梯的洞。曾经把顶层整个铺平，结果出生的四楼下不去。 */
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
         if (f === L.floors - 1) {
-          // 顶层不再往上，整个楼梯间铺平，并封顶
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, L.stairWellD) });
           solids.push({ tag: 'roof', box: AABB.make(sx0 - T, y1, -0.1, sx1 + T, y1 + 0.2, L.stairWellD + T) });
         } else {
           /* 梯段：沿 +z 上行，占另外半幅。
@@ -172,9 +174,6 @@
             solids.push({ tag: 'stair',
               box: AABB.make(st0, top - L.stairSlabThickness, zz, st0 + L.stairWidth, top, zz + L.stairStepD) });
           }
-          // 梯段上下两端的平台：没有它们，上下楼的人到了梯口就无处落脚
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
-          solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
         }
 
         // 楼梯间外墙

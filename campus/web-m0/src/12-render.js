@@ -37,6 +37,7 @@
     this._buildDoors();
     this._buildThrowPreview();
     this._buildAvatar();
+    this._buildContainers();
     this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
@@ -147,6 +148,34 @@
   };
 
   /* 第三人称才看得见的玩家身体 */
+  /* 容器与地上的物品：小盒子，颜色按类型分 */
+  Renderer.prototype._buildContainers = function () {
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const byColor = new Map();
+    for (const c of this.level.containers || []) {
+      if (!byColor.has(c.color)) byColor.set(c.color, []);
+      byColor.get(c.color).push(c);
+    }
+    const m4 = new THREE.Matrix4();
+    for (const [color, list] of byColor) {
+      const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
+      list.forEach((c, i) => {
+        m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
+        m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
+        inst.setMatrixAt(i, m4);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      this.scene.add(inst);
+    }
+    this.looseMeshes = (this.level.looseItems || []).map(l => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
+        new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+      m.position.set(l.pos.x, l.pos.y, l.pos.z);
+      this.scene.add(m);
+      return { mesh: m, loose: l };
+    });
+  };
+
   Renderer.prototype._buildAvatar = function () {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.3),
@@ -271,6 +300,7 @@
       if (p) m.position.set(p.pos.x, p.pos.y, p.pos.z);
     });
 
+    for (const l of this.looseMeshes || []) l.mesh.visible = !l.loose.taken;
     this._updateThrowPreview(player);
   };
 
