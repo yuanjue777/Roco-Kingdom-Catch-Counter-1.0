@@ -216,8 +216,8 @@
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
         if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot')) return;
-        // 搜刮界面开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
-        if (C.LootUI.open) return;
+        // 面板开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
+        if (this._panelOpen()) return;
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
@@ -272,6 +272,27 @@
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
       return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open;
+    },
+
+    /* 面板借走鼠标 / 还回鼠标。
+       `[实测]` **只有面板开着的那一会儿才该解锁**，其余时间照常锁定。
+       面板关掉之后如果不主动锁回去，玩家得再点一下画面才能转视角 ——
+       而那一下点击还会把「点击画面开始」那层顺带招回来，像是游戏断了一下。
+       关闭动作本身（按 F、按 Esc、点「关闭」）都带用户手势，所以锁得回去。 */
+    releaseMouseForPanel() {
+      if (this.lookMode !== 'lock') return;          // 拖动模式本来就没锁
+      if (this.locked) this._relockAfterPanel = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    },
+    restoreMouseAfterPanel() {
+      if (this.lookMode !== 'lock' || !this._relockAfterPanel || this._panelOpen()) {
+        this._syncStartHint();
+        return;
+      }
+      this._relockAfterPanel = false;
+      const p = this.canvas3d.requestPointerLock();
+      if (p && p.catch) p.catch(() => this._syncStartHint());
+      this._syncStartHint();
     },
 
     /* 开场层什么时候该回来。

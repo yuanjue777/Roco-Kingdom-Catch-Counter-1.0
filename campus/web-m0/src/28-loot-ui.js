@@ -52,8 +52,8 @@
       if (!this.container) return;
       this.open = true;
       this.el.classList.add('open');
-      // 桌面端要把鼠标还回来，否则拖不动格子
-      if (document.pointerLockElement) document.exitPointerLock();
+      // 桌面端要把鼠标借过来，否则拖不动格子；关掉时再还回去
+      this.game.releaseMouseForPanel();
       this.render();
     },
 
@@ -63,7 +63,8 @@
       if (this.container && this.game) this.game.player.closeContainer(this.container);
       this.open = false; this.container = null;
       this.el.classList.remove('open');
-      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
+      // 把鼠标还给视角：不还的话玩家得再点一下画面才能转头
+      if (this.game && this.game.restoreMouseAfterPanel) this.game.restoreMouseAfterPanel();
     },
 
     /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */

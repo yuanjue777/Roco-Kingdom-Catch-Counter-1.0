@@ -1155,5 +1155,39 @@ section('29. 碰撞推出不会把人甩出去（回归）');
      C.V.distXZ(p0, z2.pos) < 7.2, C.V.distXZ(p0, z2.pos).toFixed(2) + 'm / 想走 7.2m');
 }
 
+section('30. 鼠标只在面板开着时解锁（源码契约）');
+{
+  /* 需求：**只有打开容器/笔记本/背包的那一会儿才解锁鼠标，其余时间照常锁定。**
+     关掉之后必须主动锁回去 —— 不然玩家得再点一下画面才能转视角，
+     而那一下点击还会把「点击画面开始」那层招回来，像是游戏断了一下。
+     这几条是 DOM 行为，无头测不了，所以钉住源码里的契约。 */
+  const fs2 = require('fs');
+  const read = (f) => fs2.readFileSync(path.join(SRC, f), 'utf8');
+  const main = read('16-main.js');
+
+  ok('装配层提供「借鼠标 / 还鼠标」这一对方法',
+     /releaseMouseForPanel\s*\(\)/.test(main) && /restoreMouseAfterPanel\s*\(\)/.test(main));
+  ok('只在 lock 模式下动指针锁定（拖动模式本来就没锁）',
+     /releaseMouseForPanel\(\)\s*\{[\s\S]{0,160}lookMode !== 'lock'/.test(main));
+  ok('还鼠标之前先确认没有别的面板还开着',
+     /restoreMouseAfterPanel\(\)\s*\{[\s\S]{0,220}_panelOpen\(\)/.test(main));
+  ok('面板开着时点空白处不重新抢锁',
+     /if \(this\._panelOpen\(\)\) return;/.test(main));
+
+  // 三个面板都必须走这一对方法，且**开一次配一次**
+  for (const [f, name] of [['28-loot-ui.js', '搜刮'], ['27-notebook-ui.js', '笔记本'], ['23-inventory-ui.js', '背包']]) {
+    const src = read(f);
+    ok(name + '界面：打开时借鼠标', src.includes('releaseMouseForPanel()'), f);
+    ok(name + '界面：关闭时还鼠标', src.includes('restoreMouseAfterPanel()'), f);
+    ok(name + '界面：不再自己直接调 exitPointerLock', !src.includes('exitPointerLock'), f);
+  }
+
+  /* 上一版真踩过的坑：笔记本的 toggle() 自己写了一遍收起逻辑，
+     于是按 J 合上时绕过了 close()，鼠标没锁回去。合上必须走 close()。 */
+  const note = read('27-notebook-ui.js');
+  ok('笔记本 toggle 合上时走 close()，不另写一遍',
+     /toggle\(\)\s*\{[\s\S]{0,200}this\.close\(\);\s*return;/.test(note));
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

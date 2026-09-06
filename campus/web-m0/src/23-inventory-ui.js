@@ -29,9 +29,15 @@
       this.open = !this.open || (container && container !== this.container);
       this.container = this.open ? (container || this.container) : null;
       this.el.classList.toggle('open', this.open);
-      if (this.open) this.render();
+      // 开着的时候把鼠标借过来（不然点不中格子），合上再还回去
+      if (this.open) { this.game.releaseMouseForPanel(); this.render(); }
+      else this.game.restoreMouseAfterPanel();
     },
-    close() { this.open = false; this.container = null; this.el.classList.remove('open'); },
+    close() {
+      if (!this.open) return;
+      this.open = false; this.container = null; this.el.classList.remove('open');
+      this.game.restoreMouseAfterPanel();
+    },
 
     /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */
     tickSearch(dt) {

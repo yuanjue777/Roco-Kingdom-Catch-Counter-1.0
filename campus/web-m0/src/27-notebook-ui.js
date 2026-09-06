@@ -49,18 +49,20 @@
     },
 
     toggle() {
-      this.open = !this.open;
-      this.el.classList.toggle('open', this.open);
-      if (this.open) {
-        C.Notebook.unread = 0;
-        // 桌面端要把指针交还给鼠标，否则地图上的标记点不中
-        if (document.pointerLockElement) document.exitPointerLock();
-        this.render();
-      }
+      // 合上走 close()，别在这里各写一遍 —— 上一版就是漏了这条，
+      // 按 J 合上笔记本之后鼠标没锁回去，得再点一下画面才能转视角
+      if (this.open) { this.close(); return; }
+      this.open = true;
+      this.el.classList.add('open');
+      C.Notebook.unread = 0;
+      // 桌面端要把指针交还给鼠标，否则地图上的标记点不中；合上时再锁回去
+      this.game.releaseMouseForPanel();
+      this.render();
     },
     close() {
+      if (!this.open) return;
       this.open = false; this.el.classList.remove('open');
-      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
+      if (this.game && this.game.restoreMouseAfterPanel) this.game.restoreMouseAfterPanel();
     },
 
     render() {
