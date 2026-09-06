@@ -61,7 +61,10 @@ ok('同节点 3m，源 45 → 39（45−2×3）', near(arrivalAt(45, p3, room402
 const listener = { x: src.x, y: src.y, z: 1.3 };
 const openA = arrivalAt(70, listener, corr4.id, 'Open');
 const closedA = arrivalAt(70, listener, corr4.id, 'Closed');
-ok('木门 开→关 使到达响度正好降低 40', near(openA - closedA, 40, 0.01), `open=${openA.toFixed(2)} closed=${closedA.toFixed(2)}`);
+// 差值就是「关着的木门」那一档衰减减去「开着的」，断言从配置推导，改数不用改测试
+const doorDelta = C.Config.portalAttenuation.WoodDoor.Closed - C.Config.portalAttenuation.WoodDoor.Open;
+ok(`木门 开→关 使到达响度正好降低 ${doorDelta}`, near(openA - closedA, doorDelta, 0.01),
+   `open=${openA.toFixed(2)} closed=${closedA.toFixed(2)}`);
 ok('撞门(70) 即使隔着关闭的木门也仍然被听见', closedA > C.Config.hearing.zombie, closedA.toFixed(2));
 const walkClosed = arrivalAt(C.Config.loudness.walk, listener, corr4.id, 'Closed');
 const walkOpen = arrivalAt(C.Config.loudness.walk, listener, corr4.id, 'Open');
@@ -197,8 +200,18 @@ ok('阈值有下限，不会出现负阈值', (() => {
   C.Mod.remove('hearing.threshold', 'hb2');
   return t === HH.minThreshold;
 })());
-// 穿墙代价：瓶颈应当是声源响度而不是衰减
-ok('关着的木门(45) 仍然完全挡死丧尸脚步', shuffle - C.Config.portalAttenuation.WoodDoor.Closed <= HH.player);
+/* 穿墙代价。关着的木门从 45 降到 25 之后，它不再是绝对屏障，
+   但也不能变成形同虚设 —— 这两条一起把它锁在「很有用但不是万能」的区间里。 */
+const doorClosed = C.Config.portalAttenuation.WoodDoor.Closed;
+const throughDoor = (shuffle - doorClosed - (HH.player - HH.holdBreathBonus)) / KI;
+ok('屏息时听得见关着的门后面的丧尸（否则屏息侦查在楼里没用）', throughDoor > 5,
+   throughDoor.toFixed(1) + 'm');
+ok('但也听不了太远，关门仍然是有效的屏障', throughDoor < 15, throughDoor.toFixed(1) + 'm');
+// 反向：玩家自己关上门之后，正常走路仍然是听不见的
+ok('玩家走路(20) 隔着关上的门丧尸听不见',
+   C.Config.loudness.walk - doorClosed <= C.Config.hearing.zombie);
+ok('但奔跑(45) 隔着关上的门会被近处的丧尸听见',
+   (C.Config.loudness.run - doorClosed - C.Config.hearing.zombie) / KI > 2);
 ok('隔一个楼梯口(10) 仍留有 10m 以上的余量',
    (shuffle - 10 - HH.player) / KI >= 10, ((shuffle - 10 - HH.player) / KI).toFixed(1) + 'm');
 

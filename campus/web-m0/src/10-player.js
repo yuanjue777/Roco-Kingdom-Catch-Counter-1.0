@@ -22,6 +22,12 @@
     this.needs = new C.Needs(PLAYER_ID);
     this.bag = null;                       // 一开始没有背包，得自己找一个
     this.hotbar = [null, null, null, null, null, null];   // 六格快取栏
+    /* 开局给几块石头。**投石是核心动作**（主文档 4.4），可开局身上一件东西都没有，
+       于是按 G 什么也不发生 —— 玩家会以为按键坏了。宿舍楼里遍地是能扔的东西，
+       身上揣着几块并不牵强。数量少到必须尽快去找补给，这一点没变。 */
+    if (C.Config.player.startingStones > 0) {
+      this.hotbar[0] = C.makeItem('stone', C.Config.player.startingStones);
+    }
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -459,7 +465,7 @@
     };
     const lv = this.world.level;
     for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
-    for (const c of lv.containers || []) consider(c.pos, c, 'container', 0.4);
+    for (const c of lv.containers || []) if (!c.taken) consider(c.pos, c, 'container', 0.4);
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
     return best;
   };
@@ -489,39 +495,86 @@
     if (input.interact && t) {
       if (this._tObj !== t.obj) { this._tObj = t.obj; this._interactHeld = 0; this._interactDone = false; }
       this._interactHeld += dt;
-      let need = 0.6;
+      /* 按住多久才算数。三类目标三个含义：
+           门窗   —— 按住 = 缓慢开关（安静）
+           背包类 —— 按住 = 整个拎走；轻点仍然是翻找
+           其余容器/地上的东西 —— 没有「按住」的含义，按下即触发 */
+      let need = 0.01;
       if (t.type === 'door') {
         const portal = C.SoundSystem.graph.getPortal(t.obj.portalId);
         need = C.SoundSystem.graph.isPassable(portal) ? I.doorCloseSlowHoldSeconds : I.doorSlowHoldSeconds;
-      } else if (t.type === 'loose') need = 0.01;
+      } else if (t.type === 'container' && t.obj.carry) need = I.grabBagHoldSeconds;
       this.interactProgress = M.clamp(this._interactHeld / need, 0, 1);
       if (!this._interactDone && this._interactHeld >= need) {
         this._interactDone = true;
         if (t.type === 'door') this._doorAction(t.obj, true);
-        else if (t.type === 'container') this.openContainer(t.obj, true);   // 按住 = 缓慢翻找
-        else this.pickUp(t.obj);
+        else if (t.type === 'container') {
+          if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
+        } else this.pickUp(t.obj);
       }
     } else {
+      // 轻点：只有「按住」另有含义的目标才需要这条支路
       if (this._tObj && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
         const o = this._tObj;
         if (o.portalId !== undefined) this._doorAction(o, false);
-        else if (o.grid) this.openContainer(o, false);                      // 轻点 = 快速翻找
+        else if (o.grid) this.openContainer(o);                             // 轻点背包类 = 快速翻找
       }
       this._tObj = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
     }
   };
 
-  /** 打开容器开始翻找。快速 4s/响度40，缓慢 ×2.25/响度15（主文档 5.3） */
-  Player.prototype.openContainer = function (box, slow) {
-    box.opened = true; box.slow = !!slow; box._t = 0;
+  /** 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3） */
+  Player.prototype.openContainer = function (box) {
+    box.opened = true; box._t = 0;
     if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
     else box.revealed = 0;
-    const loud = C.ModifierPipeline.query('sound.loot',
-      slow ? C.Config.loudness.lootSlow : C.Config.loudness.lootFast, this.id);
+    const loud = C.ModifierPipeline.query('sound.loot', C.Config.loudness.lootFast, this.id);
     C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
-                         emitterId: this.id, label: (slow ? '缓慢' : '快速') + '翻找' });
-    this.lastAction = (slow ? '缓慢' : '快速') + '翻找 ' + box.name;
+                         emitterId: this.id, label: '翻找' });
+    this.lastAction = '翻找 ' + box.name;
     C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  /**
+   * 整个拎走一个背包类容器（按住 F）。**不用翻，所以比翻找安静得多**（18 对 40）。
+   *
+   * 两种结果，都不弹取舍窗口 —— 站在柜子前做选择题是最容易送命的时刻：
+   *   还没有背包 → 直接背上，**里面的东西原样成为背包内容**
+   *   已经有背包 → 把里面的东西一件件塞进现有背包，塞不下的留在原地
+   */
+  Player.prototype.grabBag = function (box) {
+    const loud = C.ModifierPipeline.query('sound.loot', C.Config.loudness.grabBag, this.id);
+    C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: '拎起' + box.name });
+
+    let msg;
+    if (!this.bag) {
+      this.bag = box.grid;
+      this.bagItemId = box.carry;
+      box.grid = new C.Grid(box.grid.w, box.grid.h, box.name);   // 原地留一个空壳
+      box.taken = true;
+      const n = this.bag.items.length;
+      msg = '背上' + (C.ITEMS[box.carry] || { name: box.name }).name +
+            (n ? '，里面还有 ' + n + ' 件东西' : '（是空的）');
+    } else {
+      // 已有背包：一次性全拿，装不下的留着
+      const left = [];
+      let got = 0;
+      for (const it of box.grid.items.slice()) {
+        box.grid.remove(it);
+        if (this.bag.autoAdd(it).ok) got++; else left.push(it);
+      }
+      for (const it of left) box.grid.autoAdd(it);
+      box.opened = true;
+      box.revealed = box.grid.items.length;
+      msg = got
+        ? '拿走 ' + got + ' 件' + (left.length ? '，' + left.length + ' 件放不下' : '')
+        : (left.length ? '背包放不下' : box.name + '是空的');
+    }
+    this.lastAction = msg;
+    C.EventBus.publish('PickupEvent', { ok: true, msg });
+    C.EventBus.publish('BagGrabbedEvent', { box, msg });
+    return msg;
   };
 
   Player.prototype.pickUp = function (loose) {
@@ -551,6 +604,12 @@
     const T = C.Config.throwing;
     if (input.throwHeld && this.stoneCount() > 0) {
       this.charge = M.clamp(this.charge + dt / T.chargeSeconds, 0, 1);
+      this._noStoneSaid = false;
+    } else if (input.throwHeld && !this._noStoneSaid) {
+      // 静默失败是最难查的 bug：按了没反应，玩家只会以为键位坏了
+      this._noStoneSaid = true;
+      this.lastAction = '没有石头了';
+      C.EventBus.publish('PickupEvent', { ok: false, msg: '没有石头可扔 —— 床下箱和器材架里常有' });
     } else if (this.charge > 0) {
       if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);

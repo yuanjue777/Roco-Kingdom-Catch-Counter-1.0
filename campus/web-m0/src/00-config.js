@@ -47,7 +47,8 @@
       windowClimb: 30,
       glassBreak: 90,
       lootFast: 40,
-      lootSlow: 15,
+      lootSlow: 15,          // 保留：门/窗的缓慢开关仍在用这一档「轻手轻脚」的响度
+      grabBag: 18,           // 整个拎走一个包：不用翻，只有拎起来那一下的窸窣声
       meleeHit: 55,
       playerHurt: 60,
       broadcast: 150,
@@ -68,9 +69,17 @@
     // null 表示该类型没有这个状态（例如门洞没有 Closed）。
     portalAttenuation: {
       Doorway:  { Open: 0,  Closed: null, Broken: null, Blocked: 60 },
-      WoodDoor: { Open: 5,  Closed: 45,   Broken: 8,    Blocked: 75 },
+      /* `[实测]` 关着的木门 45 → 25，关着的窗 40 → 28。
+         45 比丧尸脚步(48)只低 3，等于**关上门就绝对听不见门后有什么**，
+         于是屏息侦查在楼里彻底没用：实测站在四楼走廊屏息 30 秒，
+         25m 内有 26 只丧尸，只听得见同一条走廊的 3 只。
+         这同时也是待决策 #2（「关门是零代价的万能解」）的答案：
+         关门仍然很有用（25 点≈室内 12.5m 的墙），但不再是绝对屏障。
+         反向验算：玩家走路 20 透过关着的门只剩 −5，照样听不见；
+         奔跑 45 剩 20，丧尸阈值 10 → 5m 内会被听见。潜行的保护还在。 */
+      WoodDoor: { Open: 5,  Closed: 25,   Broken: 8,    Blocked: 75 },
       SteelDoor:{ Open: 6,  Closed: 70,   Broken: 10,   Blocked: 95 },
-      Window:   { Open: 8,  Closed: 40,   Broken: 6,    Blocked: 70 },
+      Window:   { Open: 8,  Closed: 28,   Broken: 6,    Blocked: 70 },
       Stairwell:{ Open: 10, Closed: null, Broken: null, Blocked: 60 },
       Vent:     { Open: 30, Closed: null, Broken: null, Blocked: 80 },
       OpenAir:  { Open: 0,  Closed: null, Broken: null, Blocked: null },
@@ -92,13 +101,16 @@
          影响巨大（蜷伏者呼吸 12：Lv0 1.5m → Lv5 5m），对「很响的声音」影响有限。 */
       player: 8,
       playerLevelThreshold: [8, 6.8, 5.6, 4.4, 3.2, 2],
-      holdBreathBonus: 4,
+      /* `[实测]` 4 → 6。屏息是专门用来「仔细听」的动作，代价是几乎不能动
+         （速度 ×0.5）加持续掉体力，收益却只有 2m，玩家感觉不到自己按了这个键。
+         6 点 = 室内多听 3m、室外多听 5m，配合上面的门窗衰减才有「贴着门听」的玩法。 */
+      holdBreathBonus: 6,
       minThreshold: 1,
       // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
       soundprintZombiesOnly: true,
       // 声纹明显度：margin 映射到 0~1 的强度，再决定标记大小与不透明度。
       // 满强度所需的 margin，超过就不再更明显。
-      soundprintFullMargin: 26,
+      soundprintFullMargin: 20,   // 实测 26 太高，楼里常见的余量 10~20 永远到不了满强度
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
@@ -126,8 +138,14 @@
     // ── 丧尸类型（主文档 5.2）──────────────────────────
     zombieTypes: {
       Wanderer: {
+        /* `[实测]` 速度从 v1 的 1.0 / 3.2 下调，两个值理由不同：
+             游荡 1.0 m/s 是「正常人快走」，看着根本不像拖着腿的东西 ——
+               而这是玩家 99% 的时间里看到的样子。压到 0.65（比玩家蹲行 1.2 还慢一半）。
+             追击 3.2 → 2.9，仍然**快过玩家走路 2.4**，所以「被发现只能跑」这条没变，
+               但留出了「跑两步拉开、拐个弯断视线」的余地，而不是必死。
+           两个值都在调参面板里（P），手感不对可以现场改。 */
         name: '游荡者', hp: 100, threshold: 10,
-        speedWander: 1.0, speedChase: 3.2,
+        speedWander: 0.65, speedChase: 2.9,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
         breathLoudness: 0, breathInterval: 3.0,
@@ -135,15 +153,16 @@
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
-        speedWander: 1.0, speedChase: 3.2,
+        speedWander: 0.55, speedChase: 2.9,   // 刚从地上爬起来的，游荡时比游荡者还慢
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         riseDistance: 8,            // 声源在 8 米内才起身
         breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
         shuffleInterval: 1.1
       },
       Runner: {                     // 第 12 天后才出现，M0 不放置，仅保留定义
+        // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
-        speedWander: 1.2, speedChase: 5.4,
+        speedWander: 1.0, speedChase: 5.0,
         visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
       }
     },
@@ -158,6 +177,7 @@
     // ── 玩家（主文档 4.1 / 3.3）────────────────────────
     player: {
       speedWalk: 2.4, speedRun: 4.6, speedCrouch: 1.2, speedWallHug: 1.0,
+      startingStones: 4,            // 开局身上的石头数（投石是核心动作，不能一开始就用不了）
       holdBreathSpeedMul: 0.5,      // 屏息时为蹲行速度的 50%
       eyeHeightStand: 1.65, eyeHeightCrouch: 1.05,
       radius: 0.32, stepHeight: 0.36,
@@ -209,7 +229,11 @@
       range: 2.2,
       doorSlowHoldSeconds: 2.5,
       doorCloseSlowHoldSeconds: 2.0,
-      lootFastSeconds: 4, lootSlowSeconds: 9
+      /* 容器只有一种翻法：快速。缓慢翻找（×2.25 时长换 −25 响度）在实测里
+         从来没人用 —— 站在柜子前不动 9 秒的风险，远大于响度 40 传出去的风险，
+         何况翻找期间玩家既聋又瞎。留一个用不上的选项只是在教程里多占一行字。 */
+      lootFastSeconds: 4,
+      grabBagHoldSeconds: 1.2      // 背包类容器：按住这么久 = 整个拎走
     },
 
     // ── 投掷（主文档 4.4）──────────────────────────────

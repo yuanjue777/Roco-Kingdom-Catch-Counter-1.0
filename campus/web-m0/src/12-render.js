@@ -186,6 +186,7 @@
     }
     const m4 = new THREE.Matrix4();
     this.containerGroups = new Map();
+    this.containerSlots = new Map();      // 容器 id → 它在哪个实例网格的第几号，拎走时要抹掉
     for (const [bid, byColor] of byBuilding) {
       const group = new THREE.Group();
       for (const [color, list] of byColor) {
@@ -194,6 +195,7 @@
           m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
           m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
           inst.setMatrixAt(i, m4);
+          this.containerSlots.set(c.id, { inst, i });
         });
         inst.instanceMatrix.needsUpdate = true;
         group.add(inst);
@@ -208,6 +210,15 @@
       this.scene.add(m);
       return { mesh: m, loose: l };
     });
+  };
+
+  /** 背包类容器被整个拎走：实例矩阵缩到 0（重建整批太贵，也没必要） */
+  Renderer.prototype.removeContainer = function (box) {
+    const slot = this.containerSlots && this.containerSlots.get(box.id);
+    if (!slot) return;
+    const z = new THREE.Matrix4().makeScale(0, 0, 0);
+    slot.inst.setMatrixAt(slot.i, z);
+    slot.inst.instanceMatrix.needsUpdate = true;
   };
 
   Renderer.prototype._syncContainers = function () {

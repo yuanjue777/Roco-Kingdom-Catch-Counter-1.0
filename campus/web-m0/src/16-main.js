@@ -86,6 +86,11 @@
         C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
       });
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
+      C.EventBus.subscribe('BagGrabbedEvent', (e) => {
+        C.Notebook.lootContainer(e.box, this.time);
+        if (e.box.taken) this.renderer.removeContainer(e.box);   // 连包带东西一起拎走了
+        C.InventoryUI.render();
+      });
       C.EventBus.subscribe('PickupEvent', (e) => this.msg(e.msg));
       C.EventBus.subscribe('RunnersAppearedEvent', (e) => {
         this.msg('第 ' + e.day + ' 天：有东西跑起来了。');
@@ -244,7 +249,10 @@
         if (e.button === 2) this.rmb = false;
         if (e.button === 0) this.drag.on = false;
       });
-      addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
+      /* 右键 = 屏息。指针锁定时浏览器本来就不弹菜单，但**拖动模式下会弹** ——
+         一弹菜单，按住右键的屏息就断了，玩家会以为屏息没用。
+         所以只要游戏已经开始就吃掉这个事件。 */
+      addEventListener('contextmenu', (e) => { if (this.started || this.locked) e.preventDefault(); });
       addEventListener('blur', () => {
         this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
       });

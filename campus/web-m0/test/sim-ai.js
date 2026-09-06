@@ -184,7 +184,10 @@ const breathR = (C.Config.loudness.crawlerBreath - TH.player) / C.Config.sound.k
 ok(`常态对呼吸声的可听半径只有 ${breathR.toFixed(1)}m，而耳朵比地面高 1.65m —— 几乎贴脸才行`,
    breathR < 2.5 && breathHeardWithin(1.5, TH.player) === 0);
 ok('屏息能把呼吸的可听距离拉开', breathHeardWithin(1.5, TH.player - TH.holdBreathBonus) > 0);
-ok('但屏息也听不了多远，4m 外就没了', breathHeardWithin(4.0, TH.player - TH.holdBreathBonus) === 0);
+// 上限从配置推导：屏息半径 = (呼吸响度 − 屏息阈值) / k，再远一点就该听不见
+const breathHB = (C.Config.loudness.crawlerBreath - (TH.player - TH.holdBreathBonus)) / C.Config.sound.kIndoor;
+ok(`但屏息也听不了多远，${(breathHB + 1).toFixed(1)}m 外就没了`,
+   breathHeardWithin(breathHB + 1, TH.player - TH.holdBreathBonus) === 0, breathHB.toFixed(1) + 'm');
 /* 雪上加霜：呼吸声从蜷伏者所在的地面高度发出，玩家耳朵在 1.65m，
    光是这个高度差就吃掉了 2m 可听预算里的 1.65m，水平可听距离只剩约 1.1m。 */
 ok('高度差吃掉大部分预算：水平 1.1m 时 3D 距离已接近 2m',
@@ -270,6 +273,8 @@ ok('自由落体后回到地面', !player.airborne && Math.abs(player.pos.y - fl
 player.pos = C.V.make(rc.x, floorY, 5.9);
 player.yaw = Math.PI;              // 朝 +z，正对书桌
 player.stamina = 100;
+// 这一段量的是翻越的基准响度，先把开局石头卸下来 —— 负重会给响度加一点点
+player.hotbar = [null, null, null, null, null, null];
 C.SoundSystem.log.length = 0;
 player.update(1 / 60, idle, sim.time);
 player.update(1 / 60, Object.assign({}, idle, { jump: true }), sim.time);
@@ -368,7 +373,10 @@ ok('移动中的丧尸会持续发出脚步声', C.SoundSystem.log.filter(e => e
 const L = C.Config.loudness.zombieShuffle, k = C.Config.sound.kIndoor;
 ok(`常态可听 ${(L - TH.player) / k}m > 丧尸听见你走路的 ${(C.Config.loudness.walk - TH.zombie) / k}m —— 玩家有先手`,
    (L - TH.player) / k > (C.Config.loudness.walk - TH.zombie) / k);
-ok('屏息在常态基础上再扩 2m', Math.abs((L - (TH.player - TH.holdBreathBonus)) / k - (L - TH.player) / k - 2) < 0.01);
+// 屏息扩出来的半径 = 加成 / k，跟着配置走
+const hbGain = TH.holdBreathBonus / k;
+ok(`屏息在常态基础上再扩 ${hbGain.toFixed(1)}m`,
+   Math.abs((L - (TH.player - TH.holdBreathBonus)) / k - (L - TH.player) / k - hbGain) < 0.01);
 /* 直接量可听半径：在同一个节点里，正好 10.5m 处应当刚好听得见，12m 处听不见 */
 const shufR = (C.Config.loudness.zombieShuffle - TH.player) / C.Config.sound.kIndoor;
 ok(`丧尸脚步的常态可听半径就是 ${shufR.toFixed(1)}m`, (() => {
@@ -620,6 +628,9 @@ section('17. 玩家取物');
   const s6 = makeSim();
   const pl = new C.Player(s6.level, s6.world);
   ok('开局没有背包', pl.bag === null);
+  ok('开局身上有石头（投石是核心动作，不能一开始就用不了）',
+     pl.stoneCount() === C.Config.player.startingStones, String(pl.stoneCount()));
+  pl.hotbar = [null, null, null, null, null, null];         // 卸空，下面单独测取物
   ok('没背包时东西进快取栏', pl.acquire(C.makeItem('biscuit')).ok && pl.hotbar[0] !== null);
   const r = pl.acquire(C.makeItem('smallBag'));
   ok('捡到书包直接背上', r.ok && pl.bag && pl.bag.w === 5 && pl.bag.h === 4, r.msg);
@@ -960,6 +971,67 @@ section('24. 开始游戏不能依赖指针锁定');
   ok('点击时先开始游戏，再尝试锁定（顺序不能反）', iStart >= 0 && iLock > iStart);
   ok('拖动模式下视角仍然会更新', /this\.locked \|\| this\.lookMode === 'drag'/.test(src));
   ok('开场层不会在拖动模式下弹回来', /lookMode === 'lock' && !this\.locked/.test(src));
+}
+
+section('25. 翻找只有一种，背包类可以整个拎走');
+{
+  const s8 = makeSim();
+  const pl = new C.Player(s8.level, s8.world);
+  pl.hotbar = [null, null, null, null, null, null];
+
+  // ① 翻找固定为快速：没有 slow 这条路了
+  const box = s8.level.containers.find(b => !b.carry);
+  C.SoundSystem.log.length = 0;
+  pl.openContainer(box);
+  const snd = C.SoundSystem.log[C.SoundSystem.log.length - 1];
+  ok('翻找只有快速一种（响度 40）', snd.loud === C.Config.loudness.lootFast, String(snd.loud));
+  ok('openContainer 不再接受 slow 参数', C.Player.prototype.openContainer.length === 1);
+  ok('容器上不再留 slow 标记', box.slow === undefined);
+
+  // ② 背包类容器可以整个拎走
+  const bag = s8.level.containers.find(b => b.carry);
+  ok('宿舍楼里有背包类容器', !!bag, bag && bag.name);
+  ok('它标了拎走之后变成哪件背包', bag.carry === 'schoolBag');
+  const had = bag.grid.items.length;
+  C.SoundSystem.log.length = 0;
+  pl.grabBag(bag);
+  const g = C.SoundSystem.log[C.SoundSystem.log.length - 1];
+  ok('拎走比翻找安静得多（18 对 40）', g.loud === C.Config.loudness.grabBag, String(g.loud));
+  ok('没背包时直接背上', pl.bag !== null && pl.bagItemId === 'schoolBag');
+  ok('里面的东西原样成为背包内容', pl.bag.items.length === had, pl.bag.items.length + '/' + had);
+  ok('原地的容器标记为已拿走', bag.taken === true);
+  ok('已拿走的容器不再是可交互目标',
+     (function () {
+       pl.pos = C.V.copy(bag.pos); pl.yaw = 0; pl.pitch = 0;
+       const t = pl.findTarget();
+       return !t || t.obj !== bag;
+     })());
+
+  // ③ 已经有背包时：一次性全拿，装不下的留着
+  const s9 = makeSim();
+  const pl2 = new C.Player(s9.level, s9.world);
+  pl2.hotbar = [null, null, null, null, null, null];
+  pl2.acquire(C.makeItem('smallBag'));
+  const bag2 = s9.level.containers.find(b => b.carry && b.grid.items.length > 0);
+  const n2 = bag2.grid.items.length;
+  pl2.grabBag(bag2);
+  ok('已有背包时东西进现有背包', pl2.bag.items.length > 0, pl2.bag.items.length + ' 件');
+  ok('拿走 + 留下 = 原来的总数',
+     pl2.bag.items.length + bag2.grid.items.length >= n2,
+     pl2.bag.items.length + '+' + bag2.grid.items.length + ' vs ' + n2);
+  ok('已有背包时不会把包本身也拎走（原地还在）', !bag2.taken);
+
+  // ④ 装不下时东西不会凭空消失
+  const s10 = makeSim();
+  const pl3 = new C.Player(s10.level, s10.world);
+  pl3.hotbar = [null, null, null, null, null, null];
+  pl3.bag = new C.Grid(1, 1, '塞满的小包');
+  pl3.bag.autoAdd(C.makeItem('key'));                    // 1×1 占满
+  const bag3 = s10.level.containers.find(b => b.carry && b.grid.items.length > 0);
+  const n3 = bag3.grid.items.length;
+  pl3.grabBag(bag3);
+  ok('背包满时东西留在原地，不会凭空消失', bag3.grid.items.length === n3,
+     bag3.grid.items.length + '/' + n3);
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

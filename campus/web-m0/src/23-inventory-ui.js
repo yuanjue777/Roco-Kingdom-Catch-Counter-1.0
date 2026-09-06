@@ -38,7 +38,7 @@
       const box = this.container;
       if (!box || !box.opened || box.revealed >= box.grid.items.length) return;
       box._t = (box._t || 0) + dt;
-      const per = box.searchSeconds * (box.slow ? 2.25 : 1) / Math.max(1, box.grid.items.length);
+      const per = box.searchSeconds / Math.max(1, box.grid.items.length);
       while (box._t >= per && box.revealed < box.grid.items.length) { box._t -= per; box.revealed++; this.render(); }
     },
 
@@ -90,7 +90,7 @@
       return `<h4>${box.name} <small>${box.roomName}　${done ? '已翻完' : `翻找中 ${box.revealed}/${total}`}</small></h4>` +
         this._gridHtml(box.grid, box.revealed) +
         (done ? '' : `<div class="inv-load"><i style="width:${(box.revealed / Math.max(1, total)) * 100}%;background:var(--part-fg,#E5B45C)"></i></div>`) +
-        `<p class="inv-load-txt">${box.slow ? '缓慢翻找（响度 15）' : '快速翻找（响度 40）'}</p>`;
+        `<p class="inv-load-txt">翻找中（响度 40）—— 这段时间你既聋又瞎</p>`;
     },
 
     _bind() {

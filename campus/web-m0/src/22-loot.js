@@ -16,7 +16,9 @@
     desk:     { name: '书桌抽屉', grid: [3, 3], search: 4, color: 0x9a7f5f, size: [0.7, 0.5, 0.5] },
     wardrobe: { name: '衣柜',     grid: [4, 4], search: 5, color: 0x8a6f52, size: [0.8, 1.8, 0.6] },
     underBed: { name: '床下箱',   grid: [4, 3], search: 4, color: 0x6f5d4a, size: [0.9, 0.4, 0.6] },
-    bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3] },
+    // carry: 这是个背包类容器 —— 可以按住整个拎走，值是拎走之后变成哪件背包物品
+    bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3],
+                carry: 'schoolBag' },
     trash:    { name: '垃圾桶',   grid: [2, 2], search: 2, color: 0x5a6a5a, size: [0.45, 0.6, 0.45] },
     locker:   { name: '储物柜',   grid: [3, 4], search: 4, color: 0x74808c, size: [0.6, 1.7, 0.5] },
 
@@ -118,7 +120,7 @@
     const g = new C.Grid(k.grid[0], k.grid[1], k.name);
     fill(g, kind, rng, fixedItems);
     return {
-      id: nextId++, kind, name: k.name, roomName,
+      id: nextId++, kind, name: k.name, roomName, carry: k.carry || null,
       pos, size: k.size, color: k.color,
       grid: g, searchSeconds: k.search,
       revealed: 0,          // 已点亮的物品数（三角洲式逐个点亮）

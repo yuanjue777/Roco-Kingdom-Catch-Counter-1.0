@@ -535,7 +535,8 @@
       windowClimb: 30,
       glassBreak: 90,
       lootFast: 40,
-      lootSlow: 15,
+      lootSlow: 15,          // 保留：门/窗的缓慢开关仍在用这一档「轻手轻脚」的响度
+      grabBag: 18,           // 整个拎走一个包：不用翻，只有拎起来那一下的窸窣声
       meleeHit: 55,
       playerHurt: 60,
       broadcast: 150,
@@ -556,9 +557,17 @@
     // null 表示该类型没有这个状态（例如门洞没有 Closed）。
     portalAttenuation: {
       Doorway:  { Open: 0,  Closed: null, Broken: null, Blocked: 60 },
-      WoodDoor: { Open: 5,  Closed: 45,   Broken: 8,    Blocked: 75 },
+      /* `[实测]` 关着的木门 45 → 25，关着的窗 40 → 28。
+         45 比丧尸脚步(48)只低 3，等于**关上门就绝对听不见门后有什么**，
+         于是屏息侦查在楼里彻底没用：实测站在四楼走廊屏息 30 秒，
+         25m 内有 26 只丧尸，只听得见同一条走廊的 3 只。
+         这同时也是待决策 #2（「关门是零代价的万能解」）的答案：
+         关门仍然很有用（25 点≈室内 12.5m 的墙），但不再是绝对屏障。
+         反向验算：玩家走路 20 透过关着的门只剩 −5，照样听不见；
+         奔跑 45 剩 20，丧尸阈值 10 → 5m 内会被听见。潜行的保护还在。 */
+      WoodDoor: { Open: 5,  Closed: 25,   Broken: 8,    Blocked: 75 },
       SteelDoor:{ Open: 6,  Closed: 70,   Broken: 10,   Blocked: 95 },
-      Window:   { Open: 8,  Closed: 40,   Broken: 6,    Blocked: 70 },
+      Window:   { Open: 8,  Closed: 28,   Broken: 6,    Blocked: 70 },
       Stairwell:{ Open: 10, Closed: null, Broken: null, Blocked: 60 },
       Vent:     { Open: 30, Closed: null, Broken: null, Blocked: 80 },
       OpenAir:  { Open: 0,  Closed: null, Broken: null, Blocked: null },
@@ -580,13 +589,16 @@
          影响巨大（蜷伏者呼吸 12：Lv0 1.5m → Lv5 5m），对「很响的声音」影响有限。 */
       player: 8,
       playerLevelThreshold: [8, 6.8, 5.6, 4.4, 3.2, 2],
-      holdBreathBonus: 4,
+      /* `[实测]` 4 → 6。屏息是专门用来「仔细听」的动作，代价是几乎不能动
+         （速度 ×0.5）加持续掉体力，收益却只有 2m，玩家感觉不到自己按了这个键。
+         6 点 = 室内多听 3m、室外多听 5m，配合上面的门窗衰减才有「贴着门听」的玩法。 */
+      holdBreathBonus: 6,
       minThreshold: 1,
       // 声纹只显示丧尸发出的声音（脚步、低吼、巡逻动静）；自己扔的石头、开的门不显示
       soundprintZombiesOnly: true,
       // 声纹明显度：margin 映射到 0~1 的强度，再决定标记大小与不透明度。
       // 满强度所需的 margin，超过就不再更明显。
-      soundprintFullMargin: 26,
+      soundprintFullMargin: 20,   // 实测 26 太高，楼里常见的余量 10~20 永远到不了满强度
       baseAngleError: 60,          // 声纹基准方向角误差（度）
       // 声纹是否把声源位置直接透视标出来。对应主文档 8.5 听觉 Lv4「声纹穿透一层 Portal 显示」，
       // 默认开启等于把 Lv4 白送，正式版应改为按等级解锁。
@@ -614,8 +626,14 @@
     // ── 丧尸类型（主文档 5.2）──────────────────────────
     zombieTypes: {
       Wanderer: {
+        /* `[实测]` 速度从 v1 的 1.0 / 3.2 下调，两个值理由不同：
+             游荡 1.0 m/s 是「正常人快走」，看着根本不像拖着腿的东西 ——
+               而这是玩家 99% 的时间里看到的样子。压到 0.65（比玩家蹲行 1.2 还慢一半）。
+             追击 3.2 → 2.9，仍然**快过玩家走路 2.4**，所以「被发现只能跑」这条没变，
+               但留出了「跑两步拉开、拐个弯断视线」的余地，而不是必死。
+           两个值都在调参面板里（P），手感不对可以现场改。 */
         name: '游荡者', hp: 100, threshold: 10,
-        speedWander: 1.0, speedChase: 3.2,
+        speedWander: 0.65, speedChase: 2.9,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
         breathLoudness: 0, breathInterval: 3.0,
@@ -623,15 +641,16 @@
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
-        speedWander: 1.0, speedChase: 3.2,
+        speedWander: 0.55, speedChase: 2.9,   // 刚从地上爬起来的，游荡时比游荡者还慢
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
         riseDistance: 8,            // 声源在 8 米内才起身
         breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
         shuffleInterval: 1.1
       },
       Runner: {                     // 第 12 天后才出现，M0 不放置，仅保留定义
+        // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
-        speedWander: 1.2, speedChase: 5.4,
+        speedWander: 1.0, speedChase: 5.0,
         visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
       }
     },
@@ -646,6 +665,7 @@
     // ── 玩家（主文档 4.1 / 3.3）────────────────────────
     player: {
       speedWalk: 2.4, speedRun: 4.6, speedCrouch: 1.2, speedWallHug: 1.0,
+      startingStones: 4,            // 开局身上的石头数（投石是核心动作，不能一开始就用不了）
       holdBreathSpeedMul: 0.5,      // 屏息时为蹲行速度的 50%
       eyeHeightStand: 1.65, eyeHeightCrouch: 1.05,
       radius: 0.32, stepHeight: 0.36,
@@ -697,7 +717,11 @@
       range: 2.2,
       doorSlowHoldSeconds: 2.5,
       doorCloseSlowHoldSeconds: 2.0,
-      lootFastSeconds: 4, lootSlowSeconds: 9
+      /* 容器只有一种翻法：快速。缓慢翻找（×2.25 时长换 −25 响度）在实测里
+         从来没人用 —— 站在柜子前不动 9 秒的风险，远大于响度 40 传出去的风险，
+         何况翻找期间玩家既聋又瞎。留一个用不上的选项只是在教程里多占一行字。 */
+      lootFastSeconds: 4,
+      grabBagHoldSeconds: 1.2      // 背包类容器：按住这么久 = 整个拎走
     },
 
     // ── 投掷（主文档 4.4）──────────────────────────────
@@ -2373,7 +2397,9 @@
     desk:     { name: '书桌抽屉', grid: [3, 3], search: 4, color: 0x9a7f5f, size: [0.7, 0.5, 0.5] },
     wardrobe: { name: '衣柜',     grid: [4, 4], search: 5, color: 0x8a6f52, size: [0.8, 1.8, 0.6] },
     underBed: { name: '床下箱',   grid: [4, 3], search: 4, color: 0x6f5d4a, size: [0.9, 0.4, 0.6] },
-    bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3] },
+    // carry: 这是个背包类容器 —— 可以按住整个拎走，值是拎走之后变成哪件背包物品
+    bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3],
+                carry: 'schoolBag' },
     trash:    { name: '垃圾桶',   grid: [2, 2], search: 2, color: 0x5a6a5a, size: [0.45, 0.6, 0.45] },
     locker:   { name: '储物柜',   grid: [3, 4], search: 4, color: 0x74808c, size: [0.6, 1.7, 0.5] },
 
@@ -2475,7 +2501,7 @@
     const g = new C.Grid(k.grid[0], k.grid[1], k.name);
     fill(g, kind, rng, fixedItems);
     return {
-      id: nextId++, kind, name: k.name, roomName,
+      id: nextId++, kind, name: k.name, roomName, carry: k.carry || null,
       pos, size: k.size, color: k.color,
       grid: g, searchSeconds: k.search,
       revealed: 0,          // 已点亮的物品数（三角洲式逐个点亮）
@@ -2800,6 +2826,12 @@
     this.needs = new C.Needs(PLAYER_ID);
     this.bag = null;                       // 一开始没有背包，得自己找一个
     this.hotbar = [null, null, null, null, null, null];   // 六格快取栏
+    /* 开局给几块石头。**投石是核心动作**（主文档 4.4），可开局身上一件东西都没有，
+       于是按 G 什么也不发生 —— 玩家会以为按键坏了。宿舍楼里遍地是能扔的东西，
+       身上揣着几块并不牵强。数量少到必须尽快去找补给，这一点没变。 */
+    if (C.Config.player.startingStones > 0) {
+      this.hotbar[0] = C.makeItem('stone', C.Config.player.startingStones);
+    }
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -3237,7 +3269,7 @@
     };
     const lv = this.world.level;
     for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
-    for (const c of lv.containers || []) consider(c.pos, c, 'container', 0.4);
+    for (const c of lv.containers || []) if (!c.taken) consider(c.pos, c, 'container', 0.4);
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
     return best;
   };
@@ -3267,39 +3299,86 @@
     if (input.interact && t) {
       if (this._tObj !== t.obj) { this._tObj = t.obj; this._interactHeld = 0; this._interactDone = false; }
       this._interactHeld += dt;
-      let need = 0.6;
+      /* 按住多久才算数。三类目标三个含义：
+           门窗   —— 按住 = 缓慢开关（安静）
+           背包类 —— 按住 = 整个拎走；轻点仍然是翻找
+           其余容器/地上的东西 —— 没有「按住」的含义，按下即触发 */
+      let need = 0.01;
       if (t.type === 'door') {
         const portal = C.SoundSystem.graph.getPortal(t.obj.portalId);
         need = C.SoundSystem.graph.isPassable(portal) ? I.doorCloseSlowHoldSeconds : I.doorSlowHoldSeconds;
-      } else if (t.type === 'loose') need = 0.01;
+      } else if (t.type === 'container' && t.obj.carry) need = I.grabBagHoldSeconds;
       this.interactProgress = M.clamp(this._interactHeld / need, 0, 1);
       if (!this._interactDone && this._interactHeld >= need) {
         this._interactDone = true;
         if (t.type === 'door') this._doorAction(t.obj, true);
-        else if (t.type === 'container') this.openContainer(t.obj, true);   // 按住 = 缓慢翻找
-        else this.pickUp(t.obj);
+        else if (t.type === 'container') {
+          if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
+        } else this.pickUp(t.obj);
       }
     } else {
+      // 轻点：只有「按住」另有含义的目标才需要这条支路
       if (this._tObj && !this._interactDone && this._interactHeld > 0.02 && this._interactHeld < 0.3) {
         const o = this._tObj;
         if (o.portalId !== undefined) this._doorAction(o, false);
-        else if (o.grid) this.openContainer(o, false);                      // 轻点 = 快速翻找
+        else if (o.grid) this.openContainer(o);                             // 轻点背包类 = 快速翻找
       }
       this._tObj = null; this._interactHeld = 0; this._interactDone = false; this.interactProgress = 0;
     }
   };
 
-  /** 打开容器开始翻找。快速 4s/响度40，缓慢 ×2.25/响度15（主文档 5.3） */
-  Player.prototype.openContainer = function (box, slow) {
-    box.opened = true; box.slow = !!slow; box._t = 0;
+  /** 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3） */
+  Player.prototype.openContainer = function (box) {
+    box.opened = true; box._t = 0;
     if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
     else box.revealed = 0;
-    const loud = C.ModifierPipeline.query('sound.loot',
-      slow ? C.Config.loudness.lootSlow : C.Config.loudness.lootFast, this.id);
+    const loud = C.ModifierPipeline.query('sound.loot', C.Config.loudness.lootFast, this.id);
     C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
-                         emitterId: this.id, label: (slow ? '缓慢' : '快速') + '翻找' });
-    this.lastAction = (slow ? '缓慢' : '快速') + '翻找 ' + box.name;
+                         emitterId: this.id, label: '翻找' });
+    this.lastAction = '翻找 ' + box.name;
     C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  /**
+   * 整个拎走一个背包类容器（按住 F）。**不用翻，所以比翻找安静得多**（18 对 40）。
+   *
+   * 两种结果，都不弹取舍窗口 —— 站在柜子前做选择题是最容易送命的时刻：
+   *   还没有背包 → 直接背上，**里面的东西原样成为背包内容**
+   *   已经有背包 → 把里面的东西一件件塞进现有背包，塞不下的留在原地
+   */
+  Player.prototype.grabBag = function (box) {
+    const loud = C.ModifierPipeline.query('sound.loot', C.Config.loudness.grabBag, this.id);
+    C.SoundSystem.emit({ worldPosition: box.pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: '拎起' + box.name });
+
+    let msg;
+    if (!this.bag) {
+      this.bag = box.grid;
+      this.bagItemId = box.carry;
+      box.grid = new C.Grid(box.grid.w, box.grid.h, box.name);   // 原地留一个空壳
+      box.taken = true;
+      const n = this.bag.items.length;
+      msg = '背上' + (C.ITEMS[box.carry] || { name: box.name }).name +
+            (n ? '，里面还有 ' + n + ' 件东西' : '（是空的）');
+    } else {
+      // 已有背包：一次性全拿，装不下的留着
+      const left = [];
+      let got = 0;
+      for (const it of box.grid.items.slice()) {
+        box.grid.remove(it);
+        if (this.bag.autoAdd(it).ok) got++; else left.push(it);
+      }
+      for (const it of left) box.grid.autoAdd(it);
+      box.opened = true;
+      box.revealed = box.grid.items.length;
+      msg = got
+        ? '拿走 ' + got + ' 件' + (left.length ? '，' + left.length + ' 件放不下' : '')
+        : (left.length ? '背包放不下' : box.name + '是空的');
+    }
+    this.lastAction = msg;
+    C.EventBus.publish('PickupEvent', { ok: true, msg });
+    C.EventBus.publish('BagGrabbedEvent', { box, msg });
+    return msg;
   };
 
   Player.prototype.pickUp = function (loose) {
@@ -3329,6 +3408,12 @@
     const T = C.Config.throwing;
     if (input.throwHeld && this.stoneCount() > 0) {
       this.charge = M.clamp(this.charge + dt / T.chargeSeconds, 0, 1);
+      this._noStoneSaid = false;
+    } else if (input.throwHeld && !this._noStoneSaid) {
+      // 静默失败是最难查的 bug：按了没反应，玩家只会以为键位坏了
+      this._noStoneSaid = true;
+      this.lastAction = '没有石头了';
+      C.EventBus.publish('PickupEvent', { ok: false, msg: '没有石头可扔 —— 床下箱和器材架里常有' });
     } else if (this.charge > 0) {
       if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
@@ -4095,6 +4180,7 @@
     }
     const m4 = new THREE.Matrix4();
     this.containerGroups = new Map();
+    this.containerSlots = new Map();      // 容器 id → 它在哪个实例网格的第几号，拎走时要抹掉
     for (const [bid, byColor] of byBuilding) {
       const group = new THREE.Group();
       for (const [color, list] of byColor) {
@@ -4103,6 +4189,7 @@
           m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
           m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
           inst.setMatrixAt(i, m4);
+          this.containerSlots.set(c.id, { inst, i });
         });
         inst.instanceMatrix.needsUpdate = true;
         group.add(inst);
@@ -4117,6 +4204,15 @@
       this.scene.add(m);
       return { mesh: m, loose: l };
     });
+  };
+
+  /** 背包类容器被整个拎走：实例矩阵缩到 0（重建整批太贵，也没必要） */
+  Renderer.prototype.removeContainer = function (box) {
+    const slot = this.containerSlots && this.containerSlots.get(box.id);
+    if (!slot) return;
+    const z = new THREE.Matrix4().makeScale(0, 0, 0);
+    slot.inst.setMatrixAt(slot.i, z);
+    slot.inst.instanceMatrix.needsUpdate = true;
   };
 
   Renderer.prototype._syncContainers = function () {
@@ -4496,6 +4592,21 @@
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
 
+    /* 屏息时把「现在能听多远」写出来。支柱三要求玩家能在脑内推演 ——
+       一个看不见半径的听觉系统，玩家只会觉得「时灵时不灵」。
+       两个数字：畅通路径 vs 隔一道关着的门，后者才是楼里的常态。 */
+    if (player.holdBreath) {
+      const L = C.Config.loudness.zombieShuffle;
+      const open = player.hearing.audibleRange(L);
+      const door = player.hearing.audibleRange(L - C.Config.portalAttenuation.WoodDoor.Closed);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(111,211,232,0.85)'; ctx.font = '11.5px ' + MONO;
+      ctx.fillText('屏息 · 听得见丧尸脚步 ' + open.toFixed(0) + 'm', cx, cy - 66);
+      ctx.fillStyle = 'rgba(220,227,235,0.42)'; ctx.font = '10.5px ' + SANS;
+      ctx.fillText('隔一道关着的门只剩 ' + Math.max(0, door).toFixed(0) + 'm　楼上楼下要绕楼梯，几乎听不到',
+                   cx, cy - 52);
+    }
+
     // 生命条与体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
     const touch = C.Touch && C.Touch.enabled;
     const S = C.Config.player.stamina;
@@ -4576,9 +4687,10 @@
     if (player.target && player.target.type !== 'door') {
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
-      ctx.fillText(t.type === 'container'
-        ? `[F] 轻点=快速翻找 ${t.obj.name}（响度 40）　按住=缓慢翻找（响度 15）`
-        : `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`, cx, cy + 46);
+      ctx.fillText(
+        t.type !== 'container' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
+        : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
+        : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
@@ -4681,21 +4793,27 @@
 
       /* 明显度随「玩家实际听到的强度」变化：贴脸的动静又大又亮，
          勉强够到阈值的只是一个淡淡的小点。强度 = margin / 满强度 margin。 */
+      /* `[实测]` 强度下限从 0.35 提到 0.6、半径从 8~16 提到 12~22px。
+         原值在灰盒的浅色墙面上几乎看不见 —— 玩家会以为屏息根本没出声纹。
+         「强弱要能看出来」是玩家提的需求，所以保留随 margin 变化，只是把整条曲线抬上去。 */
       const st = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
-      const emph = 0.35 + 0.65 * st;
+      const emph = 0.6 + 0.4 * st;
       const bob = Math.sin(now * 3 + s.evtId) * 2.0;
-      const yy = y + bob, r = 8 + 8 * st;
+      const yy = y + bob, r = 12 + 10 * st;
       // 刚响起的一瞬间往外扩一圈，用来抓眼睛
       if (age < 0.35) {
         const p = age / 0.35;
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * emph * (1 - p)).toFixed(3) + ')';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.7 * emph * (1 - p)).toFixed(3) + ')';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, yy, r + p * 18, 0, Math.PI * 2); ctx.stroke();
       }
+      // 深色描边打底：灰盒的墙是浅色的，只有青色圈会糊进背景里
+      ctx.beginPath(); ctx.arc(x, yy, r + 1.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(6,9,14,' + (0.55 * a).toFixed(3) + ')'; ctx.lineWidth = 3; ctx.stroke();
       ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a * emph).toFixed(3) + ')'; ctx.fill();
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a * emph).toFixed(3) + ')';
-      ctx.lineWidth = 1.1 + 0.9 * st; ctx.stroke();
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.72 * a * emph).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.98 * a * emph).toFixed(3) + ')';
+      ctx.lineWidth = 1.6 + 1.2 * st; ctx.stroke();
       drawIcon(ctx, s.category, x, yy, r * 0.85, col, 0.95 * a * emph);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
@@ -4895,6 +5013,11 @@
     ['loudness.stoneImpact', '石头响度', 0, 90, 1],
     ['loudness.crawlerBreath', '蜷伏者呼吸响度', 0, 40, 1],
     ['loudness.zombieGrowl', '追击低吼响度', 0, 90, 1],
+    ['loudness.zombieShuffle', '丧尸脚步响度', 0, 90, 1],
+    ['portalAttenuation.WoodDoor.Closed', '关着的木门衰减', 0, 90, 1],
+    ['portalAttenuation.Window.Closed', '关着的窗衰减', 0, 90, 1],
+    ['zombieTypes.Wanderer.speedWander', '丧尸游荡速度', 0.2, 3, 0.05],
+    ['zombieTypes.Wanderer.speedChase', '丧尸追击速度', 1, 6, 0.1],
     ['hearing.zombie', '丧尸阈值', 1, 40, 1],
     ['hearing.player', '玩家基础阈值', 1, 30, 0.5],
     ['hearing.holdBreathBonus', '屏息加成', 0, 12, 0.5],
@@ -5668,7 +5791,7 @@
       const box = this.container;
       if (!box || !box.opened || box.revealed >= box.grid.items.length) return;
       box._t = (box._t || 0) + dt;
-      const per = box.searchSeconds * (box.slow ? 2.25 : 1) / Math.max(1, box.grid.items.length);
+      const per = box.searchSeconds / Math.max(1, box.grid.items.length);
       while (box._t >= per && box.revealed < box.grid.items.length) { box._t -= per; box.revealed++; this.render(); }
     },
 
@@ -5720,7 +5843,7 @@
       return `<h4>${box.name} <small>${box.roomName}　${done ? '已翻完' : `翻找中 ${box.revealed}/${total}`}</small></h4>` +
         this._gridHtml(box.grid, box.revealed) +
         (done ? '' : `<div class="inv-load"><i style="width:${(box.revealed / Math.max(1, total)) * 100}%;background:var(--part-fg,#E5B45C)"></i></div>`) +
-        `<p class="inv-load-txt">${box.slow ? '缓慢翻找（响度 15）' : '快速翻找（响度 40）'}</p>`;
+        `<p class="inv-load-txt">翻找中（响度 40）—— 这段时间你既聋又瞎</p>`;
     },
 
     _bind() {
@@ -6454,6 +6577,11 @@
         C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
       });
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
+      C.EventBus.subscribe('BagGrabbedEvent', (e) => {
+        C.Notebook.lootContainer(e.box, this.time);
+        if (e.box.taken) this.renderer.removeContainer(e.box);   // 连包带东西一起拎走了
+        C.InventoryUI.render();
+      });
       C.EventBus.subscribe('PickupEvent', (e) => this.msg(e.msg));
       C.EventBus.subscribe('RunnersAppearedEvent', (e) => {
         this.msg('第 ' + e.day + ' 天：有东西跑起来了。');
@@ -6612,7 +6740,10 @@
         if (e.button === 2) this.rmb = false;
         if (e.button === 0) this.drag.on = false;
       });
-      addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
+      /* 右键 = 屏息。指针锁定时浏览器本来就不弹菜单，但**拖动模式下会弹** ——
+         一弹菜单，按住右键的屏息就断了，玩家会以为屏息没用。
+         所以只要游戏已经开始就吃掉这个事件。 */
+      addEventListener('contextmenu', (e) => { if (this.started || this.locked) e.preventDefault(); });
       addEventListener('blur', () => {
         this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
       });

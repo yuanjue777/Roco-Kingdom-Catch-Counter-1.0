@@ -74,6 +74,21 @@
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
 
+    /* 屏息时把「现在能听多远」写出来。支柱三要求玩家能在脑内推演 ——
+       一个看不见半径的听觉系统，玩家只会觉得「时灵时不灵」。
+       两个数字：畅通路径 vs 隔一道关着的门，后者才是楼里的常态。 */
+    if (player.holdBreath) {
+      const L = C.Config.loudness.zombieShuffle;
+      const open = player.hearing.audibleRange(L);
+      const door = player.hearing.audibleRange(L - C.Config.portalAttenuation.WoodDoor.Closed);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(111,211,232,0.85)'; ctx.font = '11.5px ' + MONO;
+      ctx.fillText('屏息 · 听得见丧尸脚步 ' + open.toFixed(0) + 'm', cx, cy - 66);
+      ctx.fillStyle = 'rgba(220,227,235,0.42)'; ctx.font = '10.5px ' + SANS;
+      ctx.fillText('隔一道关着的门只剩 ' + Math.max(0, door).toFixed(0) + 'm　楼上楼下要绕楼梯，几乎听不到',
+                   cx, cy - 52);
+    }
+
     // 生命条与体力条。触屏时挪到左上角 —— 左下角被虚拟摇杆占了，右下角被动作键占了。
     const touch = C.Touch && C.Touch.enabled;
     const S = C.Config.player.stamina;
@@ -154,9 +169,10 @@
     if (player.target && player.target.type !== 'door') {
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
-      ctx.fillText(t.type === 'container'
-        ? `[F] 轻点=快速翻找 ${t.obj.name}（响度 40）　按住=缓慢翻找（响度 15）`
-        : `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`, cx, cy + 46);
+      ctx.fillText(
+        t.type !== 'container' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
+        : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
+        : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
       if (player.interactProgress > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.interactProgress); ctx.stroke();
@@ -259,21 +275,27 @@
 
       /* 明显度随「玩家实际听到的强度」变化：贴脸的动静又大又亮，
          勉强够到阈值的只是一个淡淡的小点。强度 = margin / 满强度 margin。 */
+      /* `[实测]` 强度下限从 0.35 提到 0.6、半径从 8~16 提到 12~22px。
+         原值在灰盒的浅色墙面上几乎看不见 —— 玩家会以为屏息根本没出声纹。
+         「强弱要能看出来」是玩家提的需求，所以保留随 margin 变化，只是把整条曲线抬上去。 */
       const st = M.clamp(s.margin / C.Config.hearing.soundprintFullMargin, 0, 1);
-      const emph = 0.35 + 0.65 * st;
+      const emph = 0.6 + 0.4 * st;
       const bob = Math.sin(now * 3 + s.evtId) * 2.0;
-      const yy = y + bob, r = 8 + 8 * st;
+      const yy = y + bob, r = 12 + 10 * st;
       // 刚响起的一瞬间往外扩一圈，用来抓眼睛
       if (age < 0.35) {
         const p = age / 0.35;
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * emph * (1 - p)).toFixed(3) + ')';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, yy, r + p * 14, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.7 * emph * (1 - p)).toFixed(3) + ')';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, yy, r + p * 18, 0, Math.PI * 2); ctx.stroke();
       }
+      // 深色描边打底：灰盒的墙是浅色的，只有青色圈会糊进背景里
+      ctx.beginPath(); ctx.arc(x, yy, r + 1.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(6,9,14,' + (0.55 * a).toFixed(3) + ')'; ctx.lineWidth = 3; ctx.stroke();
       ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(10,14,20,' + (0.6 * a * emph).toFixed(3) + ')'; ctx.fill();
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.95 * a * emph).toFixed(3) + ')';
-      ctx.lineWidth = 1.1 + 0.9 * st; ctx.stroke();
+      ctx.fillStyle = 'rgba(10,14,20,' + (0.72 * a * emph).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.98 * a * emph).toFixed(3) + ')';
+      ctx.lineWidth = 1.6 + 1.2 * st; ctx.stroke();
       drawIcon(ctx, s.category, x, yy, r * 0.85, col, 0.95 * a * emph);
       // 一条短引线落到声源脚下，说明标记贴的是哪个东西
       ctx.strokeStyle = 'rgba(' + col + ',' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1;
