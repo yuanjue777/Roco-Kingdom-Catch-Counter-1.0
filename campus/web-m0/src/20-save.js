@@ -5,7 +5,7 @@
 (function (root) {
   const C = (root.Campus = root.Campus || {});
   const KEY = 'campus-save-v1';
-  const VERSION = 1;
+  const VERSION = 2;   // v2：加了背包/容器/笔记本，v1 存档不再兼容
 
   C.Save = {
     version: VERSION,
@@ -19,8 +19,19 @@
         player: {
           pos: C.V.copy(p.pos), yaw: p.yaw, pitch: p.pitch,
           stamina: p.stamina, stones: p.stones, flashlight: p.flashlight,
-          needs: p.needs.serialize(), items: p.items
+          needs: p.needs.serialize(), items: p.items,
+          // 背包与快取栏：格子布局要一起存，否则读档后拼图全乱
+          bagItemId: p.bagItemId || null,
+          bag: p.bag ? p.bag.serialize() : null,
+          hotbar: (p.hotbar || []).map(it => (it ? { id: it.id, count: it.count } : null))
         },
+        // 容器：只存翻过的（opened），没翻过的按固定种子重新生成即可
+        containers: (game.level.containers || [])
+          .filter(b => b.opened)
+          .map(b => ({ id: b.id, revealed: b.revealed, grid: b.grid.serialize() })),
+        loose: (game.level.looseItems || [])
+          .map((l, i) => (l.taken ? i : -1)).filter(i => i >= 0),
+        notebook: C.Notebook.serialize(),
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
         // 丧尸：ID、类型、位置、生命、行为状态、目标点
         zombies: C.ZombieManager.list.map(z => ({
@@ -60,6 +71,19 @@
       p.stamina = d.player.stamina; p.stones = d.player.stones; p.flashlight = !!d.player.flashlight;
       p.needs.deserialize(d.player.needs);
       if (d.player.items) p.items = d.player.items;
+      p.bagItemId = d.player.bagItemId || null;
+      p.bag = d.player.bag ? C.Grid.deserialize(d.player.bag) : null;
+      if (d.player.hotbar) p.hotbar = d.player.hotbar.map(r => (r ? C.makeItem(r.id, r.count) : null));
+      const boxes = new Map((game.level.containers || []).map(b => [b.id, b]));
+      for (const r of d.containers || []) {
+        const b = boxes.get(r.id);
+        if (!b) continue;
+        b.opened = true; b.revealed = r.revealed; b.grid = C.Grid.deserialize(r.grid);
+      }
+      for (const i of d.loose || []) {
+        if (game.level.looseItems && game.level.looseItems[i]) game.level.looseItems[i].taken = true;
+      }
+      C.Notebook.deserialize(d.notebook);
       if (d.skills) Object.assign(C.Config.skills, d.skills);
       for (const r of d.portals || []) {
         const portal = game.level.graph.portals[r.i];

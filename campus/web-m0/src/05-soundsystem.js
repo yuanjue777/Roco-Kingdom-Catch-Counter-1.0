@@ -52,7 +52,7 @@
     listeners: [],
     _seq: 0,
     // 调试统计
-    stats: { lastMs: 0, lastExpanded: 0, eventsThisSecond: 0, peakPerSecond: 0, _bucket: 0, _acc: 0 },
+    stats: { lastMs: 0, lastExpanded: 0, eventsThisSecond: 0, peakPerSecond: 0, culled: 0, _bucket: 0, _acc: 0 },
     log: [],
     lastEvent: null,
     lastResult: null,
@@ -71,6 +71,21 @@
     unregisterListener(hc) {
       const i = this.listeners.indexOf(hc);
       if (i >= 0) this.listeners.splice(i, 1);
+    },
+
+    /** 有没有任何一个听者落在「理论可听半径」之内。见 emit 里的剪枝说明。 */
+    _anyListenerWithin(evt) {
+      const nf = this.time ? this.time.getNightFactor() : 1.0;
+      const kMin = C.Config.sound.kOutdoor * nf;
+      const maxR = (evt.loudness - C.Config.sound.globalMinThreshold) / kMin;
+      if (maxR <= 0) return false;
+      const r2 = maxR * maxR;
+      for (const hc of this.listeners) {
+        if (!hc.active || hc.selfEmitterId === evt.emitterId) continue;
+        const d = V.sub(hc.position, evt.worldPosition);
+        if (d.x * d.x + d.y * d.y + d.z * d.z <= r2) return true;
+      }
+      return false;
     },
 
     /** 当前的距离衰减系数（夜晚全局 ×nightFactor，声音规格 3.1） */
@@ -99,24 +114,39 @@
       };
       if (evt.nodeId < 0 || evt.loudness <= 0) return evt;
 
-      const t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
-      const result = this.propagate(evt);
-      const t1 = (typeof performance !== 'undefined') ? performance.now() : 0;
-      this.stats.lastMs = t1 - t0;
-      this.stats.lastExpanded = result.size;
-      this.stats._acc++;
+      /* 直线距离剪枝。M2 的校园里有 320 只丧尸，每只每 1.1 秒拖一次脚步 ——
+         不剪枝的话每秒要跑近三百次 Dijkstra，光这一项就吃掉整个帧预算。
 
-      this.lastEvent = evt;
-      this.lastResult = result;
+         剪的是**证明不可能被任何人听见**的那些：图上的路径是一条折线，
+         长度永远不小于两点直线距离；k 取全场最小的那个（室外 × 夜间系数），
+         阈值取全场最低的 globalMinThreshold。所以
+             可听半径上限 = (响度 − 最低阈值) / k_min
+         之外的听者，无论路怎么绕都不可能听见。这是等价变换，不是近似。 */
+      /* 剪掉的只是「跑图」和「送达」这两步 —— 事件本身照发、照记日志、照上总线。
+         调试面板和音效层要看到玩家自己踢到的每一块石头，哪怕全校没有一只丧尸听得见。 */
+      const audible = this._anyListenerWithin(evt);
+      if (!audible) this.stats.culled++;
 
-      // 推送给所有听者（听者是被动接收方，不主动查询）
-      for (const hc of this.listeners) {
-        if (!hc.active) continue;
-        if (hc.selfEmitterId === evt.emitterId) continue;      // 过滤自己的声音（声音规格 4.5）
-        const r = this.resolveAt(result, hc.position, hc.nodeId);
-        if (!r) continue;
-        hc.deliver(evt, r);
+      let result = null;
+      if (audible) {
+        const t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+        result = this.propagate(evt);
+        const t1 = (typeof performance !== 'undefined') ? performance.now() : 0;
+        this.stats.lastMs = t1 - t0;
+        this.stats.lastExpanded = result.size;
+        this.stats._acc++;
+        this.lastResult = result;
+
+        // 推送给所有听者（听者是被动接收方，不主动查询）
+        for (const hc of this.listeners) {
+          if (!hc.active) continue;
+          if (hc.selfEmitterId === evt.emitterId) continue;    // 过滤自己的声音（声音规格 4.5）
+          const r = this.resolveAt(result, hc.position, hc.nodeId);
+          if (!r) continue;
+          hc.deliver(evt, r);
+        }
       }
+      this.lastEvent = evt;
 
       this.log.push({ t: evt.timestamp, cat: evt.category, loud: evt.loudness, node: evt.nodeId, label: evt.label, emitter: evt.emitterId });
       if (this.log.length > C.Config.debug.logMaxEntries) this.log.shift();

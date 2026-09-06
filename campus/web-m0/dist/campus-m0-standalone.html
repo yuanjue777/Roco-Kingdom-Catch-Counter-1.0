@@ -21,8 +21,18 @@
     --cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--cjk); }
-  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  /* 手机上「转视角把整个页面拖下来」有三个来源，三个都要堵：
+     ① 下拉刷新 —— overscroll-behavior
+     ② 页面本身能滚 —— html/body 定死成一屏、position:fixed
+     ③ 地址栏收起/展开导致 100vh 跳变 —— 用 100dvh，并以 visualViewport 为准重算画布
+     touch-action 只写在 #touch 上是不够的：手指一旦落在画布或 HUD 上，
+     滚动手势仍然由文档接管。 */
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    overflow: hidden; overscroll-behavior: none;
+  }
+  body { position: fixed; inset: 0; background: var(--ground); color: var(--ink); font-family: var(--cjk); }
+  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
   #hud { pointer-events: none; }
   #dbg { display: none; }
 
@@ -103,6 +113,58 @@
   #btnBag:hover { border-color: var(--accent); color: var(--accent); }
   body.touch #btnBag { right: auto; left: calc(18px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top));
                        bottom: auto; padding: 6px 12px; font-size: 12px; }
+  /* ── 笔记本（14.3）─────────────────────────────────
+     和背包一样是一整层遮罩。地图页是 canvas，其余三页是文字列表。 */
+  #btnNote {
+    position: fixed; right: 16px; bottom: 56px; z-index: 7;
+    font-family: var(--cjk); font-size: 13px; padding: 9px 18px; cursor: pointer;
+    background: rgba(20,26,34,0.9); color: var(--ink); border: 1px solid var(--line); border-radius: 4px;
+  }
+  #btnNote:hover { border-color: var(--accent); color: var(--accent); }
+  #btnNote.unread::after { content: ''; position: absolute; top: 5px; right: 6px;
+                           width: 6px; height: 6px; border-radius: 50%; background: var(--warn, #E5B45C); }
+  body.touch #btnNote { right: auto; left: calc(18px + env(safe-area-inset-left));
+                        top: calc(44px + env(safe-area-inset-top)); bottom: auto; padding: 6px 12px; font-size: 12px; }
+  #note {
+    position: fixed; inset: 0; z-index: 8; display: none;
+    background: rgba(6,8,13,0.93); overflow: auto; padding: 22px 18px 26px;
+  }
+  #note.open { display: block; }
+  .note-wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; }
+  .note-tabs { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .note-tabs button { font-family: var(--cjk); font-size: 13px; padding: 6px 16px; cursor: pointer;
+                      background: rgba(20,26,34,0.92); color: var(--dim);
+                      border: 1px solid var(--line); border-radius: 4px; }
+  .note-tabs button.on { color: var(--accent); border-color: var(--accent); }
+  .note-close { margin-left: auto; font-size: 11px; color: var(--dim); }
+  .note-close kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+  .note-body { flex: 1; min-height: 0; }
+  .note-page { height: 100%; }
+  #notePageMap { display: flex; flex-direction: column; gap: 10px; }
+  /* 地图要占满剩下的高度，但必须给下面那排标记按钮留位置 ——
+     手机横屏只有 390px 高，min-height 写死 320 会把按钮挤出屏幕。 */
+  #noteMap { flex: 1; min-height: min(320px, 46vh); max-height: 72vh;
+             width: 100%; border: 1px solid var(--line); border-radius: 5px;
+             background: #0d1117; cursor: crosshair; }
+  @media (max-height: 520px) {
+    #note { padding: 10px 12px 12px; }
+    .note-tabs { margin-bottom: 7px; }
+    .note-tabs button { padding: 4px 12px; font-size: 12px; }
+    #noteMap { min-height: 40vh; max-height: 62vh; }
+  }
+  .note-pins { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-pins button { font-family: var(--cjk); font-size: 11.5px; padding: 3px 12px; cursor: pointer;
+                      background: rgba(20,26,34,0.92); color: var(--dim);
+                      border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 3px; }
+  .note-pins button.on { color: var(--pc); border-color: var(--pc); }
+  .note-pins em { font-size: 11px; color: var(--dim); font-style: normal; }
+  .note-list { list-style: none; margin: 0; padding: 0; }
+  .note-list li { display: flex; gap: 10px; align-items: baseline; padding: 7px 4px;
+                  border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+  .note-list li.note-locked { color: var(--dim); }
+  .note-when { font-family: var(--mono); font-size: 11px; color: var(--dim); flex: none; min-width: 92px; }
+  .note-need { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; }
+  .note-empty { color: var(--dim); font-size: 13px; padding: 24px 4px; }
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -153,7 +215,14 @@
      只在 pointer:coarse 的设备上出现（或 URL 加 ?touch=1 强制打开）。
      整层负责接住空白处的拖拽来转视角，按钮是它的子元素。 */
   body.touch { overscroll-behavior: none; -webkit-user-select: none; user-select: none;
-               -webkit-tap-highlight-color: transparent; }
+               -webkit-tap-highlight-color: transparent; touch-action: none; }
+  /* 画布与 HUD 也要写死 touch-action —— 手指落在它们上面时滚动手势归文档管，
+     只在触屏层上写是堵不住的 */
+  body.touch #view, body.touch #hud, body.touch #dbg { touch-action: none; }
+  /* 会滚的面板反过来要把纵向滚动还给自己，并且不把滚动传给页面 */
+  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note {
+    touch-action: pan-y; overscroll-behavior: contain;
+  }
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
   #touch[hidden] { display: none; }
   #touch button { touch-action: none; }
@@ -247,7 +316,9 @@
 <canvas id="dbg"></canvas>
 <div id="toast"></div>
 <div id="tuner"></div>
+<button id="btnNote" type="button">笔记本 J</button>
 <div id="inv"></div>
+<div id="note"></div>
 <button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -275,17 +346,19 @@
     <button id="btnWatch" class="tb tiny" type="button">看表</button>
     <button id="btnDebug" class="tb tiny" type="button">调试</button>
     <button id="btnTune" class="tb tiny" type="button">调参</button>
+    <button id="btnFull" class="tb tiny" type="button">全屏</button>
     <button id="btnHelp" class="tb tiny" type="button">?</button>
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
 <div id="startHint">
   <div class="card">
-    <p class="eyebrow">M0 · 潜行手感验证</p>
+    <p class="eyebrow" id="startStage">M2 · 全校灰盒</p>
     <h1>校园</h1>
-    <p class="sub">DORMITORY GREYBOX / 4F × 6 ROOMS / 320-ZOMBIE RULESET, 4 SPAWNED</p>
-    <p class="lede">你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
-      楼里有三只游荡者和一只蜷伏者。没有武器，没有战斗 —— <em>只有声音</em>。</p>
+    <p class="sub" id="startSpec">CAMPUS GREYBOX</p>
+    <p class="lede">你是唯一一个睡过头的学生。你在男生宿舍楼 402 醒来，四层，离两侧楼梯都不近。
+      门外是整所学校 —— 十三栋楼，三百多只丧尸，六个能出去的口子。
+      没有武器，没有战斗 —— <em>只有声音</em>。</p>
     <p>声音沿着开着的门绕行，不穿墙。关上门就真的能挡住。每个动作都有明码标价的响度，
       丧尸的反应快慢与定位精度，完全由它听到的响度减去自己的阈值决定。
       没有隐藏随机数，你可以在脑内推演。</p>
@@ -302,6 +375,7 @@
       <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
       <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
       <div class="row"><span><kbd>B</kbd></span><span class="act">背包 · 六格快取栏</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>J</kbd></span><span class="act">笔记本（地图 / 线索 / 配方 / 观察）</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>K</kbd></span><span class="act">睡觉（需安全睡点）</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>1</kbd>–<kbd>6</kbd></span><span class="act">使用快取栏</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>L</kbd> <kbd>X</kbd> <kbd>F5</kbd></span><span class="act">手电 / 看表 / 存档</span><span class="val none">—</span></div>
@@ -374,6 +448,14 @@
   Rng.prototype.range = function (lo, hi) { return lo + this.next() * (hi - lo); };
   Rng.prototype.int = function (lo, hi) { return Math.floor(this.range(lo, hi + 1)); };
   Rng.prototype.pick = function (arr) { return arr[Math.min(arr.length - 1, Math.floor(this.next() * arr.length))]; };
+  /** 原地洗牌（Fisher–Yates）。同一个种子每次得到同一个顺序，物资/丧尸布置全靠它可复现。 */
+  Rng.prototype.shuffle = function (arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(this.next() * (i + 1));
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  };
 
   // 轴对齐包围盒
   const AABB = {
@@ -653,6 +735,105 @@
       spawnRoomIndex: 1             // 402 = 4 楼第 2 间
     },
 
+    /* ── 渲染 ────────────────────────────────────────
+       fogFar 之外什么都看不见，所以丧尸的绘制距离跟着它走 ——
+       两个数分开写迟早会漂：要么在雾里看见丧尸凭空消失，要么白画一堆看不见的。 */
+    render: {
+      fogNear: 12, fogFar: 60,
+      zombieDistance: 65      // 比 fogFar 略大：正好在雾边缘的那一只别闪没了
+    },
+
+    /* ── 全校地图（主文档 13.1 / 13.3 / 13.4）─────────────
+       M2 的布局表。**这里是全校几何的唯一出处** —— 24-campus.js 只负责把它变成盒子。
+       坐标系：x 向东，z 向北，原点在正门广场。宿舍区在最北，离校门最远（13.1）。
+       每栋楼都是同一个板楼模板：一条走廊（南）+ 一排房间（北）+ 0~2 个楼梯间。 */
+    campus: {
+      wall: { x0: -96, x1: 136, z0: -12, z1: 148, height: 3.0, thickness: 0.4 },
+
+      /* 室外分区。**互不重叠地平铺**整个校园 —— 重叠的话 getNodeAt 会时灵时不灵。
+         y 上界要盖过最高的楼（教学楼 5 层 = 16m），室内节点优先命中。 */
+      zones: [
+        { id: 'plaza',  name: '正门广场', x0: -100, x1: 140, z0: -16, z1: 12 },
+        { id: 'road',   name: '主校道',   x0: -100, x1: 140, z0: 12,  z1: 34 },
+        { id: 'teach',  name: '教学区',   x0: -100, x1: 30,  z0: 34,  z1: 70 },
+        { id: 'mess',   name: '食堂前坪', x0: 30,   x1: 140, z0: 34,  z1: 70 },
+        { id: 'alley',  name: '林荫道',   x0: -100, x1: 140, z0: 70,  z1: 86 },
+        { id: 'yard',   name: '后院',     x0: -100, x1: 30,  z0: 86,  z1: 122 },
+        { id: 'field',  name: '操场',     x0: 30,   x1: 140, z0: 86,  z1: 122 },
+        { id: 'dormArea', name: '宿舍区', x0: -100, x1: 140, z0: 122, z1: 152 }
+      ],
+      zoneY: { min: -1, max: 40 },
+      // 相邻分区之间的开放空气连接（衰减 0，只按距离衰减）
+      zoneLinks: [
+        ['plaza', 'road'], ['road', 'teach'], ['road', 'mess'], ['teach', 'mess'],
+        ['teach', 'alley'], ['mess', 'alley'], ['alley', 'yard'], ['alley', 'field'],
+        ['yard', 'field'], ['yard', 'dormArea'], ['field', 'dormArea']
+      ],
+
+      /* 建筑表。firstDay 是「首次可达」的软引导（13.1），不是硬锁。
+         zombies 是这栋楼分到的丧尸数，全表加上 outdoorZombies 正好 320（7.1）。 */
+      buildings: [
+        { id: 'dormM', name: '男生宿舍楼', prefix: '男', ox: -70, oz: 128, floors: 4, rooms: 6,
+          stairs: ['west', 'east'], zone: 'dormArea', roomType: 'dorm', firstDay: 1, zombies: 26, spawn: true },
+        { id: 'dormF', name: '女生宿舍楼', prefix: '女', ox: 10, oz: 128, floors: 4, rooms: 6,
+          stairs: ['west', 'east'], zone: 'dormArea', roomType: 'dorm', firstDay: 1, zombies: 28 },
+        { id: 'teachA', name: '教学楼A', prefix: '教A', ox: -80, oz: 40, floors: 5, rooms: 8,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'classroom', firstDay: 2, zombies: 55 },
+        { id: 'teachB', name: '教学楼B', prefix: '教B', ox: -20, oz: 40, floors: 5, rooms: 6,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'classroom', firstDay: 3, zombies: 40 },
+        { id: 'lab', name: '实验楼', prefix: '实', ox: -80, oz: 58, floors: 3, rooms: 6,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'lab', firstDay: 4, zombies: 22 },
+        { id: 'library', name: '图书馆', prefix: '图', ox: -30, oz: 58, floors: 3, rooms: 5,
+          stairs: ['west'], zone: 'teach', roomType: 'library', firstDay: 5, zombies: 14 },
+        { id: 'canteen', name: '食堂', prefix: '食', ox: 50, oz: 40, floors: 2, rooms: 4,
+          stairs: ['west'], zone: 'mess', roomType: 'canteen', firstDay: 3, zombies: 30,
+          roomW: 8, roomGap: 1.5, roomD: 10, corridorD: 3.2 },
+        { id: 'clinic', name: '医务室', prefix: '医', ox: 100, oz: 40, floors: 1, rooms: 3,
+          stairs: [], zone: 'mess', roomType: 'clinic', firstDay: 4, zombies: 6 },
+        { id: 'admin', name: '行政楼', prefix: '行', ox: 100, oz: 58, floors: 4, rooms: 5,
+          stairs: ['west', 'east'], zone: 'mess', roomType: 'office', firstDay: 7, zombies: 24 },
+        { id: 'gym', name: '体育馆', prefix: '体', ox: -70, oz: 92, floors: 2, rooms: 3,
+          stairs: ['west'], zone: 'yard', roomType: 'gym', firstDay: 6, zombies: 16,
+          roomW: 12, roomGap: 2, roomD: 14, corridorD: 3.5 },
+        { id: 'boiler', name: '锅炉房', prefix: '锅', ox: -15, oz: 110, floors: 1, rooms: 2,
+          stairs: [], zone: 'yard', roomType: 'boiler', firstDay: 6, zombies: 5 },
+        { id: 'guard', name: '保安室', prefix: '保', ox: 44, oz: -8, floors: 1, rooms: 4,
+          stairs: [], zone: 'plaza', roomType: 'guard', firstDay: 8, zombies: 6 },
+        { id: 'shop', name: '小卖部', prefix: '店', ox: -30, oz: -8, floors: 1, rooms: 3,
+          stairs: [], zone: 'plaza', roomType: 'shop', firstDay: 2, zombies: 5 }
+      ],
+      // 室外丧尸：正门附近最密（13.1「保安室周边丧尸最密」）
+      outdoorZombies: [
+        { zone: 'plaza', count: 14 }, { zone: 'road', count: 12 },
+        { zone: 'field', count: 8 }, { zone: 'yard', count: 5 }, { zone: 'alley', count: 4 }
+      ],
+      // 露天构筑物：车棚（第 5 天）与操场看台（第 4 天）
+      carport: { x0: -5, x1: 20, z0: 92, z1: 104, height: 2.8 },
+      bleachers: { x0: 40, x1: 120, z0: 88, z1: 91, height: 1.2 },
+
+      /* 出入口（13.3）。封锁所需建材写在这里，结局二会用。
+         side 是它开在围墙的哪一面，a0/a1 是沿墙方向的开口范围。 */
+      exits: [
+        { id: 'front', name: '正门',     side: 'south', a0: 12,  a1: 20,  barricade: 5 },
+        { id: 'back',  name: '后门',     side: 'north', a0: -4,  a1: 2,   barricade: 3 },
+        { id: 'east',  name: '东侧门',   side: 'east',  a0: 42,  a1: 48,  barricade: 3 },
+        { id: 'gapW1', name: '西墙破口一', side: 'west', a0: 52,  a1: 56,  barricade: 2 },
+        { id: 'gapW2', name: '西墙破口二', side: 'west', a0: 100, a1: 104, barricade: 2 },
+        { id: 'gapN1', name: '北墙破口',   side: 'north', a0: -60, a1: -56, barricade: 2 }
+      ],
+
+      // 丧尸总量与配比（7.1 / 7.2）。奔行者第 12 天前按游荡者行为走。
+      zombieTotal: 320,
+      crawlerRatio: 0.10, runnerRatio: 0.05,
+      runnerFromDay: 12,
+      zombieSeed: 20260905,
+
+      /* 分区加载（13.4）。声图全量常驻，加载的只是几何与「完整模拟」的名额。
+         半径按「主校道能看到两侧的楼」定：60m 覆盖相邻分区，再远的楼交给雾。 */
+      streaming: { loadRadius: 60, unloadRadius: 78, simplifyRadius: 60 },
+      simplifiedTick: 0.25          // 简化模拟的更新间隔（秒）
+    },
+
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,
@@ -681,6 +862,22 @@
       timeScale: 90,             // 睡眠时时间加速倍率
       bedRange: 1.6              // 离床多近才算「有床」
     },
+
+    /* ── 配方（主文档 10.4 / 10.5）─────────────────────
+       M2 只做「笔记本第三页把它们列出来」这一件事，真正的制作在 M3。
+       unlock 是解锁它的书：课本给基础的，技术手册给需要手艺的（10.2「书籍解锁配方」）。 */
+    recipes: [
+      { id: 'boilWater',  name: '煮水',       need: '水 + 容器',            note: '净化来路不明的水', unlock: 'textbook' },
+      { id: 'riceMeal',   name: '白饭',       need: '米 + 水',              note: '饥饿 −30',        unlock: 'textbook' },
+      { id: 'hotNoodle',  name: '泡面',       need: '方便面 + 热水',        note: '饥饿 −25',        unlock: 'textbook' },
+      { id: 'bandage',    name: '绷带',       need: '布 ×2',                note: '',                unlock: 'textbook' },
+      { id: 'plank',      name: '建材',       need: '木板/课桌 + 工具',      note: '封锁出入口要用',   unlock: 'textbook' },
+      { id: 'rainCatch',  name: '雨水收集器', need: '容器 + 塑料布 + 建材', note: '手艺 1',          unlock: 'manual' },
+      { id: 'clock',      name: '闹钟',       need: '闹钟零件 ×2 + 电池',   note: '手艺 2',          unlock: 'manual' },
+      { id: 'muffle',     name: '消音布',     need: '布 ×3',                note: '手艺 2，静步 −15%', unlock: 'manual' },
+      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具', note: '手艺 3',          unlock: 'manual' },
+      { id: 'repairPart', name: '修理零件',   need: '废零件 ×3 + 工具',     note: '手艺 3',          unlock: 'manual' }
+    ],
 
     // ── 调试 ──────────────────────────────────────────
     debug: {
@@ -928,7 +1125,11 @@
       const h = this._nodeById.get(hintNodeId);
       if (h && containsNode(h.bounds, pos)) return h;
     }
-    for (const n of this.nodes) if (containsNode(n.bounds, pos)) return n;
+    /* 室内优先。室外分区是覆盖整条带的大盒子，几何上把楼包在里面 ——
+       按插入顺序找的话，站在教学楼三楼会被判成「主校道」。
+       室内节点之间互不重叠，所以先扫室内、再扫室外就够了，不需要额外的空间索引。 */
+    for (const n of this.nodes) if (!n.isOutdoor && containsNode(n.bounds, pos)) return n;
+    for (const n of this.nodes) if (n.isOutdoor && containsNode(n.bounds, pos)) return n;
     // 退化：同层里中心最近的
     let best = null, bestD = Infinity;
     for (const n of this.nodes) {
@@ -1025,7 +1226,7 @@
     listeners: [],
     _seq: 0,
     // 调试统计
-    stats: { lastMs: 0, lastExpanded: 0, eventsThisSecond: 0, peakPerSecond: 0, _bucket: 0, _acc: 0 },
+    stats: { lastMs: 0, lastExpanded: 0, eventsThisSecond: 0, peakPerSecond: 0, culled: 0, _bucket: 0, _acc: 0 },
     log: [],
     lastEvent: null,
     lastResult: null,
@@ -1044,6 +1245,21 @@
     unregisterListener(hc) {
       const i = this.listeners.indexOf(hc);
       if (i >= 0) this.listeners.splice(i, 1);
+    },
+
+    /** 有没有任何一个听者落在「理论可听半径」之内。见 emit 里的剪枝说明。 */
+    _anyListenerWithin(evt) {
+      const nf = this.time ? this.time.getNightFactor() : 1.0;
+      const kMin = C.Config.sound.kOutdoor * nf;
+      const maxR = (evt.loudness - C.Config.sound.globalMinThreshold) / kMin;
+      if (maxR <= 0) return false;
+      const r2 = maxR * maxR;
+      for (const hc of this.listeners) {
+        if (!hc.active || hc.selfEmitterId === evt.emitterId) continue;
+        const d = V.sub(hc.position, evt.worldPosition);
+        if (d.x * d.x + d.y * d.y + d.z * d.z <= r2) return true;
+      }
+      return false;
     },
 
     /** 当前的距离衰减系数（夜晚全局 ×nightFactor，声音规格 3.1） */
@@ -1072,24 +1288,39 @@
       };
       if (evt.nodeId < 0 || evt.loudness <= 0) return evt;
 
-      const t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
-      const result = this.propagate(evt);
-      const t1 = (typeof performance !== 'undefined') ? performance.now() : 0;
-      this.stats.lastMs = t1 - t0;
-      this.stats.lastExpanded = result.size;
-      this.stats._acc++;
+      /* 直线距离剪枝。M2 的校园里有 320 只丧尸，每只每 1.1 秒拖一次脚步 ——
+         不剪枝的话每秒要跑近三百次 Dijkstra，光这一项就吃掉整个帧预算。
 
-      this.lastEvent = evt;
-      this.lastResult = result;
+         剪的是**证明不可能被任何人听见**的那些：图上的路径是一条折线，
+         长度永远不小于两点直线距离；k 取全场最小的那个（室外 × 夜间系数），
+         阈值取全场最低的 globalMinThreshold。所以
+             可听半径上限 = (响度 − 最低阈值) / k_min
+         之外的听者，无论路怎么绕都不可能听见。这是等价变换，不是近似。 */
+      /* 剪掉的只是「跑图」和「送达」这两步 —— 事件本身照发、照记日志、照上总线。
+         调试面板和音效层要看到玩家自己踢到的每一块石头，哪怕全校没有一只丧尸听得见。 */
+      const audible = this._anyListenerWithin(evt);
+      if (!audible) this.stats.culled++;
 
-      // 推送给所有听者（听者是被动接收方，不主动查询）
-      for (const hc of this.listeners) {
-        if (!hc.active) continue;
-        if (hc.selfEmitterId === evt.emitterId) continue;      // 过滤自己的声音（声音规格 4.5）
-        const r = this.resolveAt(result, hc.position, hc.nodeId);
-        if (!r) continue;
-        hc.deliver(evt, r);
+      let result = null;
+      if (audible) {
+        const t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+        result = this.propagate(evt);
+        const t1 = (typeof performance !== 'undefined') ? performance.now() : 0;
+        this.stats.lastMs = t1 - t0;
+        this.stats.lastExpanded = result.size;
+        this.stats._acc++;
+        this.lastResult = result;
+
+        // 推送给所有听者（听者是被动接收方，不主动查询）
+        for (const hc of this.listeners) {
+          if (!hc.active) continue;
+          if (hc.selfEmitterId === evt.emitterId) continue;    // 过滤自己的声音（声音规格 4.5）
+          const r = this.resolveAt(result, hc.position, hc.nodeId);
+          if (!r) continue;
+          hc.deliver(evt, r);
+        }
       }
+      this.lastEvent = evt;
 
       this.log.push({ t: evt.timestamp, cat: evt.category, loud: evt.loudness, node: evt.nodeId, label: evt.label, emitter: evt.emitterId });
       if (this.log.length > C.Config.debug.logMaxEntries) this.log.shift();
@@ -1354,11 +1585,15 @@
 
 /* ===== src/08-level.js ===== */
 /*
- * 08-level.js —— 灰盒宿舍楼（主文档 9.3 / 9.6）
- * 4 层 × 6 室 × 2 楼梯，程序化生成。同一份生成过程同时产出：
- *   1) 碰撞/遮挡用的 AABB 列表
- *   2) 声音连通图（SoundNodeVolume / SoundPortalLink 的等价物）
- * 两者由同一份布局推导，杜绝「几何和声图对不上」这个最难查的 bug。
+ * 08-level.js —— 灰盒建筑生成（主文档 13.1 / 13.5）
+ *
+ * 一栋楼的几何与它的声音连通图由**同一段代码**推导出来。分成两份手工维护的话，
+ * 会出现「声图上有门、几何上是墙」这类几乎无法察觉的 bug。
+ *
+ * 这里有两层：
+ *   buildBuildingInto()  通用板楼模板 —— 一条走廊 + 一排房间 + 0~2 个楼梯间
+ *   buildDormitory()     M0/M1 的单栋宿舍楼关卡（模板 + 出生点 + 4 只丧尸）
+ * 全校地图（M2）在 24-campus.js 里调同一个模板生成十几栋楼，不另写一套几何。
  */
 (function (root) {
   const C = (root.Campus = root.Campus || {});
@@ -1386,6 +1621,234 @@
     box(cursor, a1, y0, y1);
   }
 
+  /** 宿舍标准间：两张上下铺 + 一张桌子。既是掩体，也是蜷伏者的藏身处。 */
+  function dormFurniture(out, rx0, rx1, y0, z0, z1) {
+    out.push({ tag: 'bed', box: AABB.make(rx0 + 0.15, y0, z0 + 0.3, rx0 + 1.15, y0 + 0.55, z0 + 2.3) });
+    out.push({ tag: 'bed', box: AABB.make(rx1 - 1.15, y0, z0 + 0.3, rx1 - 0.15, y0 + 0.55, z0 + 2.3) });
+    out.push({ tag: 'desk', box: AABB.make(rx0 + 1.3, y0, z1 - 1.0, rx1 - 1.3, y0 + 0.75, z1 - 0.3) });
+  }
+
+  /**
+   * 通用板楼：一条走廊（南）+ 一排房间（北）+ 若干楼梯间。
+   * 所有坐标都相对 spec.ox / spec.oz，所以同一段代码可以在校园里摆很多份。
+   *
+   * @returns {floorsMeta, stairNodes, corridorLen, roomZ0, roomZ1, footprint}
+   */
+  function buildBuildingInto(g, solids, doors, spec) {
+    const L = C.Config.level;
+    const H = spec.floorHeight || L.floorHeight;
+    const T = spec.wallThickness || L.wallThickness;
+    const roomW = spec.roomW || L.roomW, roomD = spec.roomD || L.roomD;
+    const roomGap = spec.roomGap === undefined ? L.roomGap : spec.roomGap;
+    const corridorD = spec.corridorD || L.corridorD;
+    const floors = spec.floors, nRooms = spec.roomsPerFloor;
+    const ox = spec.ox || 0, oz = spec.oz || 0;
+    const bid = spec.buildingId === undefined ? 1 : spec.buildingId;
+    const sides = spec.stairSides || [];
+    const stairWellW = spec.stairWellW || L.stairWellW, stairWellD = spec.stairWellD || L.stairWellD;
+    const stairWidth = spec.stairWidth || L.stairWidth;
+    const roomName = spec.roomName || ((f, i) => String((f + 1) * 100 + (i + 1)));
+    const furniture = spec.furniture || dormFurniture;
+    const label0 = spec.name ? spec.name : '';
+
+    const pitch = roomW + roomGap;
+    const corridorLen = (nRooms - 1) * pitch + roomW;
+    const roomZ0 = oz + corridorD, roomZ1 = oz + corridorD + roomD;
+    const cx0 = ox - 0.4, cx1 = ox + corridorLen + 0.4;
+    const westX1 = cx0, westX0 = westX1 - stairWellW;
+    const eastX0 = cx1, eastX1 = eastX0 + stairWellW;
+
+    const stairNodes = sides.map(() => []);
+    const floorsMeta = [];
+    // 这一段里 push 进 solids 的每一块都属于这栋楼，末尾统一打 bid。
+    // 分区加载靠它来决定「哪一批盒子现在要不要出现在场景里」。
+    const solidsStart = solids.length, doorsStart = doors.length;
+
+    for (let f = 0; f < floors; f++) {
+      const y0 = f * H + (spec.baseY || 0), y1 = y0 + H;
+      const label = (f + 1) + 'F';
+      const meta = { floor: f, y0, rooms: [], corridor: null, stairs: [], buildingId: bid };
+
+      // ── 走廊 ────────────────────────────────────────
+      const corridor = g.addNode({
+        name: (spec.prefix || '') + label + '走廊', kind: 'corridor', floor: f, buildingId: bid,
+        bounds: AABB.make(cx0, y0, oz - 0.1, cx1, y1, roomZ0)
+      });
+      meta.corridor = corridor;
+
+      /* 楼板 + 天花板。x 范围只覆盖「走廊 + 房间」，**不能盖到楼梯间上面** ——
+         楼梯间是贯通的竖井，盖上楼板的话上楼时会顶到天花板。 */
+      solids.push({ tag: 'floor', box: AABB.make(cx0, y0 - 0.2, oz - 0.1, cx1, y0, roomZ1) });
+      if (f === floors - 1) solids.push({ tag: 'roof', box: AABB.make(cx0, y1, oz - 0.1, cx1, y1 + 0.2, roomZ1) });
+
+      // 走廊南墙：一扇窗（通向楼前），一层再开一道大门
+      const winA = ox + corridorLen * 0.35, winB = winA + 1.4;
+      const southHoles = [{ a0: winA, a1: winB, y0: y0 + 1.0, y1: y0 + 2.0 }];
+      const doorA = ox + corridorLen * 0.62, doorB = doorA + 1.6;
+      const hasEntrance = spec.entrance && f === 0;
+      if (hasEntrance) southHoles.push({ a0: doorA, a1: doorB, y0: y0, y1: y0 + 2.2 });
+      wallWithHoles(solids, 'wall', 'x', oz - T, oz, cx0, cx1, y0, y1, southHoles);
+
+      if (spec.outFrontId !== undefined && spec.outFrontId !== null) {
+        const cw = g.addPortal({
+          nodeA: corridor.id, nodeB: spec.outFrontId, type: PortalType.Window, state: PortalState.Closed,
+          position: V.make((winA + winB) / 2, y0 + 1.5, oz - T / 2)
+        });
+        doors.push({ portalId: cw.id, kind: 'window',
+          box: AABB.make(winA, y0 + 1.0, oz - T, winB, y0 + 2.0, oz) });
+        if (hasEntrance) {
+          const ep = g.addPortal({
+            nodeA: corridor.id, nodeB: spec.outFrontId, type: PortalType.SteelDoor, state: PortalState.Closed,
+            position: V.make((doorA + doorB) / 2, y0 + 1.1, oz - T / 2)
+          });
+          doors.push({ portalId: ep.id, kind: 'door',
+            box: AABB.make(doorA, y0, oz - T, doorB, y0 + 2.2, oz) });
+          meta.entrancePortal = ep;
+          meta.entrancePos = V.make((doorA + doorB) / 2, y0, oz - T * 1.5);
+        }
+      }
+
+      // ── 房间 ───────────────────────────────────────
+      const roomHoles = [];   // 走廊北墙上的门洞
+      for (let i = 0; i < nRooms; i++) {
+        const rx0 = ox + i * pitch, rx1 = rx0 + roomW;
+        const node = g.addNode({
+          name: roomName(f, i), kind: 'room', floor: f, buildingId: bid,
+          bounds: AABB.make(rx0, y0, roomZ0, rx1, y1, roomZ1)
+        });
+        meta.rooms.push(node);
+
+        // 房间左右隔墙（相邻房间之间的实心块，含 roomGap）
+        if (roomGap > 0) solids.push({ tag: 'wall', box: AABB.make(rx1, y0, roomZ0, rx1 + roomGap, y1, roomZ1) });
+        if (i === 0) solids.push({ tag: 'wall', box: AABB.make(rx0 - T, y0, roomZ0, rx0, y1, roomZ1) });
+
+        // 房间门（走廊北墙上的洞）
+        const dcx = rx0 + roomW * 0.5, dw = 1.0;
+        roomHoles.push({ a0: dcx - dw / 2, a1: dcx + dw / 2, y0: y0, y1: y0 + 2.1 });
+        const openDoor = spec.doorOpen ? spec.doorOpen(f, i) : (i % 3 === 0);
+        const portal = g.addPortal({
+          nodeA: corridor.id, nodeB: node.id, type: PortalType.WoodDoor,
+          state: openDoor ? PortalState.Open : PortalState.Closed,
+          position: V.make(dcx, y0 + 1.05, roomZ0)
+        });
+        doors.push({ portalId: portal.id, kind: 'door',
+          box: AABB.make(dcx - dw / 2, y0, roomZ0 - 0.05, dcx + dw / 2, y0 + 2.1, roomZ0 + 0.05) });
+
+        // 房间北墙（带窗，通向楼后）
+        const wA = rx0 + 1.2, wB = wA + 1.6;
+        wallWithHoles(solids, 'wall', 'x', roomZ1, roomZ1 + T, rx0, rx1, y0, y1,
+          [{ a0: wA, a1: wB, y0: y0 + 1.0, y1: y0 + 2.0 }]);
+        if (spec.outBackId !== undefined && spec.outBackId !== null) {
+          const wp = g.addPortal({
+            nodeA: node.id, nodeB: spec.outBackId, type: PortalType.Window, state: PortalState.Closed,
+            position: V.make((wA + wB) / 2, y0 + 1.5, roomZ1 + T / 2)
+          });
+          doors.push({ portalId: wp.id, kind: 'window',
+            box: AABB.make(wA, y0 + 1.0, roomZ1, wB, y0 + 2.0, roomZ1 + T) });
+        }
+
+        furniture(solids, rx0, rx1, y0, roomZ0, roomZ1, f, i);
+      }
+      // 走廊北墙（挖出每间房的门洞）
+      wallWithHoles(solids, 'wall', 'x', roomZ0 - T, roomZ0, cx0, cx1, y0, y1, roomHoles);
+
+      // ── 楼梯间 ─────────────────────────────────────
+      sides.forEach((side, si) => {
+        const west = side === 'west';
+        const sx0 = west ? westX0 : eastX0, sx1 = west ? westX1 : eastX1;
+        const node = g.addNode({
+          name: (spec.prefix || '') + (west ? '西' : '东') + '楼梯' + label, kind: 'stair', floor: f, buildingId: bid,
+          bounds: AABB.make(sx0, y0, oz - 0.1, sx1, y1, oz + stairWellD)
+        });
+        meta.stairs.push(node);
+        stairNodes[si].push(node);
+
+        // 走道半幅（靠走廊那一侧）
+        const walk0 = west ? sx1 - 2.9 : sx0, walk1 = west ? sx1 : sx0 + 2.9;
+        solids.push({ tag: 'floor', box: AABB.make(walk0, y0 - 0.2, oz - 0.1, walk1, y0, oz + stairWellD) });
+        node.walkCenterX = (walk0 + walk1) / 2;
+
+        const st0 = west ? sx0 + 0.3 : sx1 - 0.3 - stairWidth;
+        node.stairCenterX = st0 + stairWidth / 2;   // 寻路要走到梯段上，不能只走到节点中心
+        const steps = Math.round(H / L.stairStepH);
+        const stairZ0 = oz + 0.5, stairZ1 = stairZ0 + steps * L.stairStepD;
+        node.stairZ1 = stairZ1;
+
+        /* 梯段上下两端的落脚平台每层都有；**梯段区必须留空** ——
+           那是从下一层上来的楼梯的洞。曾经把顶层整个铺平，结果出生的四楼下不去。 */
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, oz - 0.1, sx1, y0, stairZ0) });
+        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, oz + stairWellD) });
+        if (f === floors - 1) {
+          solids.push({ tag: 'roof', box: AABB.make(sx0 - T, y1, oz - 0.1, sx1 + T, y1 + 0.2, oz + stairWellD + T) });
+        } else {
+          /* 梯段：沿 +z 上行，占另外半幅。
+             踏板要有厚度（挡住从侧面爬），但不能做成从楼板一直填到踏面的实心柱 ——
+             那样上一层的梯段会把这一层楼梯的头顶空间占满，爬到一半就会顶头。 */
+          for (let s = 0; s < steps; s++) {
+            const zz = stairZ0 + s * L.stairStepD;
+            const top = y0 + (s + 1) * L.stairStepH;
+            solids.push({ tag: 'stair',
+              box: AABB.make(st0, top - L.stairSlabThickness, zz, st0 + stairWidth, top, zz + L.stairStepD) });
+          }
+        }
+
+        /* 楼梯间外墙。只砌远离走廊那一侧的外墙 —— 靠走廊那一侧由下面的 wallWithHoles 砌，
+           因为那面墙上要留门洞，两边都砌的话门洞会被这堵实心墙糊死。 */
+        if (west) solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, oz - 0.1, sx0, y1, oz + stairWellD) });
+        else      solids.push({ tag: 'wall', box: AABB.make(sx1, y0, oz - 0.1, sx1 + T, y1, oz + stairWellD) });
+        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, oz + stairWellD, sx1 + T, y1, oz + stairWellD + T) });
+        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, oz - T, sx1 + T, y1, oz - 0.1) });
+
+        // 楼梯间 ↔ 走廊：门洞（无门）
+        const gx = west ? westX1 : eastX0;
+        const gz0 = oz + 0.6, gz1 = oz + 1.8;
+        wallWithHoles(solids, 'wall', 'z', gx - T / 2, gx + T / 2, oz - 0.1, oz + stairWellD, y0, y1,
+          [{ a0: gz0, a1: gz1, y0: y0, y1: y0 + 2.1 }]);
+        g.addPortal({
+          nodeA: node.id, nodeB: corridor.id, type: PortalType.Doorway, state: PortalState.Open,
+          position: V.make(gx, y0 + 1.05, (gz0 + gz1) / 2)
+        });
+      });
+
+      floorsMeta.push(meta);
+    }
+
+    // ── 楼层之间的楼梯口 Portal ───────────────────────
+    for (let si = 0; si < stairNodes.length; si++) {
+      for (let f = 0; f < floors - 1; f++) {
+        const a = stairNodes[si][f], b = stairNodes[si][f + 1];
+        const cx = a.stairCenterX;
+        const y = (spec.baseY || 0);
+        const p = g.addPortal({
+          nodeA: a.id, nodeB: b.id, type: PortalType.Stairwell, state: PortalState.Open,
+          position: V.make(cx, y + (f + 1) * H, oz + stairWellD - 1.0)
+        });
+        /* 寻路专用：从 nodeA 一侧上行的顺序路点（下行时整体反向）。
+           四个点缺一不可 —— 只给「梯段中点」的话，丧尸会从走道斜切过去撞在
+           梯段侧面，因为台阶侧壁高度超过 stepHeight 爬不上去。
+             ① 走道上对齐梯脚 → ② 梯脚 → ③ 梯顶 → ④ 上一层走道 */
+        const zTop = a.stairZ1 + 0.35;
+        p.waypoints = [
+          V.make(a.walkCenterX, y + f * H, oz + 0.2),
+          V.make(cx, y + f * H, oz + 0.2),
+          V.make(cx, y + (f + 1) * H, zTop),
+          V.make(b.walkCenterX, y + (f + 1) * H, zTop)
+        ];
+      }
+    }
+
+    for (let i = solidsStart; i < solids.length; i++) solids[i].bid = bid;
+    for (let i = doorsStart; i < doors.length; i++) doors[i].bid = bid;
+
+    const fx0 = (sides.includes('west') ? westX0 : cx0) - T;
+    const fx1 = (sides.includes('east') ? eastX1 : cx1) + T;
+    return {
+      floorsMeta, stairNodes, corridorLen, roomZ0, roomZ1,
+      footprint: { x0: fx0, x1: fx1, z0: oz - T, z1: roomZ1 + T },
+      topY: (spec.baseY || 0) + floors * H
+    };
+  }
+
   function buildDormitory() {
     const L = C.Config.level;
     const g = new C.SoundGraph();
@@ -1394,9 +1857,8 @@
     const H = L.floorHeight, T = L.wallThickness;
     const pitch = L.roomW + L.roomGap;
     const corridorLen = (L.roomsPerFloor - 1) * pitch + L.roomW;   // 29m
-    const roomZ0 = L.corridorD, roomZ1 = L.corridorD + L.roomD;    // 房间 z 范围
-    const westX1 = -0.4, westX0 = westX1 - L.stairWellW;           // 西楼梯间
-    const eastX0 = corridorLen + 0.4, eastX1 = eastX0 + L.stairWellW;
+    const roomZ1 = L.corridorD + L.roomD;
+    const westX0 = -0.4 - L.stairWellW, eastX1 = corridorLen + 0.4 + L.stairWellW;
 
     // ── 室外（两片，绕楼一圈，用于验证室外 k=1.2 与开窗引怪）──
     const outFront = g.addNode({
@@ -1414,171 +1876,18 @@
     // 室外地面
     solids.push({ tag: 'ground', box: AABB.make(westX0 - 12, -1.0, -16, eastX1 + 12, 0, roomZ1 + 18) });
 
-    const stairNodes = [[], []];   // [楼梯间序号][层]
-    const floorsMeta = [];
+    const b = buildBuildingInto(g, solids, doors, {
+      buildingId: 1, ox: 0, oz: 0,
+      floors: L.floors, roomsPerFloor: L.roomsPerFloor,
+      stairSides: ['west', 'east'],
+      outFrontId: outFront.id, outBackId: outBack.id,
+      entrance: false,
+      // 出生的那间必须是关着的：开局第一个决定就是怎么开这扇门
+      doorOpen: (f, i) => (i % 3 === 0) && !(f === L.spawnRoomFloor && i === L.spawnRoomIndex)
+    });
 
-    for (let f = 0; f < L.floors; f++) {
-      const y0 = f * H, y1 = y0 + H;
-      const label = (f + 1) + 'F';
-      const meta = { floor: f, y0, rooms: [], corridor: null, stairs: [] };
-
-      // ── 走廊节点 ────────────────────────────────────
-      const corridor = g.addNode({
-        name: label + '走廊', kind: 'corridor', floor: f, buildingId: 1,
-        bounds: AABB.make(-0.4, y0, -0.1, corridorLen + 0.4, y1, roomZ0)
-      });
-      meta.corridor = corridor;
-
-      // 楼板 + 天花板。注意 x 范围只覆盖「走廊 + 房间」，不能盖到楼梯间上面 ——
-      // 楼梯间是贯通的竖井，盖上楼板的话上楼时会顶到天花板。
-      solids.push({ tag: 'floor', box: AABB.make(-0.4, y0 - 0.2, -0.1, corridorLen + 0.4, y0, roomZ1) });
-      if (f === L.floors - 1) solids.push({ tag: 'roof', box: AABB.make(-0.4, y1, -0.1, corridorLen + 0.4, y1 + 0.2, roomZ1) });
-
-      // 走廊南墙（带窗，通向楼前空地）
-      const corridorWindowA = corridorLen * 0.35, corridorWindowB = corridorWindowA + 1.4;
-      wallWithHoles(solids, 'wall', 'x', -T, 0, -0.4, corridorLen + 0.4, y0, y1,
-        [{ a0: corridorWindowA, a1: corridorWindowB, y0: y0 + 1.0, y1: y0 + 2.0 }]);
-      const cw = g.addPortal({
-        nodeA: corridor.id, nodeB: outFront.id, type: PortalType.Window, state: PortalState.Closed,
-        position: V.make((corridorWindowA + corridorWindowB) / 2, y0 + 1.5, -T / 2)
-      });
-      doors.push({ portalId: cw.id, kind: 'window',
-        box: AABB.make(corridorWindowA, y0 + 1.0, -T, corridorWindowB, y0 + 2.0, 0) });
-
-      // ── 房间 ───────────────────────────────────────
-      const roomHoles = [];   // 走廊北墙上的门洞
-      for (let i = 0; i < L.roomsPerFloor; i++) {
-        const rx0 = i * pitch, rx1 = rx0 + L.roomW;
-        const roomName = String((f + 1) * 100 + (i + 1));
-        const node = g.addNode({
-          name: roomName, kind: 'room', floor: f, buildingId: 1,
-          bounds: AABB.make(rx0, y0, roomZ0, rx1, y1, roomZ1)
-        });
-        meta.rooms.push(node);
-
-        // 房间左右隔墙（相邻房间之间的实心块，含 roomGap）
-        solids.push({ tag: 'wall', box: AABB.make(rx1, y0, roomZ0, rx1 + L.roomGap, y1, roomZ1) });
-        if (i === 0) solids.push({ tag: 'wall', box: AABB.make(rx0 - T, y0, roomZ0, rx0, y1, roomZ1) });
-
-        // 房间门（走廊北墙上的洞）
-        const dcx = rx0 + L.roomW * 0.5, dw = 1.0;
-        roomHoles.push({ a0: dcx - dw / 2, a1: dcx + dw / 2, y0: y0, y1: y0 + 2.1 });
-        const isSpawn = (f === L.spawnRoomFloor && i === L.spawnRoomIndex);
-        const portal = g.addPortal({
-          nodeA: corridor.id, nodeB: node.id, type: PortalType.WoodDoor,
-          state: (i % 3 === 0 && !isSpawn) ? PortalState.Open : PortalState.Closed,
-          position: V.make(dcx, y0 + 1.05, roomZ0)
-        });
-        doors.push({ portalId: portal.id, kind: 'door',
-          box: AABB.make(dcx - dw / 2, y0, roomZ0 - 0.05, dcx + dw / 2, y0 + 2.1, roomZ0 + 0.05) });
-
-        // 房间北墙（带窗，通向楼后空地）
-        const wA = rx0 + 1.2, wB = wA + 1.6;
-        wallWithHoles(solids, 'wall', 'x', roomZ1, roomZ1 + T, rx0, rx1, y0, y1,
-          [{ a0: wA, a1: wB, y0: y0 + 1.0, y1: y0 + 2.0 }]);
-        const wp = g.addPortal({
-          nodeA: node.id, nodeB: outBack.id, type: PortalType.Window, state: PortalState.Closed,
-          position: V.make((wA + wB) / 2, y0 + 1.5, roomZ1 + T / 2)
-        });
-        doors.push({ portalId: wp.id, kind: 'window',
-          box: AABB.make(wA, y0 + 1.0, roomZ1, wB, y0 + 2.0, roomZ1 + T) });
-
-        // 家具：两张上下铺 + 一张桌子（掩体，也是蜷伏者的藏身处）
-        solids.push({ tag: 'bed', box: AABB.make(rx0 + 0.15, y0, roomZ0 + 0.3, rx0 + 1.15, y0 + 0.55, roomZ0 + 2.3) });
-        solids.push({ tag: 'bed', box: AABB.make(rx1 - 1.15, y0, roomZ0 + 0.3, rx1 - 0.15, y0 + 0.55, roomZ0 + 2.3) });
-        solids.push({ tag: 'desk', box: AABB.make(rx0 + 1.3, y0, roomZ1 - 1.0, rx1 - 1.3, y0 + 0.75, roomZ1 - 0.3) });
-      }
-      // 走廊北墙（挖出 6 个门洞）
-      wallWithHoles(solids, 'wall', 'x', roomZ0 - T, roomZ0, -0.4, corridorLen + 0.4, y0, y1, roomHoles);
-
-      // ── 两个楼梯间 ──────────────────────────────────
-      [0, 1].forEach((si) => {
-        const west = si === 0;
-        const sx0 = west ? westX0 : eastX0, sx1 = west ? westX1 : eastX1;
-        const node = g.addNode({
-          name: (west ? '西' : '东') + '楼梯' + label, kind: 'stair', floor: f, buildingId: 1,
-          bounds: AABB.make(sx0, y0, -0.1, sx1, y1, L.stairWellD)
-        });
-        meta.stairs.push(node);
-        stairNodes[si].push(node);
-
-        // 走道半幅（靠走廊那一侧）
-        const walk0 = west ? sx1 - 2.9 : sx0, walk1 = west ? sx1 : sx0 + 2.9;
-        solids.push({ tag: 'floor', box: AABB.make(walk0, y0 - 0.2, -0.1, walk1, y0, L.stairWellD) });
-        node.walkCenterX = (walk0 + walk1) / 2;
-
-        const st0 = west ? sx0 + 0.3 : sx1 - 0.3 - L.stairWidth;
-        node.stairCenterX = st0 + L.stairWidth / 2;   // 寻路要走到梯段上，不能只走到节点中心
-        const steps = Math.round(H / L.stairStepH);
-        const stairZ0 = 0.5, stairZ1 = stairZ0 + steps * L.stairStepD;
-        node.stairZ1 = stairZ1;
-
-        /* 梯段上下两端的落脚平台每层都有；**梯段区必须留空** ——
-           那是从下一层上来的楼梯的洞。曾经把顶层整个铺平，结果出生的四楼下不去。 */
-        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, -0.1, sx1, y0, stairZ0) });
-        solids.push({ tag: 'floor', box: AABB.make(sx0, y0 - 0.2, stairZ1, sx1, y0, L.stairWellD) });
-        if (f === L.floors - 1) {
-          solids.push({ tag: 'roof', box: AABB.make(sx0 - T, y1, -0.1, sx1 + T, y1 + 0.2, L.stairWellD + T) });
-        } else {
-          /* 梯段：沿 +z 上行，占另外半幅。
-             踏板要有厚度（挡住从侧面爬），但不能做成从楼板一直填到踏面的实心柱 ——
-             那样上一层的梯段会把这一层楼梯的头顶空间占满，爬到一半就会顶头。 */
-          for (let s = 0; s < steps; s++) {
-            const zz = stairZ0 + s * L.stairStepD;
-            const top = y0 + (s + 1) * L.stairStepH;
-            solids.push({ tag: 'stair',
-              box: AABB.make(st0, top - L.stairSlabThickness, zz, st0 + L.stairWidth, top, zz + L.stairStepD) });
-          }
-        }
-
-        // 楼梯间外墙
-        // 只砌远离走廊那一侧的外墙。靠走廊那一侧由下面的 wallWithHoles 砌，
-        // 因为那面墙上要留门洞 —— 两边都砌的话门洞会被这堵实心墙糊死。
-        if (west) solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, -0.1, sx0, y1, L.stairWellD) });
-        else      solids.push({ tag: 'wall', box: AABB.make(sx1, y0, -0.1, sx1 + T, y1, L.stairWellD) });
-        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, L.stairWellD, sx1 + T, y1, L.stairWellD + T) });
-        // 南墙（带楼梯间与走廊之间的门洞在东/西侧墙上，这里南面是实心）
-        solids.push({ tag: 'wall', box: AABB.make(sx0 - T, y0, -T, sx1 + T, y1, -0.1) });
-
-        // 楼梯间 ↔ 走廊：门洞（无门）
-        const gx = west ? westX1 : eastX0;
-        const gz0 = 0.6, gz1 = 1.8;
-        wallWithHoles(solids, 'wall', 'z', gx - T / 2, gx + T / 2, -0.1, L.stairWellD, y0, y1,
-          [{ a0: gz0, a1: gz1, y0: y0, y1: y0 + 2.1 }]);
-        g.addPortal({
-          nodeA: node.id, nodeB: corridor.id, type: PortalType.Doorway, state: PortalState.Open,
-          position: V.make(gx, y0 + 1.05, (gz0 + gz1) / 2)
-        });
-      });
-
-      floorsMeta.push(meta);
-    }
-
-    // ── 楼层之间的楼梯口 Portal ───────────────────────
-    for (let si = 0; si < 2; si++) {
-      for (let f = 0; f < L.floors - 1; f++) {
-        const a = stairNodes[si][f], b = stairNodes[si][f + 1];
-        const cx = a.stairCenterX;
-        const p = g.addPortal({
-          nodeA: a.id, nodeB: b.id, type: PortalType.Stairwell, state: PortalState.Open,
-          position: V.make(cx, (f + 1) * H, L.stairWellD - 1.0)
-        });
-        /* 寻路专用：从 nodeA 一侧上行的顺序路点（下行时整体反向）。
-           四个点缺一不可 —— 只给「梯段中点」的话，丧尸会从走道斜切过去撞在
-           梯段侧面，因为台阶侧壁高度超过 stepHeight 爬不上去。
-             ① 走道上对齐梯脚 → ② 梯脚 → ③ 梯顶 → ④ 上一层走道 */
-        const zTop = a.stairZ1 + 0.35;
-        p.waypoints = [
-          V.make(a.walkCenterX, f * H, 0.2),
-          V.make(cx, f * H, 0.2),
-          V.make(cx, (f + 1) * H, zTop),
-          V.make(b.walkCenterX, (f + 1) * H, zTop)
-        ];
-      }
-    }
-
-    // ── 出生点与丧尸布置（主文档 9.3）──────────────────
-    const spawnRoom = floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
+    // ── 出生点与丧尸布置（主文档 13.2）──────────────────
+    const spawnRoom = b.floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
     const src = AABB.center(spawnRoom.bounds);
     // 面朝房门：开局第一件事就是决定怎么开这扇门（快速还是缓慢）
     const spawn = { x: src.x, y: L.spawnRoomFloor * H + 0.02, z: src.z, yaw: 0 };
@@ -1586,12 +1895,12 @@
     const corridorZ = L.corridorD * 0.5;
     const zombieSpawns = [
       // 第一只丧尸在三楼楼梯口，玩家必须绕开（此时没有任何武器）
-      { type: 'Wanderer', pos: V.make(westX1 - 1.5, 2 * H + 0.02, 1.2), homeNode: null },
+      { type: 'Wanderer', pos: V.make(-0.4 - 1.5, 2 * H + 0.02, 1.2), homeNode: null },
       { type: 'Wanderer', pos: V.make(corridorLen * 0.55, 1 * H + 0.02, corridorZ) },
       { type: 'Wanderer', pos: V.make(corridorLen * 0.75, 0 * H + 0.02, corridorZ) },
       // 蜷伏者藏在玩家出生层的另一间宿舍里 —— 教玩家屏息侦查
       { type: 'Crawler', pos: (() => {
-          const r = AABB.center(floorsMeta[L.spawnRoomFloor].rooms[4].bounds);
+          const r = AABB.center(b.floorsMeta[L.spawnRoomFloor].rooms[4].bounds);
           return V.make(r.x, L.spawnRoomFloor * H + 0.02, r.z + 1.2);
         })() }
     ];
@@ -1600,11 +1909,14 @@
       graph: g, solids, doors, spawn, zombieSpawns,
       // 出厂状态快照：存档只记与它不同的 Portal
       portalInitialStates: g.portals.map(p => p.state),
-      floorsMeta, corridorLen, roomZ0, roomZ1,
+      floorsMeta: b.floorsMeta, corridorLen: b.corridorLen, roomZ0: b.roomZ0, roomZ1: b.roomZ1,
       bounds: { minX: westX0 - 12, maxX: eastX1 + 12, minZ: -16, maxZ: roomZ1 + 18, floors: L.floors, floorHeight: H }
     };
   }
 
+  C.wallWithHoles = wallWithHoles;
+  C.dormFurniture = dormFurniture;
+  C.buildBuildingInto = buildBuildingInto;
   C.buildDormitory = buildDormitory;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
@@ -1814,7 +2126,19 @@
 
   /* 物品表。size 是 [宽, 高] 格；weight 千克。
      kind: food 食物 / drink 饮水 / med 医疗 / tool 工具 / weapon 武器
-           / material 材料 / container 容器 / throwable 投掷物 / junk 杂物 */
+           / material 材料 / container 容器 / throwable 投掷物 / junk 杂物
+
+     **格数量的是体积，不是价值。** 这两件事在这张表里是解耦的，而且是故意解耦的：
+
+       校园平面图  2 格 · 全校唯一 · 决定你能不能规划路线
+       抗生素      1 格 · 全校仅 4 支 · 决定你会不会死于感染
+       米袋        9 格 · 食堂一抓一把 · 但你一次只背得动一袋
+       发电机     16 格 · 结局一的前置 · 没有登山包根本装不下
+       课本        4 格 · 一文不值 · 纯粹占地方
+
+     所以「腾出五格」这个决策永远不能靠「扔便宜的」来解 ——
+     要扔的往往正是那袋米，而那袋米是你今晚的饭。
+     反过来，塞满一背包小东西也不等于赚了：负重是另一条独立的线。 */
   const ITEMS = {
     water:      { name: '瓶装水 500ml', size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -25 } },
     boiled:     { name: '煮沸的水',     size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -22 } },
@@ -1837,11 +2161,65 @@
     stone:      { name: '石头',         size: [1, 1], weight: 0.25, kind: 'throwable', stack: 8 },
     glassBottle:{ name: '玻璃瓶',       size: [1, 2], weight: 0.38, kind: 'throwable' },
     mop:        { name: '拖把杆',       size: [1, 4], weight: 1.10, kind: 'weapon' },
-    textbook:   { name: '课本',         size: [2, 2], weight: 0.70, kind: 'junk' },
+    textbook:   { name: '课本',         size: [2, 2], weight: 0.70, kind: 'junk', book: true },
     key:        { name: '钥匙',         size: [1, 1], weight: 0.02, kind: 'tool' },
     smallBag:   { name: '小书包',       size: [2, 2], weight: 0.40, kind: 'container', grid: [5, 4] },
     schoolBag:  { name: '学生书包',     size: [2, 3], weight: 0.55, kind: 'container', grid: [5, 4] },
-    tacticalBag:{ name: '战术背包',     size: [3, 3], weight: 0.90, kind: 'container', grid: [6, 5], rare: true }
+    tacticalBag:{ name: '战术背包',     size: [3, 3], weight: 0.90, kind: 'container', grid: [6, 5], rare: true },
+
+    /* ── M2 新增：全校其余地点的产出 ─────────────────────────
+       尺寸按「这东西在现实里多占地方」定，与稀有度无关，见表头那段说明。 */
+
+    // 食堂：粮食是最占地方的东西，也是撑过三十天的唯一办法
+    rice:       { name: '大米 5kg',     size: [3, 3], weight: 5.00, kind: 'material' },
+    flour:      { name: '面粉 2kg',     size: [2, 3], weight: 2.00, kind: 'material' },
+    oil:        { name: '食用油',       size: [2, 2], weight: 1.80, kind: 'material' },
+    salt:       { name: '盐',           size: [1, 1], weight: 0.40, kind: 'material' },
+    pot:        { name: '铁锅',         size: [3, 3], weight: 1.60, kind: 'tool' },
+    gasCan:     { name: '燃气罐',       size: [2, 3], weight: 4.50, kind: 'tool' },
+
+    // 小卖部：热量密度高、体积小，第一幕的救命稻草
+    soda:       { name: '罐装饮料',     size: [1, 1], weight: 0.33, kind: 'drink', use: { thirst: -18, hunger: -2 } },
+    bigWater:   { name: '桶装水 1.5L',  size: [2, 2], weight: 1.55, kind: 'drink', use: { thirst: -60 } },
+
+    // 医务室
+    painkiller: { name: '止痛药',       size: [1, 1], weight: 0.05, kind: 'med' },
+    splint:     { name: '夹板',         size: [1, 3], weight: 0.30, kind: 'med' },
+
+    // 实验楼：烧杯能煮水，是第 8 天停水之后的关键道具
+    beaker:     { name: '烧杯',         size: [2, 2], weight: 0.35, kind: 'tool' },
+    reagent:    { name: '化学试剂',     size: [1, 2], weight: 0.45, kind: 'material' },
+    burner:     { name: '酒精灯',       size: [1, 1], weight: 0.22, kind: 'tool' },
+
+    // 保安室：全校唯一的战术背包与平面图都在这里
+    pitchfork:  { name: '钢叉',         size: [1, 5], weight: 2.30, kind: 'weapon' },
+    baton:      { name: '警棍',         size: [1, 3], weight: 0.85, kind: 'weapon' },
+    radio:      { name: '对讲机',       size: [1, 2], weight: 0.32, kind: 'tool' },
+    campusMap:  { name: '校园平面图',   size: [2, 1], weight: 0.05, kind: 'tool', rare: true },
+    masterKey:  { name: '万能钥匙串',   size: [1, 1], weight: 0.09, kind: 'tool', rare: true },
+
+    // 体育器材室：登山包是全校最大的容器，本身就占三格宽四格高
+    bat:        { name: '棒球棍',       size: [1, 4], weight: 0.95, kind: 'weapon' },
+    starterGun: { name: '发令枪',       size: [1, 2], weight: 0.55, kind: 'tool', rare: true },
+    rope:       { name: '绳索',         size: [2, 2], weight: 1.20, kind: 'material' },
+    hikingBag:  { name: '登山包',       size: [3, 4], weight: 1.10, kind: 'container', grid: [6, 6], rare: true },
+
+    // 教学楼 / 图书馆
+    stationery: { name: '文具盒',       size: [2, 1], weight: 0.20, kind: 'junk' },
+    manual:     { name: '技术手册',     size: [2, 3], weight: 0.90, kind: 'junk', rare: true, book: true },
+    novel:      { name: '小说',         size: [1, 2], weight: 0.35, kind: 'junk' },
+
+    // 车棚 / 锅炉房：结局一需要发电机与柴油，两样都大得离谱
+    bikePart:   { name: '车辆零件',     size: [2, 2], weight: 1.40, kind: 'material' },
+    wrench:     { name: '扳手',         size: [1, 2], weight: 0.55, kind: 'tool' },
+    toolkit:    { name: '工具箱',       size: [3, 2], weight: 2.60, kind: 'tool' },
+    fuse:       { name: '保险丝',       size: [1, 1], weight: 0.03, kind: 'tool', stack: 4 },
+    diesel:     { name: '柴油桶',       size: [3, 3], weight: 6.50, kind: 'material', rare: true },
+    generator:  { name: '发电机',       size: [4, 4], weight: 14.0, kind: 'tool', rare: true },
+
+    // 行政楼：结局一/三的前置
+    broadcastPart: { name: '广播设备零件', size: [3, 2], weight: 2.10, kind: 'material', rare: true },
+    beacon:     { name: '信标',         size: [2, 3], weight: 1.90, kind: 'tool', rare: true }
   };
 
   let nextUid = 1;
@@ -2005,7 +2383,25 @@
     underBed: { name: '床下箱',   grid: [4, 3], search: 4, color: 0x6f5d4a, size: [0.9, 0.4, 0.6] },
     bag:      { name: '书包',     grid: [5, 4], search: 3, color: 0x4c6b8a, size: [0.45, 0.5, 0.3] },
     trash:    { name: '垃圾桶',   grid: [2, 2], search: 2, color: 0x5a6a5a, size: [0.45, 0.6, 0.45] },
-    locker:   { name: '储物柜',   grid: [3, 4], search: 4, color: 0x74808c, size: [0.6, 1.7, 0.5] }
+    locker:   { name: '储物柜',   grid: [3, 4], search: 4, color: 0x74808c, size: [0.6, 1.7, 0.5] },
+
+    /* ── M2：全校其余地点的容器 ───────────────────────
+       格子越大、翻得越久 —— 「你在翻箱子的时候是聋的也是瞎的，而箱子越大翻得越久」。
+       食堂的米面柜 5×5 翻 7 秒，是全校最危险的一次搜刮，而它恰恰在丧尸最密的楼里。 */
+    podium:     { name: '讲台',     grid: [3, 3], search: 3, color: 0x8d7a5c, size: [1.2, 0.9, 0.6] },
+    classDesk:  { name: '课桌',     grid: [2, 3], search: 2, color: 0x9a8a6a, size: [0.6, 0.5, 0.45] },
+    reagentCab: { name: '试剂柜',   grid: [4, 4], search: 5, color: 0x5f8a7a, size: [0.7, 1.8, 0.5] },
+    bookshelf:  { name: '书架',     grid: [5, 5], search: 6, color: 0x7a6a52, size: [0.5, 1.9, 1.6] },
+    pantry:     { name: '米面柜',   grid: [5, 5], search: 7, color: 0x8a7a5a, size: [1.2, 1.9, 0.7] },
+    counter:    { name: '灶台',     grid: [4, 4], search: 5, color: 0x6f7a80, size: [1.6, 0.9, 0.7] },
+    fridge:     { name: '冰柜',     grid: [4, 4], search: 5, color: 0x93a2ab, size: [0.9, 1.7, 0.7] },
+    medCab:     { name: '药柜',     grid: [3, 4], search: 5, color: 0xa8b4ae, size: [0.7, 1.7, 0.4] },
+    shopShelf:  { name: '货架',     grid: [4, 4], search: 3, color: 0x87796a, size: [1.4, 1.7, 0.5] },
+    gearRack:   { name: '器材架',   grid: [5, 4], search: 4, color: 0x6c7f6a, size: [1.6, 1.8, 0.6] },
+    toolCab:    { name: '工具柜',   grid: [4, 4], search: 5, color: 0x76706a, size: [0.8, 1.7, 0.5] },
+    fileCab:    { name: '档案柜',   grid: [4, 4], search: 4, color: 0x7d8288, size: [0.8, 1.7, 0.45] },
+    // 保安柜做成 5 格宽：钢叉是 1×5，柜子窄一格就永远塞不进去
+    guardLocker:{ name: '保安柜',   grid: [5, 4], search: 5, color: 0x5f6b78, size: [0.8, 1.8, 0.5] }
   };
 
   /* 产出池：[物品id, 权重, 最少, 最多]。抽 count 次，每次按权重挑一样。 */
@@ -2020,7 +2416,38 @@
                                      ['sausage', 3, 1, 2], ['textbook', 2, 1, 1], ['battery', 2, 1, 1]] },
     trash:    { count: [1, 2], pool: [['emptyBottle', 5, 1, 1], ['cloth', 3, 1, 1], ['glassBottle', 2, 1, 1]] },
     locker:   { count: [1, 3], pool: [['canned', 3, 1, 1], ['water', 3, 1, 1], ['bandage', 2, 1, 1],
-                                     ['alcohol', 1, 1, 1], ['cloth', 2, 1, 2], ['dirtyWater', 2, 1, 1]] }
+                                     ['alcohol', 1, 1, 1], ['cloth', 2, 1, 2], ['dirtyWater', 2, 1, 1]] },
+
+    /* ── M2 产出池 ────────────────────────────────────
+       瓶装水的权重全校都压得很低：它是第二幕唯一能顶用的东西，多一瓶少一瓶
+       都会动到第 8 天停水之后的生死线（10.3）。剩下的按「这地方现实里有什么」写。 */
+    podium:     { count: [1, 2], pool: [['stationery', 4, 1, 1], ['textbook', 4, 1, 1], ['clockPart', 2, 1, 2],
+                                        ['key', 1, 1, 1], ['chocolate', 2, 1, 1]] },
+    classDesk:  { count: [1, 2], pool: [['stationery', 4, 1, 1], ['textbook', 4, 1, 1], ['biscuit', 2, 1, 1],
+                                        ['novel', 2, 1, 1], ['battery', 2, 1, 1], ['cloth', 1, 1, 1]] },
+    reagentCab: { count: [2, 3], pool: [['alcohol', 4, 1, 1], ['reagent', 3, 1, 1], ['beaker', 3, 1, 1],
+                                        ['burner', 2, 1, 1], ['glassBottle', 2, 1, 1], ['lighter', 1, 1, 1]] },
+    bookshelf:  { count: [2, 3], pool: [['novel', 5, 1, 2], ['textbook', 4, 1, 1], ['manual', 1, 1, 1],
+                                        ['stationery', 2, 1, 1]] },
+    pantry:     { count: [2, 3], pool: [['rice', 4, 1, 1], ['flour', 3, 1, 1], ['oil', 2, 1, 1],
+                                        ['salt', 2, 1, 1], ['noodle', 3, 1, 2]] },
+    counter:    { count: [1, 3], pool: [['pot', 3, 1, 1], ['gasCan', 2, 1, 1], ['lighter', 2, 1, 1],
+                                        ['salt', 2, 1, 1], ['oil', 2, 1, 1], ['cloth', 2, 1, 2]] },
+    fridge:     { count: [1, 3], pool: [['sausage', 4, 1, 2], ['canned', 3, 1, 1], ['soda', 3, 1, 2],
+                                        ['water', 2, 1, 1], ['bigWater', 1, 1, 1]] },
+    medCab:     { count: [2, 3], pool: [['bandage', 5, 1, 2], ['alcohol', 3, 1, 1], ['painkiller', 3, 1, 1],
+                                        ['splint', 2, 1, 1], ['cloth', 2, 1, 2]] },
+    shopShelf:  { count: [2, 4], pool: [['biscuit', 4, 1, 2], ['chocolate', 4, 1, 2], ['soda', 3, 1, 2],
+                                        ['noodle', 3, 1, 1], ['lighter', 2, 1, 1], ['battery', 3, 1, 2],
+                                        ['sausage', 2, 1, 2], ['water', 1, 1, 1]] },
+    gearRack:   { count: [1, 3], pool: [['bat', 3, 1, 1], ['rope', 3, 1, 1], ['cloth', 2, 1, 2],
+                                        ['stone', 2, 2, 4], ['mop', 1, 1, 1]] },
+    toolCab:    { count: [1, 3], pool: [['wrench', 3, 1, 1], ['toolkit', 2, 1, 1], ['fuse', 3, 1, 2],
+                                        ['bikePart', 2, 1, 1], ['cloth', 2, 1, 1], ['tarp', 1, 1, 1]] },
+    fileCab:    { count: [1, 3], pool: [['key', 3, 1, 1], ['textbook', 3, 1, 1], ['stationery', 2, 1, 1],
+                                        ['battery', 2, 1, 1], ['radio', 1, 1, 1]] },
+    guardLocker:{ count: [1, 3], pool: [['baton', 3, 1, 1], ['flashlight', 3, 1, 1], ['radio', 2, 1, 1],
+                                        ['key', 2, 1, 1], ['pitchfork', 1, 1, 1]] }
   };
 
   /* 固定放置：不走随机池，写死在具体位置。稀有物资必须这样放，
@@ -2101,6 +2528,129 @@
     return out;
   }
 
+  /* ── M2：全校布置 ──────────────────────────────────
+     房型 → 这类房间里摆哪些容器，以及各自在房间里的相对位置 [x 比例, z 比例]。
+     位置只影响「走到哪按 F」，不参与碰撞，所以可以贴着家具摆。 */
+  const ROOM_CONTAINERS = {
+    dorm:      [['desk', 0.5, 0.86], ['wardrobe', 0.88, 0.20], ['underBed', 0.12, 0.42]],
+    classroom: [['podium', 0.5, 0.88], ['classDesk', 0.25, 0.45], ['classDesk', 0.75, 0.45]],
+    lab:       [['reagentCab', 0.85, 0.85], ['desk', 0.2, 0.5]],
+    library:   [['bookshelf', 0.3, 0.6], ['bookshelf', 0.75, 0.6]],
+    canteen:   [['pantry', 0.15, 0.85], ['counter', 0.5, 0.88], ['fridge', 0.85, 0.85]],
+    clinic:    [['medCab', 0.85, 0.8], ['desk', 0.3, 0.85]],
+    office:    [['fileCab', 0.15, 0.55], ['desk', 0.6, 0.82]],
+    guard:     [['guardLocker', 0.85, 0.4], ['desk', 0.35, 0.85]],
+    shop:      [['shopShelf', 0.25, 0.6], ['shopShelf', 0.7, 0.6], ['trash', 0.9, 0.15]],
+    gym:       [['gearRack', 0.2, 0.8], ['locker', 0.8, 0.8]],
+    boiler:    [['toolCab', 0.2, 0.4], ['toolCab', 0.8, 0.4]]
+  };
+  // 每层走廊统一：储物柜 ×2 + 垃圾桶 ×1（沿走廊长度的比例位置）
+  const CORRIDOR_CONTAINERS = [['locker', 0.2], ['locker', 0.68], ['trash', 0.44]];
+
+  /* 稀有物资的固定位置。**这张表是玩家跨局知识的全部意义所在** ——
+     「抗生素在医务室 102 的药柜里」这句话之所以值钱，就是因为它每一局都成立。
+     全校仅 4 支抗生素（10.2），一支放在宿舍楼当教学，三支在该在的地方。 */
+  const CAMPUS_FIXED = [
+    { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic'] },
+    { room: '实203', kind: 'reagentCab',  items: ['antibiotic'] },
+    { room: '男401', kind: 'wardrobe',    items: ['antibiotic'] },
+    { room: '保102', kind: 'guardLocker', items: ['tacticalBag', 'campusMap', 'masterKey'] },
+    { room: '保103', kind: 'guardLocker', items: ['pitchfork', 'radio'] },
+    { room: '体102', kind: 'gearRack',    items: ['hikingBag', 'starterGun', 'rope'] },
+    // 发电机 4×4 = 16 格，一个工具柜就被它占满 —— 柴油只能另放一个柜子
+    { room: '锅101', kind: 'toolCab',     items: ['generator'] },
+    { room: '锅102', kind: 'toolCab',     items: ['diesel', 'fuse'] },
+    { room: '行401', kind: 'fileCab',     items: ['beacon', 'broadcastPart'] },
+    { room: '行402', kind: 'fileCab',     items: ['broadcastPart', 'masterKey'] },
+    { room: '图301', kind: 'bookshelf',   items: ['manual'] },
+    { room: '食201', kind: 'pantry',      items: ['rice'] },
+    { room: '食202', kind: 'pantry',      items: ['rice', 'oil'] }
+  ];
+
+  /**
+   * 全校物资布置（M2）。**同一张地图每次生成结果完全相同**（固定种子）——
+   * 玩家第二次开局时，医务室的药柜里仍然是那两支抗生素。
+   */
+  function placeInCampus(level, seed) {
+    nextId = 1;
+    const rng = new C.Rng(seed === undefined ? 20260905 : seed);
+    const out = [];
+
+    for (const b of level.buildings) {
+      const recipe = ROOM_CONTAINERS[b.spec.roomType] || ROOM_CONTAINERS.dorm;
+      for (const meta of b.floorsMeta) {
+        const y = meta.y0;
+        for (const room of meta.rooms) {
+          const bb = room.bounds;
+          const fx = (t) => bb.min.x + (bb.max.x - bb.min.x) * t;
+          const fz = (t) => bb.min.z + (bb.max.z - bb.min.z) * t;
+          /* 一个房间里可能摆着两个同型容器（锅炉房两个工具柜、教室两张课桌）。
+             固定放置必须只兑现一次，否则「全校仅 4 支抗生素」会变成 8 支。 */
+          const fixedHere = CAMPUS_FIXED.filter(f => f.room === room.name);
+          const usedFixed = new Set();
+          for (const [kind, tx, tz] of recipe) {
+            const entry = fixedHere.find(f => f.kind === kind && !usedFixed.has(f));
+            if (entry) usedFixed.add(entry);
+            const fixed = entry ? entry.items : undefined;
+            const c = makeContainer(kind, C.V.make(fx(tx), y + KINDS[kind].size[1] / 2, fz(tz)),
+                                    rng, fixed, room.name);
+            c.bid = b.buildingId;
+            out.push(c);
+          }
+          // 宿舍才有「约四成房间地上扔着一个书包」这条（10.1d）
+          if (b.spec.roomType === 'dorm' && rng.next() < 0.42) {
+            const c = makeContainer('bag', C.V.make(fx(0.62), y + 0.25, fz(0.55)), rng, null, room.name);
+            c.bid = b.buildingId;
+            out.push(c);
+          }
+        }
+        const cb = meta.corridor.bounds;
+        for (const [kind, t] of CORRIDOR_CONTAINERS) {
+          const c = makeContainer(kind,
+            C.V.make(cb.min.x + (cb.max.x - cb.min.x) * t, y + KINDS[kind].size[1] / 2, cb.min.z + 0.55),
+            rng, null, meta.corridor.name);
+          c.bid = b.buildingId;
+          out.push(c);
+        }
+      }
+    }
+
+    level.containers = out;
+    return out;
+  }
+
+  /** 校园里散落在地上的东西：走廊的石头 + 室外分区的石头 */
+  function placeLooseInCampus(level, seed) {
+    const rng = new C.Rng(seed === undefined ? 7712 : seed);
+    const loose = [];
+    for (const b of level.buildings) {
+      for (const meta of b.floorsMeta) {
+        const cb = meta.corridor.bounds;
+        for (let i = 0; i < 2; i++) {
+          const x = cb.min.x + rng.range(1.5, (cb.max.x - cb.min.x) - 1.5);
+          loose.push({ id: 'loose' + loose.length, item: C.makeItem('stone', rng.int(2, 4)),
+                       pos: C.V.make(x, meta.y0 + 0.12, cb.min.z + rng.range(0.5, 1.8)),
+                       bid: b.buildingId, taken: false });
+        }
+      }
+    }
+    // 室外：投石是潜行的核心工具，路上必须捡得到
+    for (const z of level.zones) {
+      for (let i = 0; i < 4; i++) {
+        let x = 0, zz = 0;
+        for (let t = 0; t < 20; t++) {
+          x = rng.range(z.x0 + 4, z.x1 - 4); zz = rng.range(z.z0 + 4, z.z1 - 4);
+          if (!level.buildings.some(b => x > b.footprint.x0 - 2 && x < b.footprint.x1 + 2 &&
+                                         zz > b.footprint.z0 - 2 && zz < b.footprint.z1 + 2)) break;
+        }
+        loose.push({ id: 'loose' + loose.length, item: C.makeItem('stone', rng.int(3, 6)),
+                     pos: C.V.make(x, 0.12, zz), taken: false });
+      }
+    }
+    level.looseItems = loose;
+    return loose;
+  }
+
   /** 玩家脚边散落的物品（走廊里的石头之类），直接捡不用翻找 */
   function placeLooseItems(level, seed) {
     const rng = new C.Rng(seed === undefined ? 771 : seed);
@@ -2118,8 +2668,12 @@
   }
 
   C.ContainerKinds = KINDS;
+  C.ContainerPools = POOLS;
+  C.CampusFixedLoot = CAMPUS_FIXED;
   C.placeContainers = placeInDormitory;
   C.placeLooseItems = placeLooseItems;
+  C.placeCampusContainers = placeInCampus;
+  C.placeCampusLooseItems = placeLooseInCampus;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /* ===== src/18-needs.js ===== */
@@ -2372,6 +2926,9 @@
   /** 捡起/拿取一件物品。容器类物品在没有背包时直接背上。 */
   Player.prototype.acquire = function (item) {
     const def = C.ITEMS[item.id];
+    // 书是被动读的：拿到手里就等于翻过了，配方直接进笔记本（10.2）。
+    // 两条取物路径（地上拾取 / 容器里拿）都会经过这里，所以只在这写一次。
+    if (def.book && C.Notebook) C.Notebook.readBook(item.id, C.SoundSystem.time);
     if (def.kind === 'container' && !this.bag) {
       this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
       this.bagItemId = item.id;
@@ -2909,6 +3466,9 @@
  *   任意状态 ──看见玩家(识别条满)──> 追击 ──失去目标 6s──> 搜索
  */
 (function (root) {
+  /* 简化模拟允许的最大单步位移。必须小于最薄的墙（0.2m），否则会穿过去。 */
+  const SIM_STEP = 0.15;
+
   const C = (root.Campus = root.Campus || {});
   const { V, M, AABB } = C;
 
@@ -2944,6 +3504,10 @@
     this.rng = new C.Rng(this.id * 7919 + 13);
     this.stuckTimer = 0;
     this.lastPos = V.copy(def.pos);
+    // 布置时标了「第 12 天变成奔行者」的那 5%（7.2）。在那之前它就是一只普通游荡者。
+    this.becomesRunner = !!def.becomesRunner;
+    this.simplified = false;      // 分区加载：不在加载范围内时走简化模拟
+    this._simAcc = 0;
 
     this.hearing = new C.HearingComponent({
       ownerId: this.id, baseThreshold: T.threshold,
@@ -3010,8 +3574,14 @@
     this._setState(State.Alert);
   };
 
-  Zombie.prototype.update = function (dt, player, time) {
+  /**
+   * @param simplified 简化模拟（主文档 13.4）：跳过视觉检测，其余照跑。
+   *   它仍然听得见声音、仍然会更新目标并走过去 —— 文档要求的就是这个。
+   *   省掉的是视线射线检测，以及每帧一次的调用频率（管理器攒到 0.25s 再调一次）。
+   */
+  Zombie.prototype.update = function (dt, player, time, simplified) {
     if (!this.alive) return;
+    this.simplified = !!simplified;
     const R = C.Config.zombieReaction;
     const g = C.SoundSystem.graph;
 
@@ -3033,7 +3603,8 @@
       }
     }
 
-    if (this.state !== State.Prone) this._updateVision(dt, player, time);
+    // 简化模拟里不做视觉：看不见玩家的丧尸不会进入追击，而玩家不在附近时它本来也看不见
+    if (this.state !== State.Prone && !simplified) this._updateVision(dt, player, time);
 
     switch (this.state) {
       case State.Prone: break;
@@ -3083,6 +3654,13 @@
     }
 
     this.lastPos = V.copy(this.pos);
+  };
+
+  /** 当前状态下的移动速度上限。简化模拟拿它算该拆成几小步。 */
+  Zombie.prototype.speed = function () {
+    return this.state === State.Chase ? this.def.speedChase
+         : this.state === State.Investigate || this.state === State.Search ? this._investigateSpeed()
+         : this.def.speedWander;
   };
 
   Zombie.prototype._investigateSpeed = function () {
@@ -3254,6 +3832,16 @@
     this.path.push(V.copy(goal));
   };
 
+  /** 换一个类型（第 12 天游荡者变奔行者）。阈值走管线，不写死。 */
+  Zombie.prototype.setType = function (name) {
+    const T = C.Config.zombieTypes[name];
+    if (!T || this.typeName === name) return false;
+    this.typeName = name;
+    this.def = T;
+    this.hearing.baseThreshold = T.threshold;
+    return true;
+  };
+
   Zombie.prototype.destroy = function () {
     this.alive = false;
     C.SoundSystem.unregisterListener(this.hearing);
@@ -3270,8 +3858,36 @@
     },
     spawn(def, world) { const z = new Zombie(def, world); this.list.push(z); return z; },
     update(dt, player, time) {
-      for (const z of this.list) z.update(dt, player, time);
+      this._promoteRunners(time);
+      const far = C.Streaming ? C.Streaming.simplifyDistance() : Infinity;
+      const tick = C.Config.campus.simplifiedTick;
+      for (const z of this.list) {
+        if (!z.alive) continue;
+        if (V.distXZ(z.pos, player.pos) <= far) { z._simAcc = 0; z.update(dt, player, time, false); continue; }
+        /* 远处的丧尸攒够一个 tick 再动一次。步长必须留在 0.5m 以内，
+           否则一步跨过 0.2m 厚的隔墙，等玩家走近时会发现它站在墙里。 */
+        z._simAcc += dt;
+        if (z._simAcc < tick) continue;
+        const acc = Math.min(z._simAcc, tick * 2);
+        z._simAcc = 0;
+        /* 攒下来的时间不能一步走完：奔行者 5.4m/s × 0.5s = 2.7m，
+           一步就跨过 0.2m 厚的隔墙，等玩家走近会发现它站在墙里。
+           拆成每步不超过 SIM_STEP 的若干小步 —— 省下的是视线检测和调用次数，
+           不是碰撞的正确性。 */
+        const n = Math.max(1, Math.ceil(z.speed() * acc / SIM_STEP));
+        for (let i = 0; i < n; i++) z.update(acc / n, player, time, true);
+      }
       this._enforceChaseCap(player);
+    },
+
+    /** 第 12 天：布置时标记过的那 5% 换成奔行者（7.2）。只发生一次。 */
+    _promoteRunners(time) {
+      const day = C.Config.campus.runnerFromDay;
+      if (!time || time.day < day || this._runnersOut) return;
+      this._runnersOut = true;
+      let n = 0;
+      for (const z of this.list) if (z.alive && z.becomesRunner && z.setType('Runner')) n++;
+      if (n) C.EventBus.publish('RunnersAppearedEvent', { count: n, day: time.day });
     },
     /** 同时处于追击状态的丧尸全场上限；超过时最远的转为搜索（主文档 5.5） */
     _enforceChaseCap(player) {
@@ -3290,7 +3906,7 @@
       for (const z of this.list) m[z.state] = (m[z.state] || 0) + 1;
       return m;
     },
-    reset() { for (const z of this.list) z.destroy(); this.list.length = 0; nextId = 100; }
+    reset() { for (const z of this.list) z.destroy(); this.list.length = 0; nextId = 100; this._runnersOut = false; }
   };
 
   C.ZombieState = State;
@@ -3317,7 +3933,7 @@
     this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11131a);
-    this.scene.fog = new THREE.Fog(0x11131a, 12, 60);
+    this.scene.fog = new THREE.Fog(0x11131a, C.Config.render.fogNear, C.Config.render.fogFar);
     this.camera = new THREE.PerspectiveCamera(78, 1, 0.05, 300);
 
     this.hemi = new THREE.HemisphereLight(0xbdd0ff, 0x4e4e58, 0.9);
@@ -3335,11 +3951,11 @@
     this.torch.target = this.torchTarget;
 
     this._buildStatic();
+    this._buildZombies();
     this._buildDoors();
     this._buildThrowPreview();
     this._buildAvatar();
     this._buildContainers();
-    this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
 
@@ -3395,28 +4011,48 @@
     this.scene.add(this.audibleRing);
   };
 
+  /* 静态几何按「所属建筑」分组，每组内部再按 tag 合成 InstancedMesh。
+     分组是为了分区加载（13.4）：卸载一栋楼 = 把它那一组 visible 置 false。
+     没有 bid 的（地面、围墙、车棚）属于常驻的室外场景，永远可见。 */
   Renderer.prototype._buildStatic = function () {
-    const byTag = new Map();
+    const byBuilding = new Map();
     for (const s of this.level.solids) {
+      const key = s.bid === undefined ? 0 : s.bid;
+      if (!byBuilding.has(key)) byBuilding.set(key, new Map());
+      const byTag = byBuilding.get(key);
       if (!byTag.has(s.tag)) byTag.set(s.tag, []);
       byTag.get(s.tag).push(s.box);
     }
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const m4 = new THREE.Matrix4();
-    for (const [tag, boxes] of byTag) {
-      const mat = new THREE.MeshLambertMaterial({ color: COLORS[tag] || 0x888888 });
-      const inst = new THREE.InstancedMesh(unit, mat, boxes.length);
-      boxes.forEach((b, i) => {
-        m4.makeTranslation((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
-        m4.scale(new THREE.Vector3(
-          Math.max(0.01, b.max.x - b.min.x),
-          Math.max(0.01, b.max.y - b.min.y),
-          Math.max(0.01, b.max.z - b.min.z)));
-        inst.setMatrixAt(i, m4);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      this.scene.add(inst);
+    this.buildingGroups = new Map();
+    for (const [bid, byTag] of byBuilding) {
+      const group = new THREE.Group();
+      for (const [tag, boxes] of byTag) {
+        const mat = new THREE.MeshLambertMaterial({ color: COLORS[tag] || 0x888888 });
+        const inst = new THREE.InstancedMesh(unit, mat, boxes.length);
+        boxes.forEach((b, i) => {
+          m4.makeTranslation((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
+          m4.scale(new THREE.Vector3(
+            Math.max(0.01, b.max.x - b.min.x),
+            Math.max(0.01, b.max.y - b.min.y),
+            Math.max(0.01, b.max.z - b.min.z)));
+          inst.setMatrixAt(i, m4);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        group.add(inst);
+      }
+      if (bid !== 0) this.buildingGroups.set(bid, group);
+      this.scene.add(group);
     }
+  };
+
+  /** 分区加载回调：只切 visible，不销毁 —— 灰盒阶段几何都在显存里，重建反而更贵 */
+  Renderer.prototype.setLoadedBuildings = function (loaded) {
+    if (!this.buildingGroups) return;
+    for (const [bid, group] of this.buildingGroups) group.visible = loaded.has(bid);
+    this._syncDoors();
+    this._syncContainers();
   };
 
   Renderer.prototype._buildDoors = function () {
@@ -3433,6 +4069,7 @@
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
       mesh.userData.portalId = d.portalId;
+      mesh.userData.bid = d.bid;              // 分区加载：楼卸载了，它的门窗也别画
       this.scene.add(mesh);
       this.doorMeshes.push(mesh);
     }
@@ -3442,9 +4079,12 @@
 
   Renderer.prototype._syncDoors = function () {
     const g = this.level.graph;
+    const S = C.Streaming;
     for (const m of this.doorMeshes) {
       const p = g.getPortal(m.userData.portalId);
-      m.visible = !g.isPassable(p);
+      const bid = m.userData.bid;
+      const loaded = (bid === undefined) || !S || S.isLoaded(bid);
+      m.visible = !g.isPassable(p) && loaded;
     }
   };
 
@@ -3452,21 +4092,31 @@
   /* 容器与地上的物品：小盒子，颜色按类型分 */
   Renderer.prototype._buildContainers = function () {
     const unit = new THREE.BoxGeometry(1, 1, 1);
-    const byColor = new Map();
+    // 和静态几何一样：先按建筑分组（分区加载），组内再按颜色合批
+    const byBuilding = new Map();
     for (const c of this.level.containers || []) {
+      const key = c.bid === undefined ? 0 : c.bid;
+      if (!byBuilding.has(key)) byBuilding.set(key, new Map());
+      const byColor = byBuilding.get(key);
       if (!byColor.has(c.color)) byColor.set(c.color, []);
       byColor.get(c.color).push(c);
     }
     const m4 = new THREE.Matrix4();
-    for (const [color, list] of byColor) {
-      const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
-      list.forEach((c, i) => {
-        m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
-        m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
-        inst.setMatrixAt(i, m4);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      this.scene.add(inst);
+    this.containerGroups = new Map();
+    for (const [bid, byColor] of byBuilding) {
+      const group = new THREE.Group();
+      for (const [color, list] of byColor) {
+        const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
+        list.forEach((c, i) => {
+          m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
+          m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
+          inst.setMatrixAt(i, m4);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        group.add(inst);
+      }
+      if (bid !== 0) this.containerGroups.set(bid, group);
+      this.scene.add(group);
     }
     this.looseMeshes = (this.level.looseItems || []).map(l => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
@@ -3475,6 +4125,12 @@
       this.scene.add(m);
       return { mesh: m, loose: l };
     });
+  };
+
+  Renderer.prototype._syncContainers = function () {
+    if (!this.containerGroups) return;
+    const S = C.Streaming;
+    for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
   };
 
   Renderer.prototype._buildAvatar = function () {
@@ -3492,26 +4148,59 @@
     this.scene.add(g);
   };
 
-  Renderer.prototype._zombieMesh = function (z) {
-    let m = this.zombieMeshes.get(z.id);
-    if (!m) {
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.15, 0.35),
-        new THREE.MeshLambertMaterial({ color: z.typeName === 'Crawler' ? 0x6b5a4a : 0x9a5555 }));
-      body.position.y = 0.75;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.3),
-        new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
-      head.position.y = 1.5;
-      // 朝向指示：眼睛方向的小片，方便玩家判断它面朝哪边
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22),
-        new THREE.MeshBasicMaterial({ color: 0x222222 }));
-      nose.position.set(0, 1.5, 0.22);
-      group.add(body, head, nose);
-      this.scene.add(group);
-      m = group;
-      this.zombieMeshes.set(z.id, m);
+  /* 丧尸：全部合进 3 个 InstancedMesh（身体 / 头 / 朝向片）。
+     全校 320 只，一只一个 Group 就是近千次 draw call —— 实测帧率从 60 掉到 13。
+     合批之后是 3 次，代价只是每帧写几百个矩阵（可忽略）。 */
+  Renderer.prototype._buildZombies = function () {
+    const n = Math.max(1, C.ZombieManager.list.length);
+    const parts = [
+      { key: 'body', geo: new THREE.BoxGeometry(0.55, 1.15, 0.35), off: 0.75, color: 0x9a5555 },
+      { key: 'head', geo: new THREE.BoxGeometry(0.30, 0.32, 0.30), off: 1.50, color: 0xc8b49a },
+      { key: 'nose', geo: new THREE.BoxGeometry(0.12, 0.08, 0.22), off: 1.50, color: 0x222222, z: 0.22 }
+    ];
+    this.zInst = {};
+    for (const p2 of parts) {
+      const inst = new THREE.InstancedMesh(p2.geo, new THREE.MeshLambertMaterial({ color: p2.color }), n);
+      inst.frustumCulled = false;        // 实例矩阵每帧变，包围盒靠不住
+      this.scene.add(inst);
+      this.zInst[p2.key] = { mesh: inst, off: p2.off, z: p2.z || 0 };
     }
-    return m;
+    // 蜷伏者是另一种颜色：按实例上色，不用再开一批
+    const col = new THREE.Color();
+    const body = this.zInst.body.mesh;
+    C.ZombieManager.list.forEach((z, i) => {
+      body.setColorAt(i, col.setHex(z.typeName === 'Crawler' ? 0x6b5a4a : 0x9a5555));
+    });
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    this._zTmp = { m: new THREE.Matrix4(), t: new THREE.Matrix4(), q: new THREE.Quaternion(),
+                   v: new THREE.Vector3(), s: new THREE.Vector3() };
+  };
+
+  /** 每帧把丧尸的位置写进实例矩阵。看不见的（太远 / 已死）缩到 0。 */
+  Renderer.prototype._syncZombies = function (player) {
+    if (!this.zInst) return;
+    const T = this._zTmp;
+    const far = C.Config.render.zombieDistance;
+    const list = C.ZombieManager.list;
+    for (let i = 0; i < list.length; i++) {
+      const z = list[i];
+      const dx = z.pos.x - player.pos.x, dz = z.pos.z - player.pos.z;
+      const show = z.alive && dx * dx + dz * dz <= far * far;
+      if (!show) {
+        T.m.makeScale(0, 0, 0);
+        for (const k in this.zInst) this.zInst[k].mesh.setMatrixAt(i, T.m);
+        continue;
+      }
+      const sy = (z.state === C.ZombieState.Prone) ? 0.35 : 1;
+      T.q.setFromAxisAngle(T.v.set(0, 1, 0), z.yaw);
+      T.m.compose(T.v.set(z.pos.x, z.pos.y, z.pos.z), T.q, T.s.set(1, sy, 1));
+      for (const k in this.zInst) {
+        const part = this.zInst[k];
+        T.t.makeTranslation(0, part.off, part.z);
+        part.mesh.setMatrixAt(i, T.t.premultiply(T.m));
+      }
+    }
+    for (const k in this.zInst) this.zInst[k].mesh.instanceMatrix.needsUpdate = true;
   };
 
   Renderer.prototype.update = function (player, time, dt) {
@@ -3581,13 +4270,7 @@
       this.torchTarget.position.set(eye.x + d.x * 10, eye.y + d.y * 10, eye.z + d.z * 10);
     }
 
-    for (const z of C.ZombieManager.list) {
-      const m = this._zombieMesh(z);
-      m.visible = z.alive;
-      m.position.set(z.pos.x, z.pos.y, z.pos.z);
-      m.rotation.y = z.yaw;
-      m.scale.y = (z.state === C.ZombieState.Prone) ? 0.35 : 1;
-    }
+    this._syncZombies(player);
 
     // 投掷物
     while (this.stoneMeshes.length < C.Projectiles.list.length) {
@@ -4358,6 +5041,600 @@
   C.Sleep = Sleep;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/24-campus.js ===== */
+/*
+ * 24-campus.js —— 全校灰盒地图（主文档 13.1 / 13.3 / 13.4，M2）
+ *
+ * 十三栋楼 + 八个室外分区 + 一圈围墙。**几何和声图仍然由同一段代码推导** ——
+ * 每栋楼都调 08-level.js 的板楼模板，这里只负责摆位置、放家具、连室外。
+ *
+ * 布局表在 00-config.js 的 campus 段。这个文件里不应该出现任何坐标常量，
+ * 出现了就说明它该搬回配置里去。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { AABB, V, PortalType, PortalState } = C;
+
+  /* ── 各类房间的家具 ────────────────────────────────
+     家具在这里只有两个作用：挡视线（掩体）和挡路（绕行）。
+     统一留出门前 1.2m 的空地，否则丧尸会卡在门口的桌子上。 */
+  const FURNITURE = {
+    dorm: C.dormFurniture,
+
+    classroom(out, x0, x1, y, z0, z1) {
+      const rows = 3, cols = 2;
+      const w = (x1 - x0 - 0.8) / cols - 0.4;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const bx = x0 + 0.4 + c * (w + 0.4), bz = z0 + 1.4 + r * 1.15;
+        if (bz + 0.6 > z1 - 0.2) continue;
+        out.push({ tag: 'desk', box: AABB.make(bx, y, bz, bx + w, y + 0.75, bz + 0.6) });
+      }
+    },
+
+    lab(out, x0, x1, y, z0, z1) {
+      for (let r = 0; r < 2; r++) {
+        const bz = z0 + 1.6 + r * 1.8;
+        if (bz + 0.8 > z1 - 0.3) continue;
+        out.push({ tag: 'desk', box: AABB.make(x0 + 0.4, y, bz, x1 - 0.4, y + 0.85, bz + 0.8) });
+      }
+    },
+
+    /* 书架高 1.9m，是全校最好的掩体 —— 图书馆之所以是理想据点，
+       一半原因是安静，另一半原因是这些架子。 */
+    library(out, x0, x1, y, z0, z1) {
+      for (let c = 0; c < 3; c++) {
+        const bx = x0 + 0.5 + c * 1.2;
+        if (bx + 0.5 > x1 - 0.4) break;
+        out.push({ tag: 'shelf', box: AABB.make(bx, y, z0 + 1.3, bx + 0.5, y + 1.9, z1 - 0.4) });
+      }
+    },
+
+    canteen(out, x0, x1, y, z0, z1) {
+      for (let r = 0; r < 3; r++) {
+        const bz = z0 + 1.6 + r * 2.4;
+        if (bz + 0.9 > z1 - 0.4) continue;
+        out.push({ tag: 'desk', box: AABB.make(x0 + 0.6, y, bz, x1 - 0.6, y + 0.75, bz + 0.9) });
+      }
+    },
+
+    gym(out, x0, x1, y, z0, z1) {
+      for (let c = 0; c < 4; c++) {
+        const bx = x0 + 1.0 + c * 2.4;
+        if (bx + 1.2 > x1 - 1.0) break;
+        out.push({ tag: 'crate', box: AABB.make(bx, y, z0 + 2.0, bx + 1.2, y + 1.0, z0 + 3.2) });
+      }
+    },
+
+    clinic(out, x0, x1, y, z0, z1) {
+      out.push({ tag: 'bed', box: AABB.make(x0 + 0.3, y, z0 + 1.4, x0 + 1.3, y + 0.55, z0 + 3.4) });
+      out.push({ tag: 'shelf', box: AABB.make(x1 - 0.9, y, z1 - 1.4, x1 - 0.2, y + 1.8, z1 - 0.3) });
+    },
+
+    office(out, x0, x1, y, z0, z1) {
+      out.push({ tag: 'desk', box: AABB.make(x0 + 0.8, y, z1 - 1.6, x1 - 0.8, y + 0.75, z1 - 0.6) });
+      out.push({ tag: 'shelf', box: AABB.make(x0 + 0.2, y, z0 + 1.4, x0 + 0.9, y + 1.8, z0 + 3.2) });
+    },
+
+    guard(out, x0, x1, y, z0, z1) {
+      out.push({ tag: 'desk', box: AABB.make(x0 + 0.5, y, z1 - 1.4, x1 - 0.5, y + 0.75, z1 - 0.5) });
+      out.push({ tag: 'shelf', box: AABB.make(x1 - 0.8, y, z0 + 1.4, x1 - 0.2, y + 1.8, z0 + 2.8) });
+    },
+
+    shop(out, x0, x1, y, z0, z1) {
+      for (let c = 0; c < 2; c++) {
+        const bx = x0 + 0.5 + c * 1.6;
+        if (bx + 0.6 > x1 - 0.4) break;
+        out.push({ tag: 'shelf', box: AABB.make(bx, y, z0 + 1.3, bx + 0.6, y + 1.7, z1 - 0.4) });
+      }
+    },
+
+    boiler(out, x0, x1, y, z0, z1) {
+      out.push({ tag: 'crate', box: AABB.make(x0 + 0.4, y, z0 + 1.6, x1 - 0.4, y + 1.6, z1 - 0.6) });
+    }
+  };
+
+  /** 围墙：一圈实心墙，在出入口处按 exits 表开口 */
+  function buildPerimeter(solids, cfg) {
+    const w = cfg.wall, T = w.thickness, H = w.height;
+    const byS = (side) => cfg.exits.filter(e => e.side === side).map(e => ({ a0: e.a0, a1: e.a1, y0: 0, y1: H }));
+    C.wallWithHoles(solids, 'wall', 'x', w.z0 - T, w.z0, w.x0, w.x1, 0, H, byS('south'));
+    C.wallWithHoles(solids, 'wall', 'x', w.z1, w.z1 + T, w.x0, w.x1, 0, H, byS('north'));
+    C.wallWithHoles(solids, 'wall', 'z', w.x0 - T, w.x0, w.z0, w.z1, 0, H, byS('west'));
+    C.wallWithHoles(solids, 'wall', 'z', w.x1, w.x1 + T, w.z0, w.z1, 0, H, byS('east'));
+  }
+
+  /** 车棚与操场看台：露天构筑物，不建节点，声学上属于所在分区 */
+  function buildOutdoorStructures(solids, cfg) {
+    const c = cfg.carport;
+    solids.push({ tag: 'roof', box: AABB.make(c.x0, c.height, c.z0, c.x1, c.height + 0.2, c.z1) });
+    for (const px of [c.x0 + 0.3, c.x1 - 0.6]) for (const pz of [c.z0 + 0.3, c.z1 - 0.6]) {
+      solids.push({ tag: 'wall', box: AABB.make(px, 0, pz, px + 0.3, c.height, pz + 0.3) });
+    }
+    const b = cfg.bleachers;
+    for (let s = 0; s < 3; s++) {
+      const d = (b.z1 - b.z0) / 3;
+      solids.push({ tag: 'stair',
+        box: AABB.make(b.x0, 0, b.z0 + s * d, b.x1, (s + 1) * b.height / 3, b.z0 + (s + 1) * d) });
+    }
+  }
+
+  /** 某点是否落在任何一栋楼的占地里（留 margin 的余量） */
+  function insideAnyBuilding(built, x, z, margin) {
+    for (const b of built) {
+      const f = b.footprint;
+      if (x > f.x0 - margin && x < f.x1 + margin && z > f.z0 - margin && z < f.z1 + margin) return true;
+    }
+    return false;
+  }
+
+  /* ── 丧尸布置 ──────────────────────────────────────
+     总数 320，不刷新（7.1）。配比游荡者 85% / 蜷伏者 10% / 奔行者 5%。
+     奔行者第 12 天才出现，所以先按游荡者放，到点由 ZombieManager 顶替（7.2）。 */
+  function placeZombies(built, cfg, rng) {
+    const spawns = [];
+
+    // 楼内：每栋楼把名额摊到「房间门前的空地」和「走廊」上
+    for (const b of built) {
+      const spots = [];
+      for (const meta of b.floorsMeta) {
+        for (const room of meta.rooms) {
+          const bb = room.bounds;
+          // 门前 0.75m 的空地：所有房型的家具都从 1.3m 往里摆，这条带子一定是空的
+          spots.push({ kind: 'room', pos: V.make((bb.min.x + bb.max.x) / 2, meta.y0 + 0.02, bb.min.z + 0.75) });
+        }
+        const cb = meta.corridor.bounds;
+        const n = Math.max(2, Math.round((cb.max.x - cb.min.x) / 9));
+        for (let i = 0; i < n; i++) {
+          const t = (i + 0.5) / n;
+          spots.push({ kind: 'corridor',
+            pos: V.make(cb.min.x + (cb.max.x - cb.min.x) * t, meta.y0 + 0.02, (cb.min.z + cb.max.z) / 2) });
+        }
+      }
+      rng.shuffle(spots);
+      for (let i = 0; i < b.spec.zombies; i++) {
+        const s = spots[i % spots.length];
+        // 名额比落点多时才抖开，抖动幅度控制在「门前空地」之内
+        const extra = i >= spots.length;
+        spawns.push({ type: 'Wanderer', buildingId: b.spec.id, spotKind: s.kind,
+          pos: V.make(s.pos.x + (extra ? rng.range(-0.8, 0.8) : 0),
+                      s.pos.y,
+                      s.pos.z + (extra ? rng.range(-0.25, 0.25) : 0)) });
+      }
+    }
+
+    // 室外：在分区里撒点，避开楼的占地
+    for (const spec of cfg.outdoorZombies) {
+      const z = cfg.zones.find(q => q.id === spec.zone);
+      for (let i = 0; i < spec.count; i++) {
+        let x = 0, zz = 0;
+        for (let tries = 0; tries < 30; tries++) {
+          x = rng.range(Math.max(z.x0, cfg.wall.x0 + 2), Math.min(z.x1, cfg.wall.x1 - 2));
+          zz = rng.range(Math.max(z.z0, cfg.wall.z0 + 2), Math.min(z.z1, cfg.wall.z1 - 2));
+          if (!insideAnyBuilding(built, x, zz, 1.5)) break;
+        }
+        spawns.push({ type: 'Wanderer', zoneId: spec.zone, spotKind: 'outdoor', pos: V.make(x, 0.02, zz) });
+      }
+    }
+
+    /* 配比：先全按游荡者放好，再确定性地挑出蜷伏者与奔行者。
+       蜷伏者只藏在房间里（它的玩法价值是「屏息才能发现」，撂在走廊中间没有意义）。 */
+    const nCrawler = Math.round(spawns.length * cfg.crawlerRatio);
+    const nRunner = Math.round(spawns.length * cfg.runnerRatio);
+    const roomIdx = spawns.map((s, i) => (s.spotKind === 'room' ? i : -1)).filter(i => i >= 0);
+    rng.shuffle(roomIdx);
+    for (let i = 0; i < nCrawler && i < roomIdx.length; i++) spawns[roomIdx[i]].type = 'Crawler';
+    const rest = spawns.map((s, i) => (s.type === 'Wanderer' ? i : -1)).filter(i => i >= 0);
+    rng.shuffle(rest);
+    for (let i = 0; i < nRunner && i < rest.length; i++) {
+      // 第 12 天之前它就是一只普通游荡者，到点才「醒过来」
+      spawns[rest[i]].becomesRunner = true;
+    }
+    return spawns;
+  }
+
+  function buildCampus() {
+    const cfg = C.Config.campus;
+    const L = C.Config.level;
+    const g = new C.SoundGraph();
+    const solids = [], doors = [];
+    const H = L.floorHeight;
+
+    // 地面：整块。围墙外也铺一点，免得站在门口看见虚空
+    const w = cfg.wall;
+    solids.push({ tag: 'ground', box: AABB.make(w.x0 - 14, -1.0, w.z0 - 14, w.x1 + 14, 0, w.z1 + 14) });
+    buildPerimeter(solids, cfg);
+    buildOutdoorStructures(solids, cfg);
+
+    /* 先建楼、后建室外分区。室外分区是覆盖整条带的大盒子，几何上把楼包在里面，
+       getNodeAt 已经做了「室内优先」，这里的顺序只是让 node id 读起来顺一些。 */
+    const zoneNodes = new Map();
+    const built = [];
+    const pending = [];       // 楼建完才有室外节点 id，窗户 Portal 只能等一轮
+
+    // ── 十三栋楼 ─────────────────────────────────────
+    for (let bi = 0; bi < cfg.buildings.length; bi++) {
+      const spec = cfg.buildings[bi];
+      const prefix = spec.prefix;
+      const b = C.buildBuildingInto(g, solids, doors, {
+        buildingId: bi + 1, name: spec.name, prefix,
+        ox: spec.ox, oz: spec.oz, floors: spec.floors, roomsPerFloor: spec.rooms,
+        roomW: spec.roomW, roomD: spec.roomD, roomGap: spec.roomGap, corridorD: spec.corridorD,
+        stairSides: spec.stairs,
+        roomName: (f, i) => prefix + ((f + 1) * 100 + (i + 1)),
+        furniture: FURNITURE[spec.roomType] || C.dormFurniture,
+        entrance: true,
+        // 室外节点还没建，先记下来，回头补
+        outFrontId: null, outBackId: null,
+        doorOpen: (f, i) => (i % 3 === 0) && !(spec.spawn && f === L.spawnRoomFloor && i === L.spawnRoomIndex)
+      });
+      b.spec = spec;
+      b.buildingId = bi + 1;
+      b.name = spec.name;
+      built.push(b);
+      pending.push({ spec, b });
+    }
+
+    // ── 八个室外分区 ─────────────────────────────────
+    for (const z of cfg.zones) {
+      const node = g.addNode({
+        name: z.name, kind: 'outdoor', isOutdoor: true, floor: -1, zoneId: z.id,
+        bounds: AABB.make(z.x0, cfg.zoneY.min, z.z0, z.x1, cfg.zoneY.max, z.z1)
+      });
+      node.zoneId = z.id;
+      zoneNodes.set(z.id, node);
+    }
+    for (const [a, b] of cfg.zoneLinks) {
+      const na = zoneNodes.get(a), nb = zoneNodes.get(b);
+      const ca = AABB.center(na.bounds), cb = AABB.center(nb.bounds);
+      g.addPortal({ nodeA: na.id, nodeB: nb.id, type: PortalType.OpenAir, state: PortalState.Open,
+                    position: V.make((ca.x + cb.x) / 2, 1.5, (ca.z + cb.z) / 2) });
+    }
+
+    /* ── 把每栋楼的门窗接到它所在的室外分区 ───────────
+       模板生成时室外节点还不存在，所以窗和大门的 Portal 在这里补。
+       门窗的几何（doors 里的 box）在模板里已经建好了，两边共用同一个 portalId。 */
+    for (const { spec, b } of pending) {
+      const zone = zoneNodes.get(spec.zone);
+      for (const meta of b.floorsMeta) {
+        const cb = meta.corridor.bounds;
+        // 走廊南窗
+        const winA = spec.ox + b.corridorLen * 0.35, winB = winA + 1.4;
+        const cw = g.addPortal({
+          nodeA: meta.corridor.id, nodeB: zone.id, type: PortalType.Window, state: PortalState.Closed,
+          position: V.make((winA + winB) / 2, meta.y0 + 1.5, spec.oz)
+        });
+        doors.push({ portalId: cw.id, kind: 'window', bid: b.buildingId,
+          box: AABB.make(winA, meta.y0 + 1.0, spec.oz - L.wallThickness, winB, meta.y0 + 2.0, spec.oz) });
+        // 一层大门
+        if (meta.floor === 0) {
+          const dA = spec.ox + b.corridorLen * 0.62, dB = dA + 1.6;
+          const ep = g.addPortal({
+            nodeA: meta.corridor.id, nodeB: zone.id, type: PortalType.SteelDoor, state: PortalState.Closed,
+            position: V.make((dA + dB) / 2, meta.y0 + 1.1, spec.oz)
+          });
+          doors.push({ portalId: ep.id, kind: 'door', bid: b.buildingId,
+            box: AABB.make(dA, meta.y0, spec.oz - L.wallThickness, dB, meta.y0 + 2.2, spec.oz) });
+          meta.entrancePortal = ep;
+          b.entrance = V.make((dA + dB) / 2, 0, spec.oz - 1.2);
+        }
+        // 每间房的北窗
+        for (const room of meta.rooms) {
+          const rb = room.bounds;
+          const wA = rb.min.x + 1.2, wB = wA + 1.6;
+          const wp = g.addPortal({
+            nodeA: room.id, nodeB: zone.id, type: PortalType.Window, state: PortalState.Closed,
+            position: V.make((wA + wB) / 2, meta.y0 + 1.5, rb.max.z)
+          });
+          doors.push({ portalId: wp.id, kind: 'window', bid: b.buildingId,
+            box: AABB.make(wA, meta.y0 + 1.0, rb.max.z, wB, meta.y0 + 2.0, rb.max.z + L.wallThickness) });
+        }
+      }
+      b.zoneId = spec.zone;
+      b.zoneNodeId = zone.id;
+    }
+
+    // ── 出生点：男生宿舍楼 402（13.2）────────────────
+    const home = built.find(b => b.spec.spawn);
+    const spawnRoom = home.floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
+    const src = AABB.center(spawnRoom.bounds);
+    const spawn = { x: src.x, y: L.spawnRoomFloor * H + 0.02, z: src.z, yaw: 0 };
+
+    const rng = new C.Rng(cfg.zombieSeed);
+    const zombieSpawns = placeZombies(built, cfg, rng);
+
+    const floorsMeta = [];
+    for (const b of built) for (const m of b.floorsMeta) floorsMeta.push(m);
+    const maxFloors = built.reduce((n, b) => Math.max(n, b.spec.floors), 1);
+
+    return {
+      isCampus: true,
+      graph: g, solids, doors, spawn, zombieSpawns,
+      portalInitialStates: g.portals.map(p => p.state),
+      buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
+      floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,
+      bounds: { minX: w.x0 - 14, maxX: w.x1 + 14, minZ: w.z0 - 14, maxZ: w.z1 + 14,
+                floors: maxFloors, floorHeight: H }
+    };
+  }
+
+  C.CampusFurniture = FURNITURE;
+  C.buildCampus = buildCampus;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/25-streaming.js ===== */
+/*
+ * 25-streaming.js —— 分区加载（主文档 13.4，M2）
+ *
+ * 文档的三条硬规则，这里逐条对应：
+ *   1. 室外校园是一个常驻场景               → 地面/围墙/露天构筑物永不卸载
+ *   2. 每栋建筑按距离异步加载、离开后卸载   → 按占地矩形的距离进出，带迟滞
+ *   3. **声音连通图始终全量常驻**           → 这个文件根本不碰 graph
+ *   4. 未加载建筑内的丧尸以简化形式继续模拟 → simplified 标记，见 11-zombie
+ *
+ * 「加载」在灰盒阶段只等于「这批盒子出不出现在渲染场景里」。碰撞世界是一张
+ * 空间哈希，全量常驻反而更省事 —— 卸载它换不来性能，只会换来「走进没加载的楼里穿墙」。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /** 点到轴对齐矩形的水平距离（在矩形内为 0） */
+  function rectDist(f, x, z) {
+    const dx = Math.max(f.x0 - x, 0, x - f.x1);
+    const dz = Math.max(f.z0 - z, 0, z - f.z1);
+    return Math.hypot(dx, dz);
+  }
+
+  const Streaming = {
+    level: null,
+    loaded: new Set(),          // 当前已加载的 buildingId
+    placeName: '',          // 玩家所在的声图节点名（房间号 / 走廊 / 室外分区）
+    buildingName: '',
+    onChange: null,             // (loadedSet) => void，渲染层挂上来
+    _dirty: false,
+
+    reset(level) {
+      this.level = level;
+      this.loaded = new Set();
+      this.placeName = '';
+      this.buildingName = '';
+      this._dirty = false;
+      // 单栋楼的 M0/M1 关卡没有分区，整张图始终加载
+      if (!level || !level.buildings) {
+        this.enabled = false;
+        return this;
+      }
+      this.enabled = true;
+      return this;
+    },
+
+    cfg() { return C.Config.campus.streaming; },
+
+    /** 玩家所在的建筑（不在任何楼里时返回 null） */
+    buildingAt(pos) {
+      if (!this.enabled) return null;
+      for (const b of this.level.buildings) {
+        const f = b.footprint;
+        if (pos.x >= f.x0 && pos.x <= f.x1 && pos.z >= f.z0 && pos.z <= f.z1) return b;
+      }
+      return null;
+    },
+
+    /**
+     * 按玩家位置重算加载集合。
+     * 进出用两个不同的半径（60 / 78）—— 只用一个的话，在边界上来回走两步
+     * 就会反复加载卸载，帧率每隔一秒抖一下。
+     */
+    update(pos) {
+      if (!this.enabled) return;
+      const s = this.cfg();
+      const inside = this.buildingAt(pos);
+      let changed = false;
+      for (const b of this.level.buildings) {
+        const d = rectDist(b.footprint, pos.x, pos.z);
+        const has = this.loaded.has(b.buildingId);
+        // 人在楼里就必须加载，不管半径怎么算
+        const want = (b === inside) || (has ? d <= s.unloadRadius : d <= s.loadRadius);
+        if (want && !has) { this.loaded.add(b.buildingId); changed = true; }
+        else if (!want && has) { this.loaded.delete(b.buildingId); changed = true; }
+      }
+      this.buildingName = inside ? inside.name : '';
+      const zn = this.level.graph.getNodeAt(pos);
+      this.placeName = zn ? zn.name : '';
+      if (changed && this.onChange) this.onChange(this.loaded);
+    },
+
+    isLoaded(bid) { return !this.enabled || this.loaded.has(bid); },
+
+    /** 离玩家多远之后转简化模拟。丧尸自己不认识这个模块，由管理器代查。 */
+    simplifyDistance() { return this.enabled ? this.cfg().simplifyRadius : Infinity; },
+
+    stats() {
+      return { enabled: this.enabled, loaded: this.loaded.size,
+               total: this.enabled ? this.level.buildings.length : 0,
+               place: this.placeName, building: this.buildingName };
+    }
+  };
+
+  C.rectDist = rectDist;
+  C.Streaming = Streaming;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/26-notebook.js ===== */
+/*
+ * 26-notebook.js —— 笔记本（主文档 14.3，M2）
+ *
+ * 四页：地图 · 线索 · 配方 · 观察。**全部是被动记录** ——
+ * 玩家不需要按任何键去「记下来」，走过、翻过、看见过、听见过的东西自动进本子。
+ * 唯一需要主动操作的是地图上的手动标记（14.3 明确要求「可手动标记」）。
+ *
+ * 这里是规则层：不认识 DOM，也不认识 canvas，只维护可序列化的数据。
+ * 画出来是 27-notebook-ui.js 的事。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const PIN_TYPES = [
+    { id: 'base',   label: '据点', color: '#6FD3E8' },
+    { id: 'danger', label: '危险', color: '#E4573D' },
+    { id: 'loot',   label: '物资', color: '#E5B45C' },
+    { id: 'water',  label: '水',   color: '#7FB4C8' }
+  ];
+
+  const Notebook = {
+    nodes: new Set(),          // 走进过的声图节点 id
+    buildings: new Set(),      // 进过的建筑 buildingId
+    looted: new Set(),         // 翻过的容器 id
+    clues: [],                 // {day, hhmm, text}
+    recipes: new Set(),        // 已解锁的配方 id
+    obs: new Map(),            // key -> {label, count, firstDay}
+    pins: [],                  // {x, z, type}
+    pinType: 'base',
+    unread: 0,                 // 上次打开之后新增了几条，HUD 上给个小红点
+
+    reset() {
+      this.nodes = new Set(); this.buildings = new Set(); this.looted = new Set();
+      this.clues = []; this.recipes = new Set(); this.obs = new Map();
+      this.pins = []; this.unread = 0;
+      return this;
+    },
+
+    _stamp(time) {
+      return { day: time ? time.day : 1, hhmm: time ? time.format() : '' };
+    },
+
+    /* ── 地图页 ─────────────────────────────────────── */
+
+    /** 玩家换了所在节点。每帧都会调，必须便宜。 */
+    visitNode(node, level, time) {
+      if (!node || this.nodes.has(node.id)) return false;
+      this.nodes.add(node.id);
+      if (node.buildingId) {
+        const b = level && level.buildings
+          ? level.buildings.find(x => x.buildingId === node.buildingId) : null;
+        if (b && !this.buildings.has(node.buildingId)) {
+          this.buildings.add(node.buildingId);
+          this.addClue('第一次进入' + b.name, time);
+        }
+      }
+      return true;
+    },
+
+    /** 已探明的房间占这栋楼的几成 —— 地图页拿它画进度 */
+    exploredRatio(building) {
+      let total = 0, seen = 0;
+      for (const meta of building.floorsMeta) {
+        for (const r of meta.rooms) { total++; if (this.nodes.has(r.id)) seen++; }
+        total++; if (this.nodes.has(meta.corridor.id)) seen++;
+      }
+      return total ? seen / total : 0;
+    },
+
+    /* ── 线索页 ─────────────────────────────────────── */
+
+    addClue(text, time) {
+      if (this.clues.some(c => c.text === text)) return false;   // 同一条只记一次
+      this.clues.unshift(Object.assign(this._stamp(time), { text }));
+      if (this.clues.length > 60) this.clues.pop();
+      this.unread++;
+      return true;
+    },
+
+    /** 翻完一个容器。稀有物资本身就是线索：「保安室的柜子里有战术背包」值得记一笔。 */
+    lootContainer(box, time) {
+      if (!box || this.looted.has(box.id)) return;
+      this.looted.add(box.id);
+      for (const it of box.grid.items) {
+        const def = C.ITEMS[it.id];
+        if (def && def.rare) this.addClue(box.roomName + ' 的' + box.name + '里有' + def.name, time);
+      }
+    },
+
+    /* ── 配方页 ─────────────────────────────────────── */
+
+    /** 捡到书就解锁对应的一批配方（10.2「书籍解锁配方」） */
+    readBook(itemId, time) {
+      let n = 0;
+      for (const r of C.Config.recipes) {
+        if (r.unlock !== itemId || this.recipes.has(r.id)) continue;
+        this.recipes.add(r.id); n++;
+      }
+      if (n) this.addClue('翻了翻' + (C.ITEMS[itemId] || {}).name + '，记下 ' + n + ' 条做法', time);
+      return n;
+    },
+
+    /* ── 观察页 ─────────────────────────────────────── */
+
+    /**
+     * 记一条对丧尸的观察。how 是「怎么知道的」：看见 / 听见。
+     * 这一页的价值在于把玩家自己摸出来的规律固化下来，而不是提前告诉他。
+     */
+    observeZombie(zombie, how, time) {
+      const key = zombie.typeName + ':' + how;
+      const label = zombie.def.name + '（' + how + '）';
+      const e = this.obs.get(key);
+      if (e) { e.count++; return false; }
+      this.obs.set(key, { label, count: 1, firstDay: time ? time.day : 1 });
+      this.unread++;
+      return true;
+    },
+
+    /** 玩法规律：由玩法事件触发，一条只记一次 */
+    note(key, label, time) {
+      if (this.obs.has(key)) { this.obs.get(key).count++; return false; }
+      this.obs.set(key, { label, count: 1, firstDay: time ? time.day : 1 });
+      this.unread++;
+      return true;
+    },
+
+    /* ── 手动标记（14.3）─────────────────────────────── */
+
+    addPin(x, z, type) {
+      this.pins.push({ x, z, type: type || this.pinType });
+      return this.pins[this.pins.length - 1];
+    },
+    /** 离 (x,z) 最近的标记，超过 r 米就当没点中 */
+    pinNear(x, z, r) {
+      let best = null, bd = r;
+      for (const p of this.pins) {
+        const d = Math.hypot(p.x - x, p.z - z);
+        if (d <= bd) { bd = d; best = p; }
+      }
+      return best;
+    },
+    removePin(pin) {
+      const i = this.pins.indexOf(pin);
+      if (i >= 0) this.pins.splice(i, 1);
+    },
+
+    /* ── 存档（硬约束 4：所有运行时状态必须可序列化）──── */
+
+    serialize() {
+      return {
+        nodes: Array.from(this.nodes), buildings: Array.from(this.buildings),
+        looted: Array.from(this.looted), clues: this.clues,
+        recipes: Array.from(this.recipes),
+        obs: Array.from(this.obs.entries()).map(([k, v]) => [k, v.label, v.count, v.firstDay]),
+        pins: this.pins
+      };
+    },
+    deserialize(d) {
+      this.reset();
+      if (!d) return this;
+      this.nodes = new Set(d.nodes || []);
+      this.buildings = new Set(d.buildings || []);
+      this.looted = new Set(d.looted || []);
+      this.clues = d.clues || [];
+      this.recipes = new Set(d.recipes || []);
+      for (const [k, label, count, firstDay] of (d.obs || [])) this.obs.set(k, { label, count, firstDay });
+      this.pins = d.pins || [];
+      return this;
+    }
+  };
+
+  C.PinTypes = PIN_TYPES;
+  C.Notebook = Notebook;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/23-inventory-ui.js ===== */
 /*
  * 23-inventory-ui.js —— 背包与搜刮界面（主文档 14.2）
@@ -4530,6 +5807,226 @@
   C.InventoryUI = UI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/27-notebook-ui.js ===== */
+/*
+ * 27-notebook-ui.js —— 笔记本界面（主文档 14.3）
+ * 四页标签 + 一张手绘感的校园平面图。只读 26-notebook 的数据，不反向写规则。
+ *
+ * 地图页故意画得粗：**没走过的地方就是空的**。玩家的地图知识是跨局资产，
+ * 把没探过的楼提前画出来等于把这份资产白送。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const UI = {
+    open: false, page: 'map', game: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('note');
+      this.el.innerHTML =
+        '<div class="note-wrap">' +
+          '<nav class="note-tabs">' +
+            '<button data-page="map">地图</button><button data-page="clue">线索</button>' +
+            '<button data-page="recipe">配方</button><button data-page="obs">观察</button>' +
+            '<span class="note-close">按 <kbd>J</kbd> / <kbd>Esc</kbd> 合上</span>' +
+          '</nav>' +
+          '<div class="note-body">' +
+            '<div class="note-page" id="notePageMap">' +
+              '<canvas id="noteMap"></canvas>' +
+              '<div class="note-pins" id="notePins"></div>' +
+            '</div>' +
+            '<div class="note-page" id="notePageText"></div>' +
+          '</div>' +
+        '</div>';
+      this.canvas = document.getElementById('noteMap');
+      this.pinBar = document.getElementById('notePins');
+      this.textPane = document.getElementById('notePageText');
+      this.mapPane = document.getElementById('notePageMap');
+
+      this.el.querySelectorAll('.note-tabs button').forEach(b => {
+        b.onclick = () => { this.page = b.dataset.page; this.render(); };
+      });
+      this.pinBar.innerHTML = C.PinTypes.map(t =>
+        `<button data-pin="${t.id}" style="--pc:${t.color}">${t.label}</button>`).join('') +
+        '<em>点图上任意处放标记，点已有标记删掉它</em>';
+      this.pinBar.querySelectorAll('button').forEach(b => {
+        b.onclick = () => { C.Notebook.pinType = b.dataset.pin; this.render(); };
+      });
+      this.canvas.addEventListener('click', (e) => this._mapClick(e));
+      const btn = document.getElementById('btnNote');
+      if (btn) btn.addEventListener('click', () => this.toggle());
+    },
+
+    toggle() {
+      this.open = !this.open;
+      this.el.classList.toggle('open', this.open);
+      if (this.open) {
+        C.Notebook.unread = 0;
+        // 桌面端要把指针交还给鼠标，否则地图上的标记点不中
+        if (document.pointerLockElement) document.exitPointerLock();
+        this.render();
+      }
+    },
+    close() { this.open = false; this.el.classList.remove('open'); },
+
+    render() {
+      if (!this.open) return;
+      this.el.querySelectorAll('.note-tabs button').forEach(b =>
+        b.classList.toggle('on', b.dataset.page === this.page));
+      this.pinBar.querySelectorAll('button').forEach(b =>
+        b.classList.toggle('on', b.dataset.pin === C.Notebook.pinType));
+      const isMap = this.page === 'map';
+      this.mapPane.style.display = isMap ? 'flex' : 'none';
+      this.textPane.style.display = isMap ? 'none' : 'block';
+      if (isMap) this._drawMap(); else this.textPane.innerHTML = this._textHtml();
+    },
+
+    /* ── 地图 ──────────────────────────────────────── */
+
+    _view() {
+      const lv = this.game.level, b = lv.bounds;
+      const cv = this.canvas;
+      const w = cv.clientWidth || 860, h = cv.clientHeight || 520;
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      }
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const pad = 14;
+      const s = Math.min((w - pad * 2) / (b.maxX - b.minX), (h - pad * 2) / (b.maxZ - b.minZ));
+      // 北在上：世界 +z 向北，屏幕 y 向下，所以 z 要翻过来
+      const toX = (x) => pad + (x - b.minX) * s;
+      const toY = (z) => h - pad - (z - b.minZ) * s;
+      return { ctx, w, h, s, toX, toY,
+               fromX: (px) => (px - pad) / s + b.minX,
+               fromZ: (py) => (h - pad - py) / s + b.minZ };
+    },
+
+    _drawMap() {
+      const lv = this.game.level;
+      const N = C.Notebook;
+      const view = this._view();
+      const { ctx, w, h, s, toX, toY } = view;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, w, h);
+
+      // 围墙
+      if (lv.exits) {
+        const wl = C.Config.campus.wall;
+        ctx.strokeStyle = '#2c3644'; ctx.lineWidth = 2;
+        ctx.strokeRect(toX(wl.x0), toY(wl.z1), (wl.x1 - wl.x0) * s, (wl.z1 - wl.z0) * s);
+      }
+
+      // 室外分区：走过的才写名字
+      for (const z of (lv.zones || [])) {
+        const node = lv.zoneNodes && lv.zoneNodes.get(z.id);
+        const seen = node && N.nodes.has(node.id);
+        ctx.strokeStyle = seen ? '#243040' : '#171e28';
+        ctx.setLineDash([3, 4]); ctx.lineWidth = 1;
+        ctx.strokeRect(toX(z.x0), toY(z.z1), (z.x1 - z.x0) * s, (z.z1 - z.z0) * s);
+        ctx.setLineDash([]);
+        if (seen) {
+          ctx.fillStyle = '#3d4a5c'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText(z.name, toX((z.x0 + z.x1) / 2), toY(z.z1) + 14);
+        }
+      }
+
+      // 建筑：进过的画实心并按探明比例填色，没进过的只有一个虚线轮廓
+      for (const b of (lv.buildings || [])) {
+        const f = b.footprint;
+        const x = toX(f.x0), y = toY(f.z1), ww = (f.x1 - f.x0) * s, hh = (f.z1 - f.z0) * s;
+        const known = N.buildings.has(b.buildingId);
+        if (!known) {
+          ctx.strokeStyle = '#232c38'; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+          ctx.strokeRect(x, y, ww, hh); ctx.setLineDash([]);
+          continue;
+        }
+        const ratio = N.exploredRatio(b);
+        ctx.fillStyle = '#1b2531'; ctx.fillRect(x, y, ww, hh);
+        ctx.fillStyle = 'rgba(111,211,232,0.20)'; ctx.fillRect(x, y, ww * ratio, hh);
+        ctx.strokeStyle = '#3a4a5e'; ctx.lineWidth = 1; ctx.strokeRect(x, y, ww, hh);
+        ctx.fillStyle = '#b6c2cf'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(b.name, x + ww / 2, y + hh / 2 + 3);
+        ctx.fillStyle = '#5f6b78'; ctx.font = '9px ui-monospace, monospace';
+        ctx.fillText((ratio * 100).toFixed(0) + '%', x + ww / 2, y + hh / 2 + 15);
+      }
+
+      // 出入口（13.3）：知道校门在哪是逃出去的前提，所以一开始就画
+      for (const e of (lv.exits || [])) {
+        const wl = C.Config.campus.wall;
+        const mid = (e.a0 + e.a1) / 2;
+        const p = e.side === 'south' ? [mid, wl.z0] : e.side === 'north' ? [mid, wl.z1]
+                : e.side === 'west' ? [wl.x0, mid] : [wl.x1, mid];
+        ctx.fillStyle = '#E4573D';
+        ctx.beginPath(); ctx.arc(toX(p[0]), toY(p[1]), 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8a6055'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(e.name, toX(p[0]), toY(p[1]) - 6);
+      }
+
+      // 手动标记
+      for (const pin of N.pins) {
+        const t = C.PinTypes.find(q => q.id === pin.type) || C.PinTypes[0];
+        ctx.fillStyle = t.color;
+        ctx.beginPath(); ctx.arc(toX(pin.x), toY(pin.z), 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // 玩家：一个点 + 朝向
+      const p = this.game.player;
+      const px = toX(p.pos.x), py = toY(p.pos.z);
+      ctx.strokeStyle = '#E5B45C'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.sin(p.yaw) * 12, py - Math.cos(p.yaw) * 12); ctx.stroke();
+      ctx.fillStyle = '#E5B45C';
+      ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2); ctx.fill();
+
+      // 指北 + 当前位置
+      ctx.fillStyle = '#5f6b78'; ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left';
+      ctx.fillText('北 ↑', 8, 16);
+      const S = C.Streaming;
+      if (S && S.placeName) ctx.fillText('你在 ' + S.placeName, 8, 30);
+    },
+
+    _mapClick(e) {
+      if (this.page !== 'map') return;
+      const r = this.canvas.getBoundingClientRect();
+      const v = this._view();
+      const x = v.fromX(e.clientX - r.left), z = v.fromZ(e.clientY - r.top);
+      const near = C.Notebook.pinNear(x, z, 8 / v.s);
+      if (near) C.Notebook.removePin(near); else C.Notebook.addPin(x, z);
+      this._drawMap();
+    },
+
+    /* ── 线索 / 配方 / 观察 ─────────────────────────── */
+
+    _textHtml() {
+      const N = C.Notebook;
+      if (this.page === 'clue') {
+        if (!N.clues.length) return '<p class="note-empty">还没有任何线索。走出去看看。</p>';
+        return '<ul class="note-list">' + N.clues.map(c =>
+          `<li><span class="note-when">第 ${c.day} 天 ${c.hhmm}</span>${c.text}</li>`).join('') + '</ul>';
+      }
+      if (this.page === 'recipe') {
+        return '<ul class="note-list">' + C.Config.recipes.map(r => {
+          const on = N.recipes.has(r.id);
+          return `<li class="${on ? '' : 'note-locked'}"><b>${on ? r.name : '？？'}</b>` +
+                 `<span class="note-need">${on ? r.need : '需要先找到' + (r.unlock === 'manual' ? '技术手册' : '课本')}</span>` +
+                 `<span class="note-when">${on ? r.note : ''}</span></li>`;
+        }).join('') + '</ul>';
+      }
+      if (!N.obs.size) return '<p class="note-empty">还没有观察到什么。屏息听听。</p>';
+      const rows = Array.from(N.obs.values()).sort((a, b) => b.count - a.count);
+      return '<ul class="note-list">' + rows.map(o =>
+        `<li><span class="note-when">第 ${o.firstDay} 天起</span>${o.label}` +
+        `<span class="note-need">×${o.count}</span></li>`).join('') + '</ul>';
+    }
+  };
+
+  C.NotebookUI = UI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -4538,7 +6035,7 @@
 (function (root) {
   const C = (root.Campus = root.Campus || {});
   const KEY = 'campus-save-v1';
-  const VERSION = 1;
+  const VERSION = 2;   // v2：加了背包/容器/笔记本，v1 存档不再兼容
 
   C.Save = {
     version: VERSION,
@@ -4552,8 +6049,19 @@
         player: {
           pos: C.V.copy(p.pos), yaw: p.yaw, pitch: p.pitch,
           stamina: p.stamina, stones: p.stones, flashlight: p.flashlight,
-          needs: p.needs.serialize(), items: p.items
+          needs: p.needs.serialize(), items: p.items,
+          // 背包与快取栏：格子布局要一起存，否则读档后拼图全乱
+          bagItemId: p.bagItemId || null,
+          bag: p.bag ? p.bag.serialize() : null,
+          hotbar: (p.hotbar || []).map(it => (it ? { id: it.id, count: it.count } : null))
         },
+        // 容器：只存翻过的（opened），没翻过的按固定种子重新生成即可
+        containers: (game.level.containers || [])
+          .filter(b => b.opened)
+          .map(b => ({ id: b.id, revealed: b.revealed, grid: b.grid.serialize() })),
+        loose: (game.level.looseItems || [])
+          .map((l, i) => (l.taken ? i : -1)).filter(i => i >= 0),
+        notebook: C.Notebook.serialize(),
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
         // 丧尸：ID、类型、位置、生命、行为状态、目标点
         zombies: C.ZombieManager.list.map(z => ({
@@ -4593,6 +6101,19 @@
       p.stamina = d.player.stamina; p.stones = d.player.stones; p.flashlight = !!d.player.flashlight;
       p.needs.deserialize(d.player.needs);
       if (d.player.items) p.items = d.player.items;
+      p.bagItemId = d.player.bagItemId || null;
+      p.bag = d.player.bag ? C.Grid.deserialize(d.player.bag) : null;
+      if (d.player.hotbar) p.hotbar = d.player.hotbar.map(r => (r ? C.makeItem(r.id, r.count) : null));
+      const boxes = new Map((game.level.containers || []).map(b => [b.id, b]));
+      for (const r of d.containers || []) {
+        const b = boxes.get(r.id);
+        if (!b) continue;
+        b.opened = true; b.revealed = r.revealed; b.grid = C.Grid.deserialize(r.grid);
+      }
+      for (const i of d.loose || []) {
+        if (game.level.looseItems && game.level.looseItems[i]) game.level.looseItems[i].taken = true;
+      }
+      C.Notebook.deserialize(d.notebook);
       if (d.skills) Object.assign(C.Config.skills, d.skills);
       for (const r of d.portals || []) {
         const portal = game.level.graph.portals[r.i];
@@ -4712,6 +6233,11 @@
       layer.addEventListener('pointerup', endLook);
       layer.addEventListener('pointercancel', endLook);
 
+      // 全屏：手机上最有效的一招 —— 浏览器地址栏消失，就没有可以被拖下来的东西
+      this._bindTap(document.getElementById('btnFull'), () => this.toggleFullscreen());
+
+      this._lockPageScroll();
+
       // 屏幕方向提示
       const checkOrient = () => {
         document.getElementById('rotateHint').hidden = innerWidth >= innerHeight;
@@ -4719,6 +6245,54 @@
       addEventListener('resize', checkOrient);
       addEventListener('orientationchange', () => setTimeout(checkOrient, 250));
       checkOrient();
+    },
+
+    /* 「转视角时页面被拖下来」的最后一道闸。
+       CSS 的 touch-action / overscroll-behavior 覆盖了绝大多数情况，但：
+         · iOS Safari 的橡皮筋回弹不吃 overscroll-behavior
+         · 部分安卓浏览器在多指手势下会忽略 touch-action
+       所以再挂一个**非被动**的 touchmove，把不是发生在可滚动面板里的手势直接吃掉。
+       可滚动面板（背包、笔记本、调参、开场层）要放行，否则它们就滚不动了。 */
+    _lockPageScroll() {
+      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note');
+      document.addEventListener('touchmove', (e) => {
+        if (scrollable(e.target)) return;
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+      // 双指缩放同样会把画面拖歪
+      document.addEventListener('gesturestart', (e) => e.preventDefault());
+      // 地址栏收起后浏览器可能残留一点滚动量，回正
+      const home = () => root.scrollTo(0, 0);
+      addEventListener('resize', home);
+      addEventListener('orientationchange', () => setTimeout(home, 300));
+      home();
+    },
+
+    isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    },
+    /** 进/出全屏。iPhone 上 Safari 不给全屏 API，静默失败即可，CSS 那一层已经堵住了滚动。 */
+    toggleFullscreen() {
+      const el = document.documentElement;
+      if (this.isFullscreen()) {
+        (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+        return;
+      }
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { this.game.msg('这个浏览器不支持全屏，横屏后上划隐藏地址栏即可'); return; }
+      const p = req.call(el, { navigationUI: 'hide' });
+      if (p && p.then) p.then(() => this._lockLandscape()).catch(() => {});
+      else this._lockLandscape();
+    },
+    _lockLandscape() {
+      const o = screen && screen.orientation;
+      if (o && o.lock) o.lock('landscape').catch(() => {});   // 不支持就算了，只是个便利
+    },
+    /** 首次触摸时顺手进全屏（必须在用户手势里调用，所以挂在 Game 的首次点击上） */
+    autoFullscreenOnce() {
+      if (!this.enabled || this._autoFsDone) return;
+      this._autoFsDone = true;
+      if (!this.isFullscreen()) this.toggleFullscreen();
     },
 
     _moveStick(cx, cy) {
@@ -4829,6 +6403,9 @@
       this.restart();
       this._resize();
       addEventListener('resize', () => this._resize());
+      addEventListener('orientationchange', () => setTimeout(() => this._resize(), 300));
+      // 手机地址栏收起/展开时 innerHeight 会跳变，visualViewport 才是真正可见的那一块
+      if (root.visualViewport) root.visualViewport.addEventListener('resize', () => this._resize());
       this.last = performance.now();
       requestAnimationFrame((t) => this._frame(t));
     },
@@ -4839,9 +6416,19 @@
       C.ModifierPipeline.clear();
       C.EventBus.clear();
 
-      this.level = C.buildDormitory();
-      C.placeContainers(this.level);
-      C.placeLooseItems(this.level);
+      /* 建哪张图：默认全校（M2）。?map=dorm 回到 M0/M1 的单栋宿舍楼 ——
+         调声音数值时只想要一栋楼，全校 320 只丧尸的噪声会盖住要看的东西。 */
+      const dormOnly = typeof location !== 'undefined' && /[?&]map=dorm\b/.test(location.search);
+      this.level = dormOnly ? C.buildDormitory() : C.buildCampus();
+      if (this.level.isCampus) {
+        C.placeCampusContainers(this.level);
+        C.placeCampusLooseItems(this.level);
+      } else {
+        C.placeContainers(this.level);
+        C.placeLooseItems(this.level);
+      }
+      C.Streaming.reset(this.level);
+      C.Notebook.reset();
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -4855,6 +6442,13 @@
       if (this.renderer) this.renderer.three.dispose();
       this.renderer = new C.Renderer(this.canvas3d, this.level);
       this.renderer.world = this.world;      // 第三人称选边需要射线检测
+      // 分区加载：规则层只算「哪些楼该在」，渲染层负责切可见性
+      C.Streaming.onChange = (loaded) => this.renderer.setLoadedBuildings(loaded);
+      C.Streaming.update(this.player.pos);
+      this.renderer.setLoadedBuildings(C.Streaming.loaded);
+      if (!this._noteReady) { C.NotebookUI.init(this); this._noteReady = true; }
+      C.NotebookUI.game = this;
+      C.NotebookUI.close();
       this._resize();
 
       // 音频：把听觉组件的结果接到耳朵上
@@ -4867,21 +6461,48 @@
         C.InventoryUI.container = e.box; C.InventoryUI.open = true;
         C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
       });
+      C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
       C.EventBus.subscribe('PickupEvent', (e) => this.msg(e.msg));
+      C.EventBus.subscribe('RunnersAppearedEvent', (e) => {
+        this.msg('第 ' + e.day + ' 天：有东西跑起来了。');
+        C.Notebook.note('runner:appear', '第 ' + e.day + ' 天起，出现了会跑的（' + e.count + ' 只）', this.time);
+      });
       C.EventBus.subscribe(C.Events.PlayerDied, (e) => { this.player.deathCause = e.cause; C.Save.clear(); });
-      // 睡眠中被响度惊醒（主文档 3.4：margin > 15）
+      // 睡眠中被响度惊醒（主文档 3.4：margin > 15）；顺便把「听见丧尸」记进笔记本
       this.player.hearing.onHeard = ((prev) => (info) => {
         prev(info);
+        const src = info.evt && C.ZombieManager.list.find(q => q.id === info.evt.emitterId);
+        if (src) C.Notebook.observeZombie(src, '听见', this.time);
         if (C.Sleep.active && info.margin > C.Config.sleep.interruptMargin) {
           C.Sleep.interrupt(this.time, '被' + (info.evt.label || '声音') + '惊醒');
           this.msg(C.Sleep.wokeReason + '，没能睡好');
         }
       })(this.player.hearing.onHeard);
       C.Sleep.reset();
+      this._describeLevel();
       const saved = C.Save.read();
       if (saved && saved.incompatible) this.msg('存档版本不兼容（v' + saved.version + '），已忽略。');
       else if (saved && C.Save.apply(this, saved)) this.msg('读取存档：第 ' + this.time.day + ' 天 ' + this.time.format());
       else this.msg('醒来。宿舍 402。楼里很安静 —— 但这不代表没有东西。');
+    },
+
+    /* 开场卡片那一行规格由实际建出来的关卡填 —— 手写的话改了地图必忘改文案 */
+    _describeLevel() {
+      const lv = this.level;
+      const spec = document.getElementById('startSpec');
+      const stage = document.getElementById('startStage');
+      if (!spec) return;
+      if (lv.isCampus) {
+        const floors = lv.buildings.reduce((n, b) => n + b.spec.floors, 0);
+        spec.textContent = `CAMPUS GREYBOX / ${lv.buildings.length} BUILDINGS · ${floors} FLOORS / `
+          + `${lv.zones.length} OUTDOOR ZONES / ${C.ZombieManager.list.length} ZOMBIES / `
+          + `${(lv.containers || []).length} CONTAINERS`;
+        if (stage) stage.textContent = 'M2 · 全校灰盒';
+      } else {
+        spec.textContent = `DORMITORY GREYBOX / ${lv.bounds.floors}F × ${lv.floorsMeta[0].rooms.length} ROOMS / `
+          + `${C.ZombieManager.list.length} ZOMBIES / ${(lv.containers || []).length} CONTAINERS`;
+        if (stage) stage.textContent = 'M0 · 潜行手感验证';
+      }
     },
 
     msg(text) {
@@ -4902,6 +6523,8 @@
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
+          case 'KeyJ': C.NotebookUI.toggle(); break;
+          case 'Escape': C.NotebookUI.close(); break;
           case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
           case 'KeyR': if (!this.player.alive) this.restart(); break;
           case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
@@ -4928,11 +6551,16 @@
       addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
       // 监听在 document 上：开场提示层盖在画布之上，挂在画布上的点击永远收不到
-      document.addEventListener('click', () => {
+      document.addEventListener('click', (e) => {
         C.Audio.init(); C.Audio.resume();
+        // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
+        // 锁上之后鼠标就没了，地图上的标记再也点不中
+        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner')) return;
         if (C.Touch.enabled) {
-          // 手机没有指针锁定，点一下就是开始
+          // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
+          // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
           document.getElementById('startHint').style.display = 'none';
+          C.Touch.autoFullscreenOnce();
           return;
         }
         if (!this.locked) this.canvas3d.requestPointerLock();
@@ -5039,8 +6667,11 @@
       }
       this.player.update(dt, this._input(), this.time);
       C.Projectiles.update(dt);
+      // 先算加载集合再跑丧尸：丧尸的简化判定要用这一帧的结果
+      C.Streaming.update(this.player.pos);
       C.ZombieManager.update(dt, this.player, this.time);
       C.SoundSystem.tickStats(dt);
+      this._record(dt);
 
       this.renderer.update(this.player, this.time, dt);
       this.renderer.render();
@@ -5054,10 +6685,45 @@
       requestAnimationFrame((t) => this._frame(t));
     },
 
+    /* 笔记本的被动记录（14.3）。每帧都跑，所以贵的那部分要节流。
+       「听见」在听觉回调里记（见 restart），这里只管「走过」和「看见」。 */
+    _record(dt) {
+      const N = C.Notebook;
+      N.visitNode(this.level.graph.getNodeAt(this.player.pos), this.level, this.time);
+
+      /* 看见：视锥内 + 有视线 + 25m 内。射线检测不便宜，0.4s 查一轮，
+         而且只查离得近的那几只 —— 全校 320 只全查会把帧时间吃掉一半。 */
+      this._seeT = (this._seeT || 0) + dt;
+      if (this._seeT >= 0.4) {
+        this._seeT = 0;
+        const eye = this.player.eyePos();
+        const fwd = { x: Math.sin(this.player.yaw), z: -Math.cos(this.player.yaw) };
+        for (const z of C.ZombieManager.list) {
+          if (!z.alive) continue;
+          const dx = z.pos.x - eye.x, dz = z.pos.z - eye.z;
+          const d = Math.hypot(dx, dz);
+          if (d > 25 || d < 0.01) continue;
+          if ((dx * fwd.x + dz * fwd.z) / d < 0.5) continue;        // 视锥外（半角 60°）
+          if (!this.world.lineOfSight(eye, z.eyePos())) continue;
+          N.observeZombie(z, '看见', this.time);
+        }
+      }
+
+      const btn = document.getElementById('btnNote');
+      if (btn) btn.classList.toggle('unread', N.unread > 0);
+      // 开着的时候地图要跟着玩家动，但没必要每帧重画
+      if (C.NotebookUI.open) {
+        this._noteT = (this._noteT || 0) + 1;
+        if (this._noteT % 12 === 0) C.NotebookUI.render();
+      }
+    },
+
     _resize() {
       // 手机上把渲染分辨率压到 1.25 倍：这套灰盒是四层楼几百个盒子，
       // 中端手机按 3x DPR 渲染会掉到 20fps 以下，潜行手感全毁。
-      const w = innerWidth, h = innerHeight;
+      const vv = root.visualViewport;
+      const w = Math.round(vv ? vv.width : innerWidth);
+      const h = Math.round(vv ? vv.height : innerHeight);
       const dpr = Math.min(devicePixelRatio, C.Touch.enabled ? 1.25 : 2);
       this.renderer.resize(w, h);
       for (const c of [this.hudCanvas, this.dbgCanvas]) {

@@ -93,6 +93,11 @@
       layer.addEventListener('pointerup', endLook);
       layer.addEventListener('pointercancel', endLook);
 
+      // 全屏：手机上最有效的一招 —— 浏览器地址栏消失，就没有可以被拖下来的东西
+      this._bindTap(document.getElementById('btnFull'), () => this.toggleFullscreen());
+
+      this._lockPageScroll();
+
       // 屏幕方向提示
       const checkOrient = () => {
         document.getElementById('rotateHint').hidden = innerWidth >= innerHeight;
@@ -100,6 +105,54 @@
       addEventListener('resize', checkOrient);
       addEventListener('orientationchange', () => setTimeout(checkOrient, 250));
       checkOrient();
+    },
+
+    /* 「转视角时页面被拖下来」的最后一道闸。
+       CSS 的 touch-action / overscroll-behavior 覆盖了绝大多数情况，但：
+         · iOS Safari 的橡皮筋回弹不吃 overscroll-behavior
+         · 部分安卓浏览器在多指手势下会忽略 touch-action
+       所以再挂一个**非被动**的 touchmove，把不是发生在可滚动面板里的手势直接吃掉。
+       可滚动面板（背包、笔记本、调参、开场层）要放行，否则它们就滚不动了。 */
+    _lockPageScroll() {
+      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note');
+      document.addEventListener('touchmove', (e) => {
+        if (scrollable(e.target)) return;
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+      // 双指缩放同样会把画面拖歪
+      document.addEventListener('gesturestart', (e) => e.preventDefault());
+      // 地址栏收起后浏览器可能残留一点滚动量，回正
+      const home = () => root.scrollTo(0, 0);
+      addEventListener('resize', home);
+      addEventListener('orientationchange', () => setTimeout(home, 300));
+      home();
+    },
+
+    isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    },
+    /** 进/出全屏。iPhone 上 Safari 不给全屏 API，静默失败即可，CSS 那一层已经堵住了滚动。 */
+    toggleFullscreen() {
+      const el = document.documentElement;
+      if (this.isFullscreen()) {
+        (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+        return;
+      }
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { this.game.msg('这个浏览器不支持全屏，横屏后上划隐藏地址栏即可'); return; }
+      const p = req.call(el, { navigationUI: 'hide' });
+      if (p && p.then) p.then(() => this._lockLandscape()).catch(() => {});
+      else this._lockLandscape();
+    },
+    _lockLandscape() {
+      const o = screen && screen.orientation;
+      if (o && o.lock) o.lock('landscape').catch(() => {});   // 不支持就算了，只是个便利
+    },
+    /** 首次触摸时顺手进全屏（必须在用户手势里调用，所以挂在 Game 的首次点击上） */
+    autoFullscreenOnce() {
+      if (!this.enabled || this._autoFsDone) return;
+      this._autoFsDone = true;
+      if (!this.isFullscreen()) this.toggleFullscreen();
     },
 
     _moveStick(cx, cy) {

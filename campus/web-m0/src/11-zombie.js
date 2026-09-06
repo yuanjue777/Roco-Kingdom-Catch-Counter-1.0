@@ -7,6 +7,9 @@
  *   任意状态 ──看见玩家(识别条满)──> 追击 ──失去目标 6s──> 搜索
  */
 (function (root) {
+  /* 简化模拟允许的最大单步位移。必须小于最薄的墙（0.2m），否则会穿过去。 */
+  const SIM_STEP = 0.15;
+
   const C = (root.Campus = root.Campus || {});
   const { V, M, AABB } = C;
 
@@ -42,6 +45,10 @@
     this.rng = new C.Rng(this.id * 7919 + 13);
     this.stuckTimer = 0;
     this.lastPos = V.copy(def.pos);
+    // 布置时标了「第 12 天变成奔行者」的那 5%（7.2）。在那之前它就是一只普通游荡者。
+    this.becomesRunner = !!def.becomesRunner;
+    this.simplified = false;      // 分区加载：不在加载范围内时走简化模拟
+    this._simAcc = 0;
 
     this.hearing = new C.HearingComponent({
       ownerId: this.id, baseThreshold: T.threshold,
@@ -108,8 +115,14 @@
     this._setState(State.Alert);
   };
 
-  Zombie.prototype.update = function (dt, player, time) {
+  /**
+   * @param simplified 简化模拟（主文档 13.4）：跳过视觉检测，其余照跑。
+   *   它仍然听得见声音、仍然会更新目标并走过去 —— 文档要求的就是这个。
+   *   省掉的是视线射线检测，以及每帧一次的调用频率（管理器攒到 0.25s 再调一次）。
+   */
+  Zombie.prototype.update = function (dt, player, time, simplified) {
     if (!this.alive) return;
+    this.simplified = !!simplified;
     const R = C.Config.zombieReaction;
     const g = C.SoundSystem.graph;
 
@@ -131,7 +144,8 @@
       }
     }
 
-    if (this.state !== State.Prone) this._updateVision(dt, player, time);
+    // 简化模拟里不做视觉：看不见玩家的丧尸不会进入追击，而玩家不在附近时它本来也看不见
+    if (this.state !== State.Prone && !simplified) this._updateVision(dt, player, time);
 
     switch (this.state) {
       case State.Prone: break;
@@ -181,6 +195,13 @@
     }
 
     this.lastPos = V.copy(this.pos);
+  };
+
+  /** 当前状态下的移动速度上限。简化模拟拿它算该拆成几小步。 */
+  Zombie.prototype.speed = function () {
+    return this.state === State.Chase ? this.def.speedChase
+         : this.state === State.Investigate || this.state === State.Search ? this._investigateSpeed()
+         : this.def.speedWander;
   };
 
   Zombie.prototype._investigateSpeed = function () {
@@ -352,6 +373,16 @@
     this.path.push(V.copy(goal));
   };
 
+  /** 换一个类型（第 12 天游荡者变奔行者）。阈值走管线，不写死。 */
+  Zombie.prototype.setType = function (name) {
+    const T = C.Config.zombieTypes[name];
+    if (!T || this.typeName === name) return false;
+    this.typeName = name;
+    this.def = T;
+    this.hearing.baseThreshold = T.threshold;
+    return true;
+  };
+
   Zombie.prototype.destroy = function () {
     this.alive = false;
     C.SoundSystem.unregisterListener(this.hearing);
@@ -368,8 +399,36 @@
     },
     spawn(def, world) { const z = new Zombie(def, world); this.list.push(z); return z; },
     update(dt, player, time) {
-      for (const z of this.list) z.update(dt, player, time);
+      this._promoteRunners(time);
+      const far = C.Streaming ? C.Streaming.simplifyDistance() : Infinity;
+      const tick = C.Config.campus.simplifiedTick;
+      for (const z of this.list) {
+        if (!z.alive) continue;
+        if (V.distXZ(z.pos, player.pos) <= far) { z._simAcc = 0; z.update(dt, player, time, false); continue; }
+        /* 远处的丧尸攒够一个 tick 再动一次。步长必须留在 0.5m 以内，
+           否则一步跨过 0.2m 厚的隔墙，等玩家走近时会发现它站在墙里。 */
+        z._simAcc += dt;
+        if (z._simAcc < tick) continue;
+        const acc = Math.min(z._simAcc, tick * 2);
+        z._simAcc = 0;
+        /* 攒下来的时间不能一步走完：奔行者 5.4m/s × 0.5s = 2.7m，
+           一步就跨过 0.2m 厚的隔墙，等玩家走近会发现它站在墙里。
+           拆成每步不超过 SIM_STEP 的若干小步 —— 省下的是视线检测和调用次数，
+           不是碰撞的正确性。 */
+        const n = Math.max(1, Math.ceil(z.speed() * acc / SIM_STEP));
+        for (let i = 0; i < n; i++) z.update(acc / n, player, time, true);
+      }
       this._enforceChaseCap(player);
+    },
+
+    /** 第 12 天：布置时标记过的那 5% 换成奔行者（7.2）。只发生一次。 */
+    _promoteRunners(time) {
+      const day = C.Config.campus.runnerFromDay;
+      if (!time || time.day < day || this._runnersOut) return;
+      this._runnersOut = true;
+      let n = 0;
+      for (const z of this.list) if (z.alive && z.becomesRunner && z.setType('Runner')) n++;
+      if (n) C.EventBus.publish('RunnersAppearedEvent', { count: n, day: time.day });
     },
     /** 同时处于追击状态的丧尸全场上限；超过时最远的转为搜索（主文档 5.5） */
     _enforceChaseCap(player) {
@@ -388,7 +447,7 @@
       for (const z of this.list) m[z.state] = (m[z.state] || 0) + 1;
       return m;
     },
-    reset() { for (const z of this.list) z.destroy(); this.list.length = 0; nextId = 100; }
+    reset() { for (const z of this.list) z.destroy(); this.list.length = 0; nextId = 100; this._runnersOut = false; }
   };
 
   C.ZombieState = State;

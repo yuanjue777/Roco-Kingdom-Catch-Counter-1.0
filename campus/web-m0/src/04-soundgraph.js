@@ -77,7 +77,11 @@
       const h = this._nodeById.get(hintNodeId);
       if (h && containsNode(h.bounds, pos)) return h;
     }
-    for (const n of this.nodes) if (containsNode(n.bounds, pos)) return n;
+    /* 室内优先。室外分区是覆盖整条带的大盒子，几何上把楼包在里面 ——
+       按插入顺序找的话，站在教学楼三楼会被判成「主校道」。
+       室内节点之间互不重叠，所以先扫室内、再扫室外就够了，不需要额外的空间索引。 */
+    for (const n of this.nodes) if (!n.isOutdoor && containsNode(n.bounds, pos)) return n;
+    for (const n of this.nodes) if (n.isOutdoor && containsNode(n.bounds, pos)) return n;
     // 退化：同层里中心最近的
     let best = null, bestD = Infinity;
     for (const n of this.nodes) {

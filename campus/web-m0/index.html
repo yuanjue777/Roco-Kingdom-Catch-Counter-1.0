@@ -23,8 +23,18 @@
     --cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--cjk); }
-  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  /* 手机上「转视角把整个页面拖下来」有三个来源，三个都要堵：
+     ① 下拉刷新 —— overscroll-behavior
+     ② 页面本身能滚 —— html/body 定死成一屏、position:fixed
+     ③ 地址栏收起/展开导致 100vh 跳变 —— 用 100dvh，并以 visualViewport 为准重算画布
+     touch-action 只写在 #touch 上是不够的：手指一旦落在画布或 HUD 上，
+     滚动手势仍然由文档接管。 */
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    overflow: hidden; overscroll-behavior: none;
+  }
+  body { position: fixed; inset: 0; background: var(--ground); color: var(--ink); font-family: var(--cjk); }
+  #view, #hud, #dbg { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
   #hud { pointer-events: none; }
   #dbg { display: none; }
 
@@ -105,6 +115,58 @@
   #btnBag:hover { border-color: var(--accent); color: var(--accent); }
   body.touch #btnBag { right: auto; left: calc(18px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top));
                        bottom: auto; padding: 6px 12px; font-size: 12px; }
+  /* ── 笔记本（14.3）─────────────────────────────────
+     和背包一样是一整层遮罩。地图页是 canvas，其余三页是文字列表。 */
+  #btnNote {
+    position: fixed; right: 16px; bottom: 56px; z-index: 7;
+    font-family: var(--cjk); font-size: 13px; padding: 9px 18px; cursor: pointer;
+    background: rgba(20,26,34,0.9); color: var(--ink); border: 1px solid var(--line); border-radius: 4px;
+  }
+  #btnNote:hover { border-color: var(--accent); color: var(--accent); }
+  #btnNote.unread::after { content: ''; position: absolute; top: 5px; right: 6px;
+                           width: 6px; height: 6px; border-radius: 50%; background: var(--warn, #E5B45C); }
+  body.touch #btnNote { right: auto; left: calc(18px + env(safe-area-inset-left));
+                        top: calc(44px + env(safe-area-inset-top)); bottom: auto; padding: 6px 12px; font-size: 12px; }
+  #note {
+    position: fixed; inset: 0; z-index: 8; display: none;
+    background: rgba(6,8,13,0.93); overflow: auto; padding: 22px 18px 26px;
+  }
+  #note.open { display: block; }
+  .note-wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; }
+  .note-tabs { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .note-tabs button { font-family: var(--cjk); font-size: 13px; padding: 6px 16px; cursor: pointer;
+                      background: rgba(20,26,34,0.92); color: var(--dim);
+                      border: 1px solid var(--line); border-radius: 4px; }
+  .note-tabs button.on { color: var(--accent); border-color: var(--accent); }
+  .note-close { margin-left: auto; font-size: 11px; color: var(--dim); }
+  .note-close kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+  .note-body { flex: 1; min-height: 0; }
+  .note-page { height: 100%; }
+  #notePageMap { display: flex; flex-direction: column; gap: 10px; }
+  /* 地图要占满剩下的高度，但必须给下面那排标记按钮留位置 ——
+     手机横屏只有 390px 高，min-height 写死 320 会把按钮挤出屏幕。 */
+  #noteMap { flex: 1; min-height: min(320px, 46vh); max-height: 72vh;
+             width: 100%; border: 1px solid var(--line); border-radius: 5px;
+             background: #0d1117; cursor: crosshair; }
+  @media (max-height: 520px) {
+    #note { padding: 10px 12px 12px; }
+    .note-tabs { margin-bottom: 7px; }
+    .note-tabs button { padding: 4px 12px; font-size: 12px; }
+    #noteMap { min-height: 40vh; max-height: 62vh; }
+  }
+  .note-pins { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-pins button { font-family: var(--cjk); font-size: 11.5px; padding: 3px 12px; cursor: pointer;
+                      background: rgba(20,26,34,0.92); color: var(--dim);
+                      border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 3px; }
+  .note-pins button.on { color: var(--pc); border-color: var(--pc); }
+  .note-pins em { font-size: 11px; color: var(--dim); font-style: normal; }
+  .note-list { list-style: none; margin: 0; padding: 0; }
+  .note-list li { display: flex; gap: 10px; align-items: baseline; padding: 7px 4px;
+                  border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+  .note-list li.note-locked { color: var(--dim); }
+  .note-when { font-family: var(--mono); font-size: 11px; color: var(--dim); flex: none; min-width: 92px; }
+  .note-need { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; }
+  .note-empty { color: var(--dim); font-size: 13px; padding: 24px 4px; }
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -155,7 +217,14 @@
      只在 pointer:coarse 的设备上出现（或 URL 加 ?touch=1 强制打开）。
      整层负责接住空白处的拖拽来转视角，按钮是它的子元素。 */
   body.touch { overscroll-behavior: none; -webkit-user-select: none; user-select: none;
-               -webkit-tap-highlight-color: transparent; }
+               -webkit-tap-highlight-color: transparent; touch-action: none; }
+  /* 画布与 HUD 也要写死 touch-action —— 手指落在它们上面时滚动手势归文档管，
+     只在触屏层上写是堵不住的 */
+  body.touch #view, body.touch #hud, body.touch #dbg { touch-action: none; }
+  /* 会滚的面板反过来要把纵向滚动还给自己，并且不把滚动传给页面 */
+  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note {
+    touch-action: pan-y; overscroll-behavior: contain;
+  }
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
   #touch[hidden] { display: none; }
   #touch button { touch-action: none; }
@@ -250,7 +319,9 @@
 <canvas id="dbg"></canvas>
 <div id="toast"></div>
 <div id="tuner"></div>
+<button id="btnNote" type="button">笔记本 J</button>
 <div id="inv"></div>
+<div id="note"></div>
 <button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -278,17 +349,19 @@
     <button id="btnWatch" class="tb tiny" type="button">看表</button>
     <button id="btnDebug" class="tb tiny" type="button">调试</button>
     <button id="btnTune" class="tb tiny" type="button">调参</button>
+    <button id="btnFull" class="tb tiny" type="button">全屏</button>
     <button id="btnHelp" class="tb tiny" type="button">?</button>
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
 <div id="startHint">
   <div class="card">
-    <p class="eyebrow">M0 · 潜行手感验证</p>
+    <p class="eyebrow" id="startStage">M2 · 全校灰盒</p>
     <h1>校园</h1>
-    <p class="sub">DORMITORY GREYBOX / 4F × 6 ROOMS / 320-ZOMBIE RULESET, 4 SPAWNED</p>
-    <p class="lede">你是唯一一个睡过头的学生。你在宿舍 402 醒来，四层，离两侧楼梯都不近。
-      楼里有三只游荡者和一只蜷伏者。没有武器，没有战斗 —— <em>只有声音</em>。</p>
+    <p class="sub" id="startSpec">CAMPUS GREYBOX</p>
+    <p class="lede">你是唯一一个睡过头的学生。你在男生宿舍楼 402 醒来，四层，离两侧楼梯都不近。
+      门外是整所学校 —— 十三栋楼，三百多只丧尸，六个能出去的口子。
+      没有武器，没有战斗 —— <em>只有声音</em>。</p>
     <p>声音沿着开着的门绕行，不穿墙。关上门就真的能挡住。每个动作都有明码标价的响度，
       丧尸的反应快慢与定位精度，完全由它听到的响度减去自己的阈值决定。
       没有隐藏随机数，你可以在脑内推演。</p>
@@ -305,6 +378,7 @@
       <div class="row"><span><kbd>F</kbd></span><span class="act">轻点开门 / 按住缓慢</span><span class="val">35·12</span></div>
       <div class="row"><span><kbd>G</kbd></span><span class="act">蓄力投石</span><span class="val">45</span></div>
       <div class="row"><span><kbd>B</kbd></span><span class="act">背包 · 六格快取栏</span><span class="val none">—</span></div>
+      <div class="row"><span><kbd>J</kbd></span><span class="act">笔记本（地图 / 线索 / 配方 / 观察）</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>K</kbd></span><span class="act">睡觉（需安全睡点）</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>1</kbd>–<kbd>6</kbd></span><span class="act">使用快取栏</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>L</kbd> <kbd>X</kbd> <kbd>F5</kbd></span><span class="act">手电 / 看表 / 存档</span><span class="val none">—</span></div>
@@ -338,7 +412,11 @@
 <script src="src/14-hud.js"></script>
 <script src="src/15-debug.js"></script>
 <script src="src/19-sleep.js"></script>
+<script src="src/24-campus.js"></script>
+<script src="src/25-streaming.js"></script>
+<script src="src/26-notebook.js"></script>
 <script src="src/23-inventory-ui.js"></script>
+<script src="src/27-notebook-ui.js"></script>
 <script src="src/20-save.js"></script>
 <script src="src/17-touch.js"></script>
 <script src="src/16-main.js"></script>

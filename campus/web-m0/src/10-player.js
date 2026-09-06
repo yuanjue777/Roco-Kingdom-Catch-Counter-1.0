@@ -140,6 +140,9 @@
   /** 捡起/拿取一件物品。容器类物品在没有背包时直接背上。 */
   Player.prototype.acquire = function (item) {
     const def = C.ITEMS[item.id];
+    // 书是被动读的：拿到手里就等于翻过了，配方直接进笔记本（10.2）。
+    // 两条取物路径（地上拾取 / 容器里拿）都会经过这里，所以只在这写一次。
+    if (def.book && C.Notebook) C.Notebook.readBook(item.id, C.SoundSystem.time);
     if (def.kind === 'container' && !this.bag) {
       this.bag = new C.Grid(def.grid[0], def.grid[1], def.name);
       this.bagItemId = item.id;

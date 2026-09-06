@@ -6,7 +6,8 @@ const path = require('path');
 const SRC = path.join(__dirname, '..', 'src');
 for (const f of ['03-math', '00-config', '01-eventbus', '02-modifiers', '04-soundgraph',
                  '05-soundsystem', '06-hearing', '07-time', '08-level', '09-collision',
-                 '18-needs', '21-items', '22-loot', '10-player', '11-zombie', '19-sleep', '20-save']) require(path.join(SRC, f + '.js'));
+                 '18-needs', '21-items', '22-loot', '10-player', '11-zombie', '19-sleep',
+                 '24-campus', '25-streaming', '26-notebook', '20-save']) require(path.join(SRC, f + '.js'));
 const C = globalThis.Campus;
 
 let pass = 0, fail = 0;
@@ -648,6 +649,298 @@ section('18. 物资布置');
      s7.level.containers.filter(c => c.grid.find('antibiotic')).length === 2);
   const kinds = new Set(s7.level.containers.map(c => c.kind));
   ok('容器类型齐全（书桌/衣柜/床下箱/储物柜/垃圾桶）', kinds.size >= 5, [...kinds].join(','));
+}
+
+section('19. 全校地图（M2）');
+{
+  C.SoundSystem.reset(); C.ZombieManager.reset(); C.ModifierPipeline.clear();
+  const t0 = Date.now();
+  const lv = C.buildCampus();
+  const buildMs = Date.now() - t0;
+  ok('生成耗时在可接受范围（<300ms）', buildMs < 300, buildMs + 'ms');
+  ok('十三栋楼齐全', lv.buildings.length === 13, lv.buildings.length + ' 栋');
+  ok('八个室外分区齐全', lv.zones.length === 8, lv.zones.length + ' 个');
+
+  // 分区必须互不重叠，否则 getNodeAt 会时灵时不灵
+  let overlap = null;
+  for (let i = 0; i < lv.zones.length && !overlap; i++) {
+    for (let j = i + 1; j < lv.zones.length; j++) {
+      const a = lv.zones[i], b = lv.zones[j];
+      if (a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1) { overlap = a.id + '/' + b.id; break; }
+    }
+  }
+  ok('室外分区互不重叠', !overlap, overlap || '');
+
+  // 楼与楼不能撞在一起
+  let clash = null;
+  for (let i = 0; i < lv.buildings.length && !clash; i++) {
+    for (let j = i + 1; j < lv.buildings.length; j++) {
+      const a = lv.buildings[i].footprint, b = lv.buildings[j].footprint;
+      if (a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1) {
+        clash = lv.buildings[i].name + '/' + lv.buildings[j].name; break;
+      }
+    }
+  }
+  ok('楼与楼的占地不重叠', !clash, clash || '');
+
+  // 每栋楼都必须落在它声明的那个分区里
+  let badZone = null;
+  for (const b of lv.buildings) {
+    const zn = lv.zones.find(q => q.id === b.spec.zone);
+    const f = b.footprint;
+    if (f.x0 < zn.x0 || f.x1 > zn.x1 || f.z0 < zn.z0 || f.z1 > zn.z1) { badZone = b.name; break; }
+  }
+  ok('每栋楼都完整落在它所属的室外分区里', !badZone, badZone || '');
+
+  // 楼都在围墙内
+  const wl = C.Config.campus.wall;
+  const outside = lv.buildings.filter(b =>
+    b.footprint.x0 < wl.x0 || b.footprint.x1 > wl.x1 || b.footprint.z0 < wl.z0 || b.footprint.z1 > wl.z1);
+  ok('所有楼都在围墙以内', outside.length === 0, outside.map(b => b.name).join(','));
+
+  ok('丧尸总数 = 320（7.1）', lv.zombieSpawns.length === 320, String(lv.zombieSpawns.length));
+  const crawlers = lv.zombieSpawns.filter(s2 => s2.type === 'Crawler').length;
+  const runners = lv.zombieSpawns.filter(s2 => s2.becomesRunner).length;
+  ok('蜷伏者约占 10%', Math.abs(crawlers / 320 - 0.10) < 0.01, crawlers + ' 只');
+  ok('奔行者约占 5%', Math.abs(runners / 320 - 0.05) < 0.01, runners + ' 只');
+  ok('蜷伏者只藏在房间里，不撂在走廊中间',
+     lv.zombieSpawns.filter(s2 => s2.type === 'Crawler' && s2.spotKind !== 'room').length === 0);
+
+  // 出生点：男生宿舍楼 402
+  const spawnNode = lv.graph.getNodeAt(C.V.make(lv.spawn.x, lv.spawn.y + 1.0, lv.spawn.z));
+  ok('出生点在男生宿舍楼 402（13.2）', spawnNode && spawnNode.name === '男402', spawnNode && spawnNode.name);
+
+  // 声图是一张连通图：从出生点出发能走到每一个节点
+  const seen = new Set([spawnNode.id]);
+  const q = [spawnNode.id];
+  while (q.length) {
+    const cur = q.shift();
+    for (const pid of lv.graph.getNode(cur).portals) {
+      const other = lv.graph.other(lv.graph.getPortal(pid), cur);
+      if (!seen.has(other)) { seen.add(other); q.push(other); }
+    }
+  }
+  ok('声图全连通：从出生点能到达每一个节点', seen.size === lv.graph.nodes.length,
+     seen.size + '/' + lv.graph.nodes.length);
+
+  // 出生点脚下必须是实地，头顶必须有空间
+  const w2 = new C.World(lv);
+  const gy = w2.groundY(lv.spawn, lv.spawn.y + 0.5, 0.32);
+  ok('出生点站得住（脚下有地板）', gy !== null && Math.abs(gy - lv.spawn.y) < 0.2, String(gy));
+  ok('出生点头顶有站立空间', w2.isClear(lv.spawn.x, lv.spawn.y + 0.05, lv.spawn.z, 0.32, 1.7));
+
+  // 每栋楼都有大门，且大门前面是空地
+  const noDoor = lv.buildings.filter(b => !b.entrance);
+  ok('每栋楼都有一扇一层大门', noDoor.length === 0, noDoor.map(b => b.name).join(','));
+  const blocked = lv.buildings.filter(b => !w2.isClear(b.entrance.x, 0.05, b.entrance.z, 0.32, 1.7));
+  ok('大门口是空地，站得下人', blocked.length === 0, blocked.map(b => b.name).join(','));
+
+  // 每栋多层楼都得能上下楼：楼梯节点两端各连一层走廊
+  const badStairs = lv.buildings.filter(b => {
+    if (b.spec.floors < 2) return false;
+    return !b.floorsMeta.every(m => m.stairs && m.stairs.length > 0);
+  });
+  ok('每栋多层楼的每一层都有楼梯口', badStairs.length === 0, badStairs.map(b => b.name).join(','));
+
+  // 传播预算：全校最响的一声也不能把整张图展开
+  C.SoundSystem.init(lv.graph, new C.TimeSystem());
+  const t1 = Date.now();
+  for (let i = 0; i < 50; i++) {
+    C.SoundSystem.propagate(lv.graph.getNodeAt(C.V.make(lv.spawn.x, lv.spawn.y + 1, lv.spawn.z)), 150);
+  }
+  const ms = (Date.now() - t1) / 50;
+  ok('全校图上单次传播仍在 0.5ms 预算内', ms < 0.5, ms.toFixed(3) + 'ms');
+}
+
+section('20. 分区加载（13.4）');
+{
+  C.SoundSystem.reset(); C.ZombieManager.reset();
+  const lv = C.buildCampus();
+  C.Streaming.reset(lv);
+  const st = C.Config.campus.streaming;
+
+  C.Streaming.update(C.V.make(lv.spawn.x, lv.spawn.y, lv.spawn.z));
+  const home = lv.buildings.find(b => b.spec.spawn);
+  ok('人在楼里，这栋楼一定是加载的', C.Streaming.isLoaded(home.buildingId));
+  ok('只加载附近的楼，不是全部',
+     C.Streaming.loaded.size < lv.buildings.length, C.Streaming.loaded.size + '/' + lv.buildings.length);
+
+  // 迟滞：在边界上来回走不应该反复加载卸载
+  const far = lv.buildings.find(b => !C.Streaming.isLoaded(b.buildingId));
+  const f = far.footprint;
+  const cx = (f.x0 + f.x1) / 2;
+  // 走到刚好在 loadRadius 内 → 加载；退回到 load 与 unload 之间 → 仍然保持加载
+  C.Streaming.update(C.V.make(cx, 0, f.z0 - st.loadRadius + 1));
+  const loadedNear = C.Streaming.isLoaded(far.buildingId);
+  C.Streaming.update(C.V.make(cx, 0, f.z0 - (st.loadRadius + st.unloadRadius) / 2));
+  const stillLoaded = C.Streaming.isLoaded(far.buildingId);
+  C.Streaming.update(C.V.make(cx, 0, f.z0 - st.unloadRadius - 2));
+  const unloaded = !C.Streaming.isLoaded(far.buildingId);
+  ok('进入 loadRadius 时加载', loadedNear);
+  ok('退到 load 与 unload 之间仍保持加载（迟滞，不抖）', stillLoaded);
+  ok('退出 unloadRadius 后卸载', unloaded);
+
+  // 声图必须全量常驻 —— 这是文档的硬规则
+  ok('声图不随分区加载变化（节点数不变）', lv.graph.nodes.length === C.buildCampus().graph.nodes.length);
+
+  // 简化模拟：远处丧尸仍然在动，但步长不能大到穿墙
+  C.SoundSystem.reset(); C.ZombieManager.reset();
+  const lv2 = C.buildCampus();
+  C.Streaming.reset(lv2);
+  const world = new C.World(lv2);
+  const time = new C.TimeSystem();
+  C.SoundSystem.init(lv2.graph, time);
+  const player = { alive: true, pos: C.V.copy(lv2.spawn),
+                   eyePos() { return { x: this.pos.x, y: this.pos.y + 1.65, z: this.pos.z }; },
+                   detectMultiplier() { return 1; }, die() {} };
+  C.ZombieManager.spawnAll(lv2, world);
+  ok('全校 320 只丧尸都建出来了', C.ZombieManager.list.length === 320, String(C.ZombieManager.list.length));
+
+  const t0 = Date.now();
+  for (let i = 0; i < 60; i++) { time.update(1 / 30); C.Streaming.update(player.pos); C.ZombieManager.update(1 / 30, player, time); }
+  const perFrame = (Date.now() - t0) / 60;
+  ok('320 只丧尸一帧内更新完（<8ms）', perFrame < 8, perFrame.toFixed(2) + 'ms/帧');
+
+  const near = C.ZombieManager.list.filter(zz => C.V.distXZ(zz.pos, player.pos) < 40);
+  ok('近处的丧尸走完整模拟', near.every(zz => !zz.simplified), near.length + ' 只在 40m 内');
+  const farZ = C.ZombieManager.list.filter(zz => C.V.distXZ(zz.pos, player.pos) > 100);
+  ok('远处的丧尸走简化模拟', farZ.length > 0 && farZ.every(zz => zz.simplified), farZ.length + ' 只在 100m 外');
+
+  /* 简化模拟里，**每一次 update 调用**的位移必须小于最薄的墙（0.2m）——
+     碰撞是按调用做的，一次调用跨过 0.2m 的隔墙就会穿墙。攒起来的时间被拆成
+     多小步，所以这里量的是每一步，不是每一帧。 */
+  const rawUpdate = C.Zombie.prototype.update;
+  let maxStep = 0, simCalls = 0;
+  C.Zombie.prototype.update = function (dt2, pl2, tm2, simp) {
+    const b = C.V.copy(this.pos);
+    rawUpdate.call(this, dt2, pl2, tm2, simp);
+    if (simp) { simCalls++; maxStep = Math.max(maxStep, C.V.distXZ(b, this.pos)); }
+  };
+  for (let i = 0; i < 200; i++) {
+    time.update(1 / 30); C.Streaming.update(player.pos); C.ZombieManager.update(1 / 30, player, time);
+  }
+  C.Zombie.prototype.update = rawUpdate;
+  ok('远处的丧尸没被冻住，简化模拟确实在跑', simCalls > 0 && maxStep > 0,
+     simCalls + ' 次 / 最大 ' + maxStep.toFixed(3) + 'm');
+  ok('简化模拟单步位移 < 最薄的墙(0.2m)', maxStep < 0.2, maxStep.toFixed(3) + 'm');
+  // 最坏情况：奔行者追击 + 攒满两个 tick，拆完之后单步也要够小
+  const worst = C.Config.zombieTypes.Runner.speedChase * C.Config.campus.simplifiedTick * 2;
+  ok('最坏情况（奔行者追击）也会被拆成足够多的小步',
+     worst / Math.ceil(worst / 0.15) < 0.2, (worst / Math.ceil(worst / 0.15)).toFixed(3) + 'm/步')
+}
+
+section('21. 奔行者第 12 天登场（7.2）');
+{
+  C.SoundSystem.reset(); C.ZombieManager.reset();
+  const lv = C.buildCampus();
+  C.Streaming.reset(lv);
+  const world = new C.World(lv);
+  const time = new C.TimeSystem();
+  C.SoundSystem.init(lv.graph, time);
+  C.ZombieManager.spawnAll(lv, world);
+  const player = { alive: true, pos: C.V.copy(lv.spawn),
+                   eyePos() { return { x: this.pos.x, y: this.pos.y + 1.65, z: this.pos.z }; },
+                   detectMultiplier() { return 1; }, die() {} };
+
+  time.day = 5;
+  C.ZombieManager.update(1 / 30, player, time);
+  ok('第 5 天一只奔行者都没有',
+     C.ZombieManager.list.filter(zz => zz.typeName === 'Runner').length === 0);
+
+  let announced = 0;
+  C.EventBus.subscribe('RunnersAppearedEvent', () => announced++);
+  time.day = 12;
+  C.ZombieManager.update(1 / 30, player, time);
+  const n = C.ZombieManager.list.filter(zz => zz.typeName === 'Runner').length;
+  ok('第 12 天标记过的那批变成奔行者', n === 16, n + ' 只');
+  ok('阈值跟着换成奔行者的（不是写死的旧值）',
+     C.ZombieManager.list.find(zz => zz.typeName === 'Runner').hearing.baseThreshold
+       === C.Config.zombieTypes.Runner.threshold);
+  time.day = 13;
+  C.ZombieManager.update(1 / 30, player, time);
+  ok('只登场一次，不会天天再变一批', announced === 1, announced + ' 次');
+}
+
+section('22. 笔记本（14.3）');
+{
+  C.SoundSystem.reset(); C.ZombieManager.reset();
+  const lv = C.buildCampus();
+  const time = new C.TimeSystem();
+  C.SoundSystem.init(lv.graph, time);
+  const N = C.Notebook.reset();
+
+  ok('开局地图是空的', N.nodes.size === 0 && N.buildings.size === 0);
+  const home = lv.buildings.find(b => b.spec.spawn);
+  const room = home.floorsMeta[C.Config.level.spawnRoomFloor].rooms[C.Config.level.spawnRoomIndex];
+  N.visitNode(room, lv, time);
+  ok('走进房间就记下这栋楼', N.buildings.has(home.buildingId));
+  ok('第一次进楼自动记一条线索', N.clues.some(c => c.text.indexOf(home.name) >= 0));
+  ok('同一个节点不会记两次', N.visitNode(room, lv, time) === false);
+  const r1 = N.exploredRatio(home);
+  N.visitNode(home.floorsMeta[0].corridor, lv, time);
+  ok('探明比例随走过的节点上升', N.exploredRatio(home) > r1);
+  ok('没进过的楼比例是 0', N.exploredRatio(lv.buildings.find(b => !b.spec.spawn)) === 0);
+
+  // 配方：捡到书才解锁
+  ok('开局没有任何配方', N.recipes.size === 0);
+  const nTextbook = N.readBook('textbook', time);
+  ok('课本解锁基础配方', nTextbook === 5, nTextbook + ' 条');
+  ok('同一本书不会重复解锁', N.readBook('textbook', time) === 0);
+  N.readBook('manual', time);
+  ok('技术手册解锁其余配方', N.recipes.size === C.Config.recipes.length);
+
+  // 观察：同一条只出现一次，但次数会累加
+  const zz = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.copy(lv.spawn) }, new C.World(lv));
+  ok('第一次看见记一条', N.observeZombie(zz, '看见', time) === true);
+  ok('再看见只加次数', N.observeZombie(zz, '看见', time) === false);
+  ok('看见和听见分开记', N.observeZombie(zz, '听见', time) === true);
+  ok('次数累加正确', N.obs.get('Wanderer:看见').count === 2);
+
+  // 手动标记
+  const pin = N.addPin(10, 20, 'base');
+  ok('放得下标记', N.pins.length === 1);
+  ok('点得中附近的标记', N.pinNear(11, 21, 5) === pin);
+  ok('点不中太远的标记', N.pinNear(40, 40, 5) === null);
+  N.removePin(pin);
+  ok('删得掉标记', N.pins.length === 0);
+
+  // 存档往返
+  N.addPin(5, 5, 'danger');
+  const round = C.Notebook.deserialize(JSON.parse(JSON.stringify(N.serialize())));
+  ok('笔记本存档往返不丢东西',
+     round.nodes.size === 2 && round.recipes.size === C.Config.recipes.length &&
+     round.pins.length === 1 && round.obs.get('Wanderer:看见').count === 2);
+}
+
+section('23. 存档 v2：背包与容器');
+{
+  const sim2 = makeSim();
+  C.Notebook.reset();
+  const p2 = new C.Player(sim2.level, sim2.world);
+  const game = { player: p2, time: sim2.time, level: sim2.level };
+  p2.acquire(C.makeItem('smallBag'));
+  p2.acquire(C.makeItem('water', 2));
+  const box = sim2.level.containers[0];
+  box.opened = true; box.revealed = 1;
+  sim2.level.looseItems[0].taken = true;
+
+  const raw = JSON.parse(JSON.stringify(C.Save.build(game)));
+  ok('存档版本升到 2', raw.version === 2);
+  ok('背包连格子布局一起存', raw.player.bag && raw.player.bag.items.length > 0);
+  ok('只存翻过的容器', raw.containers.length === 1 && raw.containers[0].id === box.id);
+  ok('地上被拿走的东西也记下来', raw.loose.length === 1 && raw.loose[0] === 0);
+  ok('笔记本进存档', !!raw.notebook);
+
+  // 读回一个全新的世界
+  const sim3 = makeSim();
+  C.Notebook.reset();
+  const p3 = new C.Player(sim3.level, sim3.world);
+  const game3 = { player: p3, time: sim3.time, level: sim3.level };
+  C.Save.apply(game3, raw);
+  ok('读档还原背包', p3.bag && p3.bag.count('water') === 2, p3.bag && String(p3.bag.count('water')));
+  ok('读档还原容器的已翻状态', sim3.level.containers.find(b => b.id === box.id).opened === true);
+  ok('读档还原地上已被拿走的物品', sim3.level.looseItems[0].taken === true);
+  ok('v1 老存档被明确判为不兼容', C.Save.version === 2);
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

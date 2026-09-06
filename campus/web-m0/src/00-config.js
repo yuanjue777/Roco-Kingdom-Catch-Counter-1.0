@@ -239,6 +239,105 @@
       spawnRoomIndex: 1             // 402 = 4 楼第 2 间
     },
 
+    /* ── 渲染 ────────────────────────────────────────
+       fogFar 之外什么都看不见，所以丧尸的绘制距离跟着它走 ——
+       两个数分开写迟早会漂：要么在雾里看见丧尸凭空消失，要么白画一堆看不见的。 */
+    render: {
+      fogNear: 12, fogFar: 60,
+      zombieDistance: 65      // 比 fogFar 略大：正好在雾边缘的那一只别闪没了
+    },
+
+    /* ── 全校地图（主文档 13.1 / 13.3 / 13.4）─────────────
+       M2 的布局表。**这里是全校几何的唯一出处** —— 24-campus.js 只负责把它变成盒子。
+       坐标系：x 向东，z 向北，原点在正门广场。宿舍区在最北，离校门最远（13.1）。
+       每栋楼都是同一个板楼模板：一条走廊（南）+ 一排房间（北）+ 0~2 个楼梯间。 */
+    campus: {
+      wall: { x0: -96, x1: 136, z0: -12, z1: 148, height: 3.0, thickness: 0.4 },
+
+      /* 室外分区。**互不重叠地平铺**整个校园 —— 重叠的话 getNodeAt 会时灵时不灵。
+         y 上界要盖过最高的楼（教学楼 5 层 = 16m），室内节点优先命中。 */
+      zones: [
+        { id: 'plaza',  name: '正门广场', x0: -100, x1: 140, z0: -16, z1: 12 },
+        { id: 'road',   name: '主校道',   x0: -100, x1: 140, z0: 12,  z1: 34 },
+        { id: 'teach',  name: '教学区',   x0: -100, x1: 30,  z0: 34,  z1: 70 },
+        { id: 'mess',   name: '食堂前坪', x0: 30,   x1: 140, z0: 34,  z1: 70 },
+        { id: 'alley',  name: '林荫道',   x0: -100, x1: 140, z0: 70,  z1: 86 },
+        { id: 'yard',   name: '后院',     x0: -100, x1: 30,  z0: 86,  z1: 122 },
+        { id: 'field',  name: '操场',     x0: 30,   x1: 140, z0: 86,  z1: 122 },
+        { id: 'dormArea', name: '宿舍区', x0: -100, x1: 140, z0: 122, z1: 152 }
+      ],
+      zoneY: { min: -1, max: 40 },
+      // 相邻分区之间的开放空气连接（衰减 0，只按距离衰减）
+      zoneLinks: [
+        ['plaza', 'road'], ['road', 'teach'], ['road', 'mess'], ['teach', 'mess'],
+        ['teach', 'alley'], ['mess', 'alley'], ['alley', 'yard'], ['alley', 'field'],
+        ['yard', 'field'], ['yard', 'dormArea'], ['field', 'dormArea']
+      ],
+
+      /* 建筑表。firstDay 是「首次可达」的软引导（13.1），不是硬锁。
+         zombies 是这栋楼分到的丧尸数，全表加上 outdoorZombies 正好 320（7.1）。 */
+      buildings: [
+        { id: 'dormM', name: '男生宿舍楼', prefix: '男', ox: -70, oz: 128, floors: 4, rooms: 6,
+          stairs: ['west', 'east'], zone: 'dormArea', roomType: 'dorm', firstDay: 1, zombies: 26, spawn: true },
+        { id: 'dormF', name: '女生宿舍楼', prefix: '女', ox: 10, oz: 128, floors: 4, rooms: 6,
+          stairs: ['west', 'east'], zone: 'dormArea', roomType: 'dorm', firstDay: 1, zombies: 28 },
+        { id: 'teachA', name: '教学楼A', prefix: '教A', ox: -80, oz: 40, floors: 5, rooms: 8,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'classroom', firstDay: 2, zombies: 55 },
+        { id: 'teachB', name: '教学楼B', prefix: '教B', ox: -20, oz: 40, floors: 5, rooms: 6,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'classroom', firstDay: 3, zombies: 40 },
+        { id: 'lab', name: '实验楼', prefix: '实', ox: -80, oz: 58, floors: 3, rooms: 6,
+          stairs: ['west', 'east'], zone: 'teach', roomType: 'lab', firstDay: 4, zombies: 22 },
+        { id: 'library', name: '图书馆', prefix: '图', ox: -30, oz: 58, floors: 3, rooms: 5,
+          stairs: ['west'], zone: 'teach', roomType: 'library', firstDay: 5, zombies: 14 },
+        { id: 'canteen', name: '食堂', prefix: '食', ox: 50, oz: 40, floors: 2, rooms: 4,
+          stairs: ['west'], zone: 'mess', roomType: 'canteen', firstDay: 3, zombies: 30,
+          roomW: 8, roomGap: 1.5, roomD: 10, corridorD: 3.2 },
+        { id: 'clinic', name: '医务室', prefix: '医', ox: 100, oz: 40, floors: 1, rooms: 3,
+          stairs: [], zone: 'mess', roomType: 'clinic', firstDay: 4, zombies: 6 },
+        { id: 'admin', name: '行政楼', prefix: '行', ox: 100, oz: 58, floors: 4, rooms: 5,
+          stairs: ['west', 'east'], zone: 'mess', roomType: 'office', firstDay: 7, zombies: 24 },
+        { id: 'gym', name: '体育馆', prefix: '体', ox: -70, oz: 92, floors: 2, rooms: 3,
+          stairs: ['west'], zone: 'yard', roomType: 'gym', firstDay: 6, zombies: 16,
+          roomW: 12, roomGap: 2, roomD: 14, corridorD: 3.5 },
+        { id: 'boiler', name: '锅炉房', prefix: '锅', ox: -15, oz: 110, floors: 1, rooms: 2,
+          stairs: [], zone: 'yard', roomType: 'boiler', firstDay: 6, zombies: 5 },
+        { id: 'guard', name: '保安室', prefix: '保', ox: 44, oz: -8, floors: 1, rooms: 4,
+          stairs: [], zone: 'plaza', roomType: 'guard', firstDay: 8, zombies: 6 },
+        { id: 'shop', name: '小卖部', prefix: '店', ox: -30, oz: -8, floors: 1, rooms: 3,
+          stairs: [], zone: 'plaza', roomType: 'shop', firstDay: 2, zombies: 5 }
+      ],
+      // 室外丧尸：正门附近最密（13.1「保安室周边丧尸最密」）
+      outdoorZombies: [
+        { zone: 'plaza', count: 14 }, { zone: 'road', count: 12 },
+        { zone: 'field', count: 8 }, { zone: 'yard', count: 5 }, { zone: 'alley', count: 4 }
+      ],
+      // 露天构筑物：车棚（第 5 天）与操场看台（第 4 天）
+      carport: { x0: -5, x1: 20, z0: 92, z1: 104, height: 2.8 },
+      bleachers: { x0: 40, x1: 120, z0: 88, z1: 91, height: 1.2 },
+
+      /* 出入口（13.3）。封锁所需建材写在这里，结局二会用。
+         side 是它开在围墙的哪一面，a0/a1 是沿墙方向的开口范围。 */
+      exits: [
+        { id: 'front', name: '正门',     side: 'south', a0: 12,  a1: 20,  barricade: 5 },
+        { id: 'back',  name: '后门',     side: 'north', a0: -4,  a1: 2,   barricade: 3 },
+        { id: 'east',  name: '东侧门',   side: 'east',  a0: 42,  a1: 48,  barricade: 3 },
+        { id: 'gapW1', name: '西墙破口一', side: 'west', a0: 52,  a1: 56,  barricade: 2 },
+        { id: 'gapW2', name: '西墙破口二', side: 'west', a0: 100, a1: 104, barricade: 2 },
+        { id: 'gapN1', name: '北墙破口',   side: 'north', a0: -60, a1: -56, barricade: 2 }
+      ],
+
+      // 丧尸总量与配比（7.1 / 7.2）。奔行者第 12 天前按游荡者行为走。
+      zombieTotal: 320,
+      crawlerRatio: 0.10, runnerRatio: 0.05,
+      runnerFromDay: 12,
+      zombieSeed: 20260905,
+
+      /* 分区加载（13.4）。声图全量常驻，加载的只是几何与「完整模拟」的名额。
+         半径按「主校道能看到两侧的楼」定：60m 覆盖相邻分区，再远的楼交给雾。 */
+      streaming: { loadRadius: 60, unloadRadius: 78, simplifyRadius: 60 },
+      simplifiedTick: 0.25          // 简化模拟的更新间隔（秒）
+    },
+
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,
@@ -267,6 +366,22 @@
       timeScale: 90,             // 睡眠时时间加速倍率
       bedRange: 1.6              // 离床多近才算「有床」
     },
+
+    /* ── 配方（主文档 10.4 / 10.5）─────────────────────
+       M2 只做「笔记本第三页把它们列出来」这一件事，真正的制作在 M3。
+       unlock 是解锁它的书：课本给基础的，技术手册给需要手艺的（10.2「书籍解锁配方」）。 */
+    recipes: [
+      { id: 'boilWater',  name: '煮水',       need: '水 + 容器',            note: '净化来路不明的水', unlock: 'textbook' },
+      { id: 'riceMeal',   name: '白饭',       need: '米 + 水',              note: '饥饿 −30',        unlock: 'textbook' },
+      { id: 'hotNoodle',  name: '泡面',       need: '方便面 + 热水',        note: '饥饿 −25',        unlock: 'textbook' },
+      { id: 'bandage',    name: '绷带',       need: '布 ×2',                note: '',                unlock: 'textbook' },
+      { id: 'plank',      name: '建材',       need: '木板/课桌 + 工具',      note: '封锁出入口要用',   unlock: 'textbook' },
+      { id: 'rainCatch',  name: '雨水收集器', need: '容器 + 塑料布 + 建材', note: '手艺 1',          unlock: 'manual' },
+      { id: 'clock',      name: '闹钟',       need: '闹钟零件 ×2 + 电池',   note: '手艺 2',          unlock: 'manual' },
+      { id: 'muffle',     name: '消音布',     need: '布 ×3',                note: '手艺 2，静步 −15%', unlock: 'manual' },
+      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具', note: '手艺 3',          unlock: 'manual' },
+      { id: 'repairPart', name: '修理零件',   need: '废零件 ×3 + 工具',     note: '手艺 3',          unlock: 'manual' }
+    ],
 
     // ── 调试 ──────────────────────────────────────────
     debug: {

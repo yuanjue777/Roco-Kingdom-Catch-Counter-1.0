@@ -13,7 +13,19 @@
 
   /* 物品表。size 是 [宽, 高] 格；weight 千克。
      kind: food 食物 / drink 饮水 / med 医疗 / tool 工具 / weapon 武器
-           / material 材料 / container 容器 / throwable 投掷物 / junk 杂物 */
+           / material 材料 / container 容器 / throwable 投掷物 / junk 杂物
+
+     **格数量的是体积，不是价值。** 这两件事在这张表里是解耦的，而且是故意解耦的：
+
+       校园平面图  2 格 · 全校唯一 · 决定你能不能规划路线
+       抗生素      1 格 · 全校仅 4 支 · 决定你会不会死于感染
+       米袋        9 格 · 食堂一抓一把 · 但你一次只背得动一袋
+       发电机     16 格 · 结局一的前置 · 没有登山包根本装不下
+       课本        4 格 · 一文不值 · 纯粹占地方
+
+     所以「腾出五格」这个决策永远不能靠「扔便宜的」来解 ——
+     要扔的往往正是那袋米，而那袋米是你今晚的饭。
+     反过来，塞满一背包小东西也不等于赚了：负重是另一条独立的线。 */
   const ITEMS = {
     water:      { name: '瓶装水 500ml', size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -25 } },
     boiled:     { name: '煮沸的水',     size: [1, 2], weight: 0.52, kind: 'drink', use: { thirst: -22 } },
@@ -36,11 +48,65 @@
     stone:      { name: '石头',         size: [1, 1], weight: 0.25, kind: 'throwable', stack: 8 },
     glassBottle:{ name: '玻璃瓶',       size: [1, 2], weight: 0.38, kind: 'throwable' },
     mop:        { name: '拖把杆',       size: [1, 4], weight: 1.10, kind: 'weapon' },
-    textbook:   { name: '课本',         size: [2, 2], weight: 0.70, kind: 'junk' },
+    textbook:   { name: '课本',         size: [2, 2], weight: 0.70, kind: 'junk', book: true },
     key:        { name: '钥匙',         size: [1, 1], weight: 0.02, kind: 'tool' },
     smallBag:   { name: '小书包',       size: [2, 2], weight: 0.40, kind: 'container', grid: [5, 4] },
     schoolBag:  { name: '学生书包',     size: [2, 3], weight: 0.55, kind: 'container', grid: [5, 4] },
-    tacticalBag:{ name: '战术背包',     size: [3, 3], weight: 0.90, kind: 'container', grid: [6, 5], rare: true }
+    tacticalBag:{ name: '战术背包',     size: [3, 3], weight: 0.90, kind: 'container', grid: [6, 5], rare: true },
+
+    /* ── M2 新增：全校其余地点的产出 ─────────────────────────
+       尺寸按「这东西在现实里多占地方」定，与稀有度无关，见表头那段说明。 */
+
+    // 食堂：粮食是最占地方的东西，也是撑过三十天的唯一办法
+    rice:       { name: '大米 5kg',     size: [3, 3], weight: 5.00, kind: 'material' },
+    flour:      { name: '面粉 2kg',     size: [2, 3], weight: 2.00, kind: 'material' },
+    oil:        { name: '食用油',       size: [2, 2], weight: 1.80, kind: 'material' },
+    salt:       { name: '盐',           size: [1, 1], weight: 0.40, kind: 'material' },
+    pot:        { name: '铁锅',         size: [3, 3], weight: 1.60, kind: 'tool' },
+    gasCan:     { name: '燃气罐',       size: [2, 3], weight: 4.50, kind: 'tool' },
+
+    // 小卖部：热量密度高、体积小，第一幕的救命稻草
+    soda:       { name: '罐装饮料',     size: [1, 1], weight: 0.33, kind: 'drink', use: { thirst: -18, hunger: -2 } },
+    bigWater:   { name: '桶装水 1.5L',  size: [2, 2], weight: 1.55, kind: 'drink', use: { thirst: -60 } },
+
+    // 医务室
+    painkiller: { name: '止痛药',       size: [1, 1], weight: 0.05, kind: 'med' },
+    splint:     { name: '夹板',         size: [1, 3], weight: 0.30, kind: 'med' },
+
+    // 实验楼：烧杯能煮水，是第 8 天停水之后的关键道具
+    beaker:     { name: '烧杯',         size: [2, 2], weight: 0.35, kind: 'tool' },
+    reagent:    { name: '化学试剂',     size: [1, 2], weight: 0.45, kind: 'material' },
+    burner:     { name: '酒精灯',       size: [1, 1], weight: 0.22, kind: 'tool' },
+
+    // 保安室：全校唯一的战术背包与平面图都在这里
+    pitchfork:  { name: '钢叉',         size: [1, 5], weight: 2.30, kind: 'weapon' },
+    baton:      { name: '警棍',         size: [1, 3], weight: 0.85, kind: 'weapon' },
+    radio:      { name: '对讲机',       size: [1, 2], weight: 0.32, kind: 'tool' },
+    campusMap:  { name: '校园平面图',   size: [2, 1], weight: 0.05, kind: 'tool', rare: true },
+    masterKey:  { name: '万能钥匙串',   size: [1, 1], weight: 0.09, kind: 'tool', rare: true },
+
+    // 体育器材室：登山包是全校最大的容器，本身就占三格宽四格高
+    bat:        { name: '棒球棍',       size: [1, 4], weight: 0.95, kind: 'weapon' },
+    starterGun: { name: '发令枪',       size: [1, 2], weight: 0.55, kind: 'tool', rare: true },
+    rope:       { name: '绳索',         size: [2, 2], weight: 1.20, kind: 'material' },
+    hikingBag:  { name: '登山包',       size: [3, 4], weight: 1.10, kind: 'container', grid: [6, 6], rare: true },
+
+    // 教学楼 / 图书馆
+    stationery: { name: '文具盒',       size: [2, 1], weight: 0.20, kind: 'junk' },
+    manual:     { name: '技术手册',     size: [2, 3], weight: 0.90, kind: 'junk', rare: true, book: true },
+    novel:      { name: '小说',         size: [1, 2], weight: 0.35, kind: 'junk' },
+
+    // 车棚 / 锅炉房：结局一需要发电机与柴油，两样都大得离谱
+    bikePart:   { name: '车辆零件',     size: [2, 2], weight: 1.40, kind: 'material' },
+    wrench:     { name: '扳手',         size: [1, 2], weight: 0.55, kind: 'tool' },
+    toolkit:    { name: '工具箱',       size: [3, 2], weight: 2.60, kind: 'tool' },
+    fuse:       { name: '保险丝',       size: [1, 1], weight: 0.03, kind: 'tool', stack: 4 },
+    diesel:     { name: '柴油桶',       size: [3, 3], weight: 6.50, kind: 'material', rare: true },
+    generator:  { name: '发电机',       size: [4, 4], weight: 14.0, kind: 'tool', rare: true },
+
+    // 行政楼：结局一/三的前置
+    broadcastPart: { name: '广播设备零件', size: [3, 2], weight: 2.10, kind: 'material', rare: true },
+    beacon:     { name: '信标',         size: [2, 3], weight: 1.90, kind: 'tool', rare: true }
   };
 
   let nextUid = 1;

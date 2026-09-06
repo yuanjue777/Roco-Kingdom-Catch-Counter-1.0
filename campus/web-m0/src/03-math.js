@@ -52,6 +52,14 @@
   Rng.prototype.range = function (lo, hi) { return lo + this.next() * (hi - lo); };
   Rng.prototype.int = function (lo, hi) { return Math.floor(this.range(lo, hi + 1)); };
   Rng.prototype.pick = function (arr) { return arr[Math.min(arr.length - 1, Math.floor(this.next() * arr.length))]; };
+  /** 原地洗牌（Fisher–Yates）。同一个种子每次得到同一个顺序，物资/丧尸布置全靠它可复现。 */
+  Rng.prototype.shuffle = function (arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(this.next() * (i + 1));
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  };
 
   // 轴对齐包围盒
   const AABB = {

@@ -16,7 +16,7 @@
     this.three.setPixelRatio(Math.min(devicePixelRatio, (C.Touch && C.Touch.enabled) ? 1.25 : 2));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11131a);
-    this.scene.fog = new THREE.Fog(0x11131a, 12, 60);
+    this.scene.fog = new THREE.Fog(0x11131a, C.Config.render.fogNear, C.Config.render.fogFar);
     this.camera = new THREE.PerspectiveCamera(78, 1, 0.05, 300);
 
     this.hemi = new THREE.HemisphereLight(0xbdd0ff, 0x4e4e58, 0.9);
@@ -34,11 +34,11 @@
     this.torch.target = this.torchTarget;
 
     this._buildStatic();
+    this._buildZombies();
     this._buildDoors();
     this._buildThrowPreview();
     this._buildAvatar();
     this._buildContainers();
-    this.zombieMeshes = new Map();
     this.stoneMeshes = [];
   }
 
@@ -94,28 +94,48 @@
     this.scene.add(this.audibleRing);
   };
 
+  /* 静态几何按「所属建筑」分组，每组内部再按 tag 合成 InstancedMesh。
+     分组是为了分区加载（13.4）：卸载一栋楼 = 把它那一组 visible 置 false。
+     没有 bid 的（地面、围墙、车棚）属于常驻的室外场景，永远可见。 */
   Renderer.prototype._buildStatic = function () {
-    const byTag = new Map();
+    const byBuilding = new Map();
     for (const s of this.level.solids) {
+      const key = s.bid === undefined ? 0 : s.bid;
+      if (!byBuilding.has(key)) byBuilding.set(key, new Map());
+      const byTag = byBuilding.get(key);
       if (!byTag.has(s.tag)) byTag.set(s.tag, []);
       byTag.get(s.tag).push(s.box);
     }
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const m4 = new THREE.Matrix4();
-    for (const [tag, boxes] of byTag) {
-      const mat = new THREE.MeshLambertMaterial({ color: COLORS[tag] || 0x888888 });
-      const inst = new THREE.InstancedMesh(unit, mat, boxes.length);
-      boxes.forEach((b, i) => {
-        m4.makeTranslation((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
-        m4.scale(new THREE.Vector3(
-          Math.max(0.01, b.max.x - b.min.x),
-          Math.max(0.01, b.max.y - b.min.y),
-          Math.max(0.01, b.max.z - b.min.z)));
-        inst.setMatrixAt(i, m4);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      this.scene.add(inst);
+    this.buildingGroups = new Map();
+    for (const [bid, byTag] of byBuilding) {
+      const group = new THREE.Group();
+      for (const [tag, boxes] of byTag) {
+        const mat = new THREE.MeshLambertMaterial({ color: COLORS[tag] || 0x888888 });
+        const inst = new THREE.InstancedMesh(unit, mat, boxes.length);
+        boxes.forEach((b, i) => {
+          m4.makeTranslation((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
+          m4.scale(new THREE.Vector3(
+            Math.max(0.01, b.max.x - b.min.x),
+            Math.max(0.01, b.max.y - b.min.y),
+            Math.max(0.01, b.max.z - b.min.z)));
+          inst.setMatrixAt(i, m4);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        group.add(inst);
+      }
+      if (bid !== 0) this.buildingGroups.set(bid, group);
+      this.scene.add(group);
     }
+  };
+
+  /** 分区加载回调：只切 visible，不销毁 —— 灰盒阶段几何都在显存里，重建反而更贵 */
+  Renderer.prototype.setLoadedBuildings = function (loaded) {
+    if (!this.buildingGroups) return;
+    for (const [bid, group] of this.buildingGroups) group.visible = loaded.has(bid);
+    this._syncDoors();
+    this._syncContainers();
   };
 
   Renderer.prototype._buildDoors = function () {
@@ -132,6 +152,7 @@
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
       mesh.userData.portalId = d.portalId;
+      mesh.userData.bid = d.bid;              // 分区加载：楼卸载了，它的门窗也别画
       this.scene.add(mesh);
       this.doorMeshes.push(mesh);
     }
@@ -141,9 +162,12 @@
 
   Renderer.prototype._syncDoors = function () {
     const g = this.level.graph;
+    const S = C.Streaming;
     for (const m of this.doorMeshes) {
       const p = g.getPortal(m.userData.portalId);
-      m.visible = !g.isPassable(p);
+      const bid = m.userData.bid;
+      const loaded = (bid === undefined) || !S || S.isLoaded(bid);
+      m.visible = !g.isPassable(p) && loaded;
     }
   };
 
@@ -151,21 +175,31 @@
   /* 容器与地上的物品：小盒子，颜色按类型分 */
   Renderer.prototype._buildContainers = function () {
     const unit = new THREE.BoxGeometry(1, 1, 1);
-    const byColor = new Map();
+    // 和静态几何一样：先按建筑分组（分区加载），组内再按颜色合批
+    const byBuilding = new Map();
     for (const c of this.level.containers || []) {
+      const key = c.bid === undefined ? 0 : c.bid;
+      if (!byBuilding.has(key)) byBuilding.set(key, new Map());
+      const byColor = byBuilding.get(key);
       if (!byColor.has(c.color)) byColor.set(c.color, []);
       byColor.get(c.color).push(c);
     }
     const m4 = new THREE.Matrix4();
-    for (const [color, list] of byColor) {
-      const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
-      list.forEach((c, i) => {
-        m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
-        m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
-        inst.setMatrixAt(i, m4);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      this.scene.add(inst);
+    this.containerGroups = new Map();
+    for (const [bid, byColor] of byBuilding) {
+      const group = new THREE.Group();
+      for (const [color, list] of byColor) {
+        const inst = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color }), list.length);
+        list.forEach((c, i) => {
+          m4.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
+          m4.scale(new THREE.Vector3(c.size[0], c.size[1], c.size[2]));
+          inst.setMatrixAt(i, m4);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        group.add(inst);
+      }
+      if (bid !== 0) this.containerGroups.set(bid, group);
+      this.scene.add(group);
     }
     this.looseMeshes = (this.level.looseItems || []).map(l => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
@@ -174,6 +208,12 @@
       this.scene.add(m);
       return { mesh: m, loose: l };
     });
+  };
+
+  Renderer.prototype._syncContainers = function () {
+    if (!this.containerGroups) return;
+    const S = C.Streaming;
+    for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
   };
 
   Renderer.prototype._buildAvatar = function () {
@@ -191,26 +231,59 @@
     this.scene.add(g);
   };
 
-  Renderer.prototype._zombieMesh = function (z) {
-    let m = this.zombieMeshes.get(z.id);
-    if (!m) {
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.15, 0.35),
-        new THREE.MeshLambertMaterial({ color: z.typeName === 'Crawler' ? 0x6b5a4a : 0x9a5555 }));
-      body.position.y = 0.75;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.3),
-        new THREE.MeshLambertMaterial({ color: 0xc8b49a }));
-      head.position.y = 1.5;
-      // 朝向指示：眼睛方向的小片，方便玩家判断它面朝哪边
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22),
-        new THREE.MeshBasicMaterial({ color: 0x222222 }));
-      nose.position.set(0, 1.5, 0.22);
-      group.add(body, head, nose);
-      this.scene.add(group);
-      m = group;
-      this.zombieMeshes.set(z.id, m);
+  /* 丧尸：全部合进 3 个 InstancedMesh（身体 / 头 / 朝向片）。
+     全校 320 只，一只一个 Group 就是近千次 draw call —— 实测帧率从 60 掉到 13。
+     合批之后是 3 次，代价只是每帧写几百个矩阵（可忽略）。 */
+  Renderer.prototype._buildZombies = function () {
+    const n = Math.max(1, C.ZombieManager.list.length);
+    const parts = [
+      { key: 'body', geo: new THREE.BoxGeometry(0.55, 1.15, 0.35), off: 0.75, color: 0x9a5555 },
+      { key: 'head', geo: new THREE.BoxGeometry(0.30, 0.32, 0.30), off: 1.50, color: 0xc8b49a },
+      { key: 'nose', geo: new THREE.BoxGeometry(0.12, 0.08, 0.22), off: 1.50, color: 0x222222, z: 0.22 }
+    ];
+    this.zInst = {};
+    for (const p2 of parts) {
+      const inst = new THREE.InstancedMesh(p2.geo, new THREE.MeshLambertMaterial({ color: p2.color }), n);
+      inst.frustumCulled = false;        // 实例矩阵每帧变，包围盒靠不住
+      this.scene.add(inst);
+      this.zInst[p2.key] = { mesh: inst, off: p2.off, z: p2.z || 0 };
     }
-    return m;
+    // 蜷伏者是另一种颜色：按实例上色，不用再开一批
+    const col = new THREE.Color();
+    const body = this.zInst.body.mesh;
+    C.ZombieManager.list.forEach((z, i) => {
+      body.setColorAt(i, col.setHex(z.typeName === 'Crawler' ? 0x6b5a4a : 0x9a5555));
+    });
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    this._zTmp = { m: new THREE.Matrix4(), t: new THREE.Matrix4(), q: new THREE.Quaternion(),
+                   v: new THREE.Vector3(), s: new THREE.Vector3() };
+  };
+
+  /** 每帧把丧尸的位置写进实例矩阵。看不见的（太远 / 已死）缩到 0。 */
+  Renderer.prototype._syncZombies = function (player) {
+    if (!this.zInst) return;
+    const T = this._zTmp;
+    const far = C.Config.render.zombieDistance;
+    const list = C.ZombieManager.list;
+    for (let i = 0; i < list.length; i++) {
+      const z = list[i];
+      const dx = z.pos.x - player.pos.x, dz = z.pos.z - player.pos.z;
+      const show = z.alive && dx * dx + dz * dz <= far * far;
+      if (!show) {
+        T.m.makeScale(0, 0, 0);
+        for (const k in this.zInst) this.zInst[k].mesh.setMatrixAt(i, T.m);
+        continue;
+      }
+      const sy = (z.state === C.ZombieState.Prone) ? 0.35 : 1;
+      T.q.setFromAxisAngle(T.v.set(0, 1, 0), z.yaw);
+      T.m.compose(T.v.set(z.pos.x, z.pos.y, z.pos.z), T.q, T.s.set(1, sy, 1));
+      for (const k in this.zInst) {
+        const part = this.zInst[k];
+        T.t.makeTranslation(0, part.off, part.z);
+        part.mesh.setMatrixAt(i, T.t.premultiply(T.m));
+      }
+    }
+    for (const k in this.zInst) this.zInst[k].mesh.instanceMatrix.needsUpdate = true;
   };
 
   Renderer.prototype.update = function (player, time, dt) {
@@ -280,13 +353,7 @@
       this.torchTarget.position.set(eye.x + d.x * 10, eye.y + d.y * 10, eye.z + d.z * 10);
     }
 
-    for (const z of C.ZombieManager.list) {
-      const m = this._zombieMesh(z);
-      m.visible = z.alive;
-      m.position.set(z.pos.x, z.pos.y, z.pos.z);
-      m.rotation.y = z.yaw;
-      m.scale.y = (z.state === C.ZombieState.Prone) ? 0.35 : 1;
-    }
+    this._syncZombies(player);
 
     // 投掷物
     while (this.stoneMeshes.length < C.Projectiles.list.length) {
