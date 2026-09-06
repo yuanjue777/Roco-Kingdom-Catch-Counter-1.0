@@ -53,8 +53,14 @@
 
   /** 只做水平推挤，不做地面吸附。跳跃/下落时需要把水平与垂直分开处理。 */
   World.prototype.moveHorizontal = function (pos, dx, dz, radius, height, stepHeight) {
+    /* 一帧之内允许的最大推出距离。超过这个值只有一种可能：角色已经**深陷**在
+       某个盒子里（被楼板抬起来、被楼梯板卡住、地图改了尺寸之后落在墙里）。
+       这时候「推到最近的面」会把它甩出去两三米 —— 玩家看到的就是丧尸瞬移。
+       正确处理是**放弃这一帧这个轴的移动**，原地不动，让它下一帧重新试。 */
+    const MAX_PUSH = 0.6;
     const solve = (axis, amount) => {
       if (amount === 0) return;
+      const before = pos[axis];
       pos[axis] += amount;
       const lo = pos.y + stepHeight, hi = pos.y + height;
       this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
@@ -69,7 +75,9 @@
         const sideLo = (axis === 'x' ? b.min.x : b.min.z) - radius;
         const sideHi = (axis === 'x' ? b.max.x : b.max.z) + radius;
         const cur = pos[axis];
-        pos[axis] = (Math.abs(cur - sideLo) <= Math.abs(cur - sideHi)) ? sideLo : sideHi;
+        const pushed = (Math.abs(cur - sideLo) <= Math.abs(cur - sideHi)) ? sideLo : sideHi;
+        if (Math.abs(pushed - before) > MAX_PUSH) { pos[axis] = before; return; }
+        pos[axis] = pushed;
       }
     };
     solve('x', dx);

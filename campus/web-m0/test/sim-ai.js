@@ -821,11 +821,15 @@ section('20. 分区加载（13.4）');
      碰撞是按调用做的，一次调用跨过 0.2m 的隔墙就会穿墙。攒起来的时间被拆成
      多小步，所以这里量的是每一步，不是每一帧。 */
   const rawUpdate = C.Zombie.prototype.update;
-  let maxStep = 0, simCalls = 0;
+  let maxStep = 0, simCalls = 0, worstWho = '';
   C.Zombie.prototype.update = function (dt2, pl2, tm2, simp) {
     const b = C.V.copy(this.pos);
     rawUpdate.call(this, dt2, pl2, tm2, simp);
-    if (simp) { simCalls++; maxStep = Math.max(maxStep, C.V.distXZ(b, this.pos)); }
+    if (simp) {
+      simCalls++;
+      const d2 = C.V.distXZ(b, this.pos);
+      if (d2 > maxStep) { maxStep = d2; worstWho = this.typeName + '/' + this.state + ' dt=' + dt2.toFixed(3); }
+    }
   };
   for (let i = 0; i < 200; i++) {
     time.update(1 / 30); C.Streaming.update(player.pos); C.ZombieManager.update(1 / 30, player, time);
@@ -833,7 +837,7 @@ section('20. 分区加载（13.4）');
   C.Zombie.prototype.update = rawUpdate;
   ok('远处的丧尸没被冻住，简化模拟确实在跑', simCalls > 0 && maxStep > 0,
      simCalls + ' 次 / 最大 ' + maxStep.toFixed(3) + 'm');
-  ok('简化模拟单步位移 < 最薄的墙(0.2m)', maxStep < 0.2, maxStep.toFixed(3) + 'm');
+  ok('简化模拟单步位移 < 最薄的墙(0.2m)', maxStep < 0.2, maxStep.toFixed(3) + 'm  ' + worstWho);
   // 最坏情况：奔行者追击 + 攒满两个 tick，拆完之后单步也要够小
   const worst = C.Config.zombieTypes.Runner.speedChase * C.Config.campus.simplifiedTick * 2;
   ok('最坏情况（奔行者追击）也会被拆成足够多的小步',
@@ -1078,6 +1082,77 @@ section('27. 楼梯的碰撞半径下限（回归）');
   ok('丧尸碰撞半径不小于 0.36', m && parseFloat(m[1]) >= 0.36, m && m[1]);
   ok('踏板深度确实比「半径 × 0.5」的探测范围还浅（这就是根因）',
      C.Config.level.stairStepD < 0.36, C.Config.level.stairStepD + 'm');
+}
+
+section('28. 站着不动的丧尸也会出声（主文档 13.1 问题 4 的答案：有）');
+{
+  const L = C.Config.loudness, TW = C.Config.zombieTypes.Wanderer, H = C.Config.hearing;
+  const K = C.Config.sound.kIndoor;
+  ok('游荡者有常态嘶吼（不再是 0）', TW.breathLoudness > 0, String(TW.breathLoudness));
+  ok('嘶吼比脚步轻 —— 站着的比走动的更难发现',
+     TW.breathLoudness < L.zombieShuffle, TW.breathLoudness + ' < ' + L.zombieShuffle);
+  ok('但比蜷伏者的呼吸响得多（蜷伏者才是要贴脸找的那个）',
+     TW.breathLoudness > L.crawlerBreath);
+  const r = (TW.breathLoudness - (H.player - H.holdBreathBonus)) / K;
+  ok(`屏息时室内听得见 ${r.toFixed(0)}m 外站着不动的丧尸`, r >= 10 && r <= 18, r.toFixed(1) + 'm');
+
+  /* 决定性的一条：把丧尸钉死不让它移动，看它还出不出声。
+     改动前这里是 0 次 —— 一只站着不动的丧尸在声音系统里等于不存在。 */
+  const s12 = makeSim();
+  const zz = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(10, 0.0, 1.3) }, s12.world);
+  zz._wander = function () {};                       // 钉死：绝不移动
+  const before = C.V.copy(zz.pos);
+  C.SoundSystem.log.length = 0;
+  step(s12, 10);
+  const growls = C.SoundSystem.log.filter(e => e.label === '低哑嘶吼');
+  ok('它确实一步没动', C.V.distXZ(before, zz.pos) < 0.01);
+  ok('**站着不动也发出了嘶吼**', growls.length > 0, growls.length + ' 次 / 10 秒');
+  ok('间隔大致等于 breathInterval', Math.abs(growls.length - 10 / TW.breathInterval) <= 2,
+     growls.length + ' 次');
+  ok('没有脚步声（因为它没动）',
+     C.SoundSystem.log.filter(e => e.label === '丧尸脚步').length === 0);
+
+  /* 常态声必须走 Ambient：Voice 才参与连锁警戒，
+     否则一屋子丧尸会被彼此的呼吸声互相点着，变成自激的雪崩。 */
+  ok('嘶吼走 Ambient 类别，不参与连锁警戒',
+     growls.every(e => e.cat === C.SoundCategory.Ambient));
+
+  // 第二只丧尸站在旁边，不应该被第一只的嘶吼吵醒
+  const s13 = makeSim();
+  const a = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(10, 0.0, 1.3) }, s13.world);
+  const b2 = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(12, 0.0, 1.3) }, s13.world);
+  a._wander = function () {}; b2._wander = function () {};
+  step(s13, 12);
+  ok('两只挨着站，谁也没被对方的嘶吼吵成警戒',
+     a.state === C.ZombieState.Wander && b2.state === C.ZombieState.Wander,
+     a.state + '/' + b2.state);
+}
+
+section('29. 碰撞推出不会把人甩出去（回归）');
+{
+  /* `[实测]` 「推到最近的面」在角色**深陷**盒子里时会一帧甩出两三米 ——
+     玩家看到的就是丧尸瞬移。实测触发场景：远处走简化模拟的游荡者，
+     单帧位移 2.43m，一步跨过整面墙。修法是超过 MAX_PUSH 就放弃这一帧的移动。 */
+  const s14 = makeSim();
+  const w = s14.world;
+  // 找一个够大的实体（楼板），把角色塞进它正中间，再让它往前走一步
+  const slab = s14.level.solids
+    .filter(o => o.box.max.x - o.box.min.x > 4 && o.box.max.z - o.box.min.z > 2)
+    .sort((a, b) => (b.box.max.x - b.box.min.x) - (a.box.max.x - a.box.min.x))[0];
+  const c = C.AABB.center(slab.box);
+  const pos = { x: c.x, y: c.y, z: c.z };            // 正正卡在盒子中心
+  const before = { x: pos.x, z: pos.z };
+  w.moveHorizontal(pos, 0.05, 0, 0.38, 1.6, C.Config.player.stepHeight);
+  const moved = Math.hypot(pos.x - before.x, pos.z - before.z);
+  ok('深陷实体里时不会被甩出去', moved < 0.6, moved.toFixed(3) + 'm');
+
+  // 正常情况仍然要能被墙挡住（不能因为怕甩就干脆不挡）
+  const s15 = makeSim();
+  const z2 = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(10, 0.0, 1.3) }, s15.world);
+  const p0 = C.V.copy(z2.pos);
+  for (let i = 0; i < 90; i++) s15.world.moveCharacter(z2.pos, 0, 0.08, 0.38, 1.6, C.Config.player.stepHeight);
+  ok('但普通的墙照样挡得住（没有被推出逻辑放行）',
+     C.V.distXZ(p0, z2.pos) < 7.2, C.V.distXZ(p0, z2.pos).toFixed(2) + 'm / 想走 7.2m');
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

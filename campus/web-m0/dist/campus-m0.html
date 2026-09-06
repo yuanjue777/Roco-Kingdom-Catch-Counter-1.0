@@ -589,6 +589,12 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      /* `[实测]` 丧尸站着不动时的低哑嘶吼。**这是主文档 13.1 待定问题 4 的答案：有。**
+         定 28 而不是 48：屏息时室内 13m、室外 21m 能听见，比脚步(23m) 近一截 ——
+         「站着的比走动的更难发现」既符合直觉，也保住了「移动会暴露自己」这条规则。
+         隔一道关着的门只剩 1.5m，所以它基本只在同一个房间/走廊里起作用。
+         关键是：**一只站着不动的丧尸不再是完全静默的**，屏息就能看见它的声纹。 */
+      zombieIdleGrowl: 28,
       zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
                                    // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
@@ -682,8 +688,8 @@
         name: '游荡者', hp: 100, threshold: 10,
         speedWander: 0.45, speedChase: 2.7,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
-        // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
-        breathLoudness: 0, breathInterval: 3.0,
+        // 常态嘶吼：站着不动也会发出（见 loudness.zombieIdleGrowl）
+        breathLoudness: 28, breathInterval: 3.0,
         shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
@@ -698,6 +704,8 @@
         // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.0, speedChase: 5.0,
+        // 喘得比游荡者响、也比它频繁 —— 它是唯一「听见就该立刻跑」的东西
+        breathLoudness: 36, breathInterval: 2.2,
         visionRadius: 18, visionAngle: 110, eyeHeight: 1.45, shuffleInterval: 0.8
       }
     },
@@ -2042,8 +2050,14 @@
 
   /** 只做水平推挤，不做地面吸附。跳跃/下落时需要把水平与垂直分开处理。 */
   World.prototype.moveHorizontal = function (pos, dx, dz, radius, height, stepHeight) {
+    /* 一帧之内允许的最大推出距离。超过这个值只有一种可能：角色已经**深陷**在
+       某个盒子里（被楼板抬起来、被楼梯板卡住、地图改了尺寸之后落在墙里）。
+       这时候「推到最近的面」会把它甩出去两三米 —— 玩家看到的就是丧尸瞬移。
+       正确处理是**放弃这一帧这个轴的移动**，原地不动，让它下一帧重新试。 */
+    const MAX_PUSH = 0.6;
     const solve = (axis, amount) => {
       if (amount === 0) return;
+      const before = pos[axis];
       pos[axis] += amount;
       const lo = pos.y + stepHeight, hi = pos.y + height;
       this.query(pos.x - radius, pos.z - radius, pos.x + radius, pos.z + radius, _tmp);
@@ -2058,7 +2072,9 @@
         const sideLo = (axis === 'x' ? b.min.x : b.min.z) - radius;
         const sideHi = (axis === 'x' ? b.max.x : b.max.z) + radius;
         const cur = pos[axis];
-        pos[axis] = (Math.abs(cur - sideLo) <= Math.abs(cur - sideHi)) ? sideLo : sideHi;
+        const pushed = (Math.abs(cur - sideLo) <= Math.abs(cur - sideHi)) ? sideLo : sideHi;
+        if (Math.abs(pushed - before) > MAX_PUSH) { pos[axis] = before; return; }
+        pos[axis] = pushed;
       }
     };
     solve('x', dx);
@@ -3732,15 +3748,27 @@
     this.hearing.position = this.eyePos();
     this.hearing.nodeId = this.nodeId;
 
-    // 蜷伏者的呼吸声：屏息时才听得见，是屏息作为侦查工具的核心价值
-    if (this.state === State.Prone && this.def.breathInterval) {
-      this.breathTimer -= dt;
-      if (this.breathTimer <= 0) {
-        this.breathTimer = this.def.breathInterval;
-        C.SoundSystem.emit({
-          worldPosition: this.pos, loudness: C.Config.loudness.crawlerBreath,
-          category: C.SoundCategory.Ambient, emitterId: this.id, nodeIdHint: this.nodeId, label: '蜷伏者呼吸'
-        });
+    /* 常态声：**站着不动的丧尸也会出声**，否则它在声音系统里等于不存在，
+       屏息侦查也就只能发现正在走动的那些。
+         趴着的蜷伏者 —— 呼吸 12，几乎贴脸才听得见，这是屏息作为侦查工具的核心价值
+         站着的其余丧尸 —— 低哑嘶吼 28，比脚步(48) 近一截但足够看见声纹
+       两者都走 Ambient：**不参与连锁警戒**（只有 Voice 会），
+       否则一屋子丧尸会被彼此的呼吸声互相点着。 */
+    if (this.def.breathInterval) {
+      const prone = this.state === State.Prone;
+      const loud = prone ? C.Config.loudness.crawlerBreath : this.def.breathLoudness;
+      if (loud > 0) {
+        this.breathTimer -= dt;
+        if (this.breathTimer <= 0) {
+          // 随机相位：不加的话同一时刻生成的几百只会整齐划一地一起喘
+          this.breathTimer = this.def.breathInterval * this.rng.range(0.8, 1.2);
+          C.SoundSystem.emit({
+            worldPosition: this.pos,
+            loudness: C.ModifierPipeline.query('sound.zombieAmbient', loud, this.id),
+            category: C.SoundCategory.Ambient, emitterId: this.id, nodeIdHint: this.nodeId,
+            label: prone ? '蜷伏者呼吸' : '低哑嘶吼'
+          });
+        }
       }
     }
 

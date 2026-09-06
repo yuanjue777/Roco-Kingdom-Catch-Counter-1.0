@@ -55,6 +55,12 @@
       zombieGrowl: 55,             // 主文档 5.4：追击低吼
       crawlerBreath: 12,           // 主文档 5.2：蜷伏者呼吸声
       exhaustedBreath: 25,         // 主文档 3.3：体力耗尽的喘息
+      /* `[实测]` 丧尸站着不动时的低哑嘶吼。**这是主文档 13.1 待定问题 4 的答案：有。**
+         定 28 而不是 48：屏息时室内 13m、室外 21m 能听见，比脚步(23m) 近一截 ——
+         「站着的比走动的更难发现」既符合直觉，也保住了「移动会暴露自己」这条规则。
+         隔一道关着的门只剩 1.5m，所以它基本只在同一个房间/走廊里起作用。
+         关键是：**一只站着不动的丧尸不再是完全静默的**，屏息就能看见它的声纹。 */
+      zombieIdleGrowl: 28,
       zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
                                    // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
@@ -148,8 +154,8 @@
         name: '游荡者', hp: 100, threshold: 10,
         speedWander: 0.45, speedChase: 2.7,
         visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
-        // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
-        breathLoudness: 0, breathInterval: 3.0,
+        // 常态嘶吼：站着不动也会发出（见 loudness.zombieIdleGrowl）
+        breathLoudness: 28, breathInterval: 3.0,
         shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
@@ -164,6 +170,8 @@
         // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.0, speedChase: 5.0,
+        // 喘得比游荡者响、也比它频繁 —— 它是唯一「听见就该立刻跑」的东西
+        breathLoudness: 36, breathInterval: 2.2,
         visionRadius: 18, visionAngle: 110, eyeHeight: 1.45, shuffleInterval: 0.8
       }
     },

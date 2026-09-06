@@ -132,15 +132,27 @@
     this.hearing.position = this.eyePos();
     this.hearing.nodeId = this.nodeId;
 
-    // 蜷伏者的呼吸声：屏息时才听得见，是屏息作为侦查工具的核心价值
-    if (this.state === State.Prone && this.def.breathInterval) {
-      this.breathTimer -= dt;
-      if (this.breathTimer <= 0) {
-        this.breathTimer = this.def.breathInterval;
-        C.SoundSystem.emit({
-          worldPosition: this.pos, loudness: C.Config.loudness.crawlerBreath,
-          category: C.SoundCategory.Ambient, emitterId: this.id, nodeIdHint: this.nodeId, label: '蜷伏者呼吸'
-        });
+    /* 常态声：**站着不动的丧尸也会出声**，否则它在声音系统里等于不存在，
+       屏息侦查也就只能发现正在走动的那些。
+         趴着的蜷伏者 —— 呼吸 12，几乎贴脸才听得见，这是屏息作为侦查工具的核心价值
+         站着的其余丧尸 —— 低哑嘶吼 28，比脚步(48) 近一截但足够看见声纹
+       两者都走 Ambient：**不参与连锁警戒**（只有 Voice 会），
+       否则一屋子丧尸会被彼此的呼吸声互相点着。 */
+    if (this.def.breathInterval) {
+      const prone = this.state === State.Prone;
+      const loud = prone ? C.Config.loudness.crawlerBreath : this.def.breathLoudness;
+      if (loud > 0) {
+        this.breathTimer -= dt;
+        if (this.breathTimer <= 0) {
+          // 随机相位：不加的话同一时刻生成的几百只会整齐划一地一起喘
+          this.breathTimer = this.def.breathInterval * this.rng.range(0.8, 1.2);
+          C.SoundSystem.emit({
+            worldPosition: this.pos,
+            loudness: C.ModifierPipeline.query('sound.zombieAmbient', loud, this.id),
+            category: C.SoundCategory.Ambient, emitterId: this.id, nodeIdHint: this.nodeId,
+            label: prone ? '蜷伏者呼吸' : '低哑嘶吼'
+          });
+        }
       }
     }
 
