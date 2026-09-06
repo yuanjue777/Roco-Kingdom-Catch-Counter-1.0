@@ -62,7 +62,60 @@
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
+  /* 石头落点标记。`[实测]` 蓄力时的预览承诺了「落点在哪、引怪半径多大」，
+     松手之后如果只有一声 0.2 秒的响动，玩家会以为石头根本没砸到东西 ——
+     声纹那套只显示丧尸发出的声音，刚好把玩家自己的石头滤掉了。
+     这里补上：落点画一圈扩散的环 + 引怪半径，1.6 秒后淡出。 */
+  Hud.prototype._initLandMarks = function () {
+    this.landMarks = [];
+    C.EventBus.subscribe('ProjectileLandedEvent', (e) => {
+      this.landMarks.push({ pos: e.pos, radius: e.radius, born: performance.now() / 1000 });
+      if (this.landMarks.length > 6) this.landMarks.shift();
+    });
+  };
+
+  /** 世界坐标 → 屏幕像素。相机背后或出屏就返回 null（落点标记不做边缘指示） */
+  Hud.prototype._project = function (p, camera) {
+    if (!camera || !root.THREE) return null;
+    const v = this._proj || (this._proj = new root.THREE.Vector3());
+    v.set(p.x, p.y, p.z);
+    v.project(camera);
+    if (v.z > 1) return null;
+    const W = this.canvas.width, H = this.canvas.height;
+    const x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+    if (x < 0 || x > W || y < 0 || y > H) return null;
+    return { x, y };
+  };
+
+  Hud.prototype._drawLandMarks = function (camera) {
+    if (!this.landMarks || !this.landMarks.length) return;
+    const ctx = this.ctx, now = performance.now() / 1000;
+    const life = C.Config.throwing.landMarkerSeconds;
+    while (this.landMarks.length && now - this.landMarks[0].born > life) this.landMarks.shift();
+    for (const m of this.landMarks) {
+      const age = now - m.born, t = age / life;
+      const p = this._project(m.pos, camera);
+      if (!p) continue;
+      const a = 1 - t;
+      // 内圈：砸中的那一点
+      ctx.strokeStyle = 'rgba(229,180,92,' + (0.95 * a).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.stroke();
+      // 外圈：随时间扩散，画的是「这一下能引来多远的丧尸」
+      const rr = 6 + 26 * Math.min(1, t * 2.2);
+      ctx.strokeStyle = 'rgba(229,180,92,' + (0.5 * a).toFixed(3) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2); ctx.stroke();
+      if (t < 0.6) {
+        ctx.fillStyle = 'rgba(229,180,92,' + (0.85 * a).toFixed(3) + ')';
+        ctx.font = '10.5px ' + MONO; ctx.textAlign = 'center';
+        ctx.fillText('引怪 ' + m.radius.toFixed(0) + 'm', p.x, p.y - rr - 5);
+      }
+    }
+  };
+
   Hud.prototype.draw = function (player, time, dt, camera) {
+    if (!this.landMarks) this._initLandMarks();
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
     const cx = W / 2, cy = H / 2;
@@ -73,6 +126,7 @@
 
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
+    this._drawLandMarks(camera);      // 石头落点：不受屏息与「只显示丧尸」的限制
 
     /* 屏息时把「现在能听多远」写出来。支柱三要求玩家能在脑内推演 ——
        一个看不见半径的听觉系统，玩家只会觉得「时灵时不灵」。

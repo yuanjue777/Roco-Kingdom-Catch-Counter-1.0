@@ -786,6 +786,10 @@
     throwing: {
       gravity: 9.8,
       speedMin: 7, speedMax: 19, chargeSeconds: 1.2,
+      /* 出手点相对眼睛的偏移 = 右手的位置。从眼睛正中抛出去的弧线左右对称，
+         看着像「从脑门射出来」；挪到右肩下方，弧线才是斜着从画面右下角甩出去的。 */
+      handRight: 0.30, handDown: 0.22, handForward: 0.18,
+      landMarkerSeconds: 1.6,       // 落点标记停留多久
       arcSamples: 60,
       showLandingMarker: true,     // 落点标记
       showAudibleRing: true        // 落点的引怪半径圈 = (响度 − 丧尸阈值) / k，
@@ -3509,11 +3513,32 @@
     } else if (this.charge > 0) {
       if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-        C.Projectiles.spawn(this.eyePos(), this.aimDir(), speed, this.id);
+        C.Projectiles.spawn(this.throwOrigin(), this.aimDir(), speed, this.id);
         this.lastAction = '投石';
       }
       this.charge = 0;
     }
+  };
+
+  /**
+   * 投掷起点：**右手的位置**，不是眼睛正中。
+   * 从眼睛正中抛出去的弧线在屏幕上是左右对称的，看着像"从脑门射出来"；
+   * 挪到右肩下方之后，弧线是斜着从画面右下角甩出去的，才像人在扔东西。
+   * `[实测]` 预览和实弹**必须共用这个函数** —— 起点差一点，落点就差一截，
+   * 而落点是这个动作唯一的产出。
+   */
+  Player.prototype.throwOrigin = function () {
+    const T = C.Config.throwing;
+    const eye = this.eyePos();
+    // 右手方向：yaw 的正右方（与相机的 right 向量一致）
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    // 前方一点点，免得起点埋在自己的碰撞体里，贴墙时尤其明显
+    const fx = Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    return {
+      x: eye.x + rx * T.handRight + fx * T.handForward,
+      y: eye.y - T.handDown,
+      z: eye.z + rz * T.handRight + fz * T.handForward
+    };
   };
 
   Player.prototype.aimDir = function () {
@@ -3532,7 +3557,7 @@
   Player.prototype.predictThrow = function () {
     const T = C.Config.throwing;
     const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-    const points = C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const points = C.Projectiles.simulate(this.throwOrigin(), this.aimDir(), speed, this.world, T.arcSamples);
     const impact = points[points.length - 1];
     const node = C.SoundSystem.graph.getNodeAt(impact);
     const k = C.SoundSystem.kFor(node);
@@ -3588,9 +3613,19 @@
         const p = this.list[i];
         const r = this._step(p.pos, p.vel, dt);
         if (this._hit(p.pos, r.pos)) {
+          const at = this.contact(p.pos, r.pos);
+          const loud = C.Config.loudness.stoneImpact;
           C.SoundSystem.emit({
-            worldPosition: this.contact(p.pos, r.pos), loudness: C.Config.loudness.stoneImpact,
+            worldPosition: at, loudness: loud,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
+          });
+          /* 落地必须有**看得见**的反馈。蓄力时预览已经承诺了「落点在哪、引怪半径多大」，
+             松手之后如果只有一声 0.2 秒的响动，玩家会以为石头根本没砸到东西 ——
+             实测就是这么被当成「没有产生声音」的。声纹那套只显示丧尸发出的声音
+             （soundprintZombiesOnly），刚好把玩家自己的石头滤掉了。 */
+          C.EventBus.publish('ProjectileLandedEvent', {
+            pos: at, loudness: loud, ownerId: p.ownerId,
+            radius: Math.max(0, (loud - C.Config.hearing.zombie) / C.Config.sound.kIndoor)
           });
           this.list.splice(i, 1);
           continue;
@@ -4507,10 +4542,23 @@
     if (!show) return;
 
     const pred = player.predictThrow();
+    /* 出手点挪到右手之后，弧线的头几个点离相机只有几十厘米 ——
+       点阵开了 sizeAttenuation，这么近会被放大成糊住半个屏幕的黄方块。
+       跳过 NEAR_SKIP 以内的点：那几个点本来就在自己身上，不带任何信息。 */
+    const NEAR_SKIP = 1.0;
+    const cam = this.camera.position;
+    const pts = [];
+    for (const p of pred.points) {
+      if (pts.length === 0) {
+        const dx = p.x - cam.x, dy = p.y - cam.y, dz = p.z - cam.z;
+        if (dx * dx + dy * dy + dz * dz < NEAR_SKIP * NEAR_SKIP) continue;
+      }
+      pts.push(p);
+    }
     const attr = this.arcLine.geometry.attributes.position;
-    const n = Math.min(pred.points.length, attr.count);
+    const n = Math.min(pts.length, attr.count);
     for (let i = 0; i < n; i++) {
-      const p = pred.points[i];
+      const p = pts[i];
       attr.setXYZ(i, p.x, p.y, p.z);
     }
     attr.needsUpdate = true;
@@ -4518,7 +4566,7 @@
     this.arcLine.computeLineDistances();          // 虚线必须重算，否则不显示间隔
     const dattr = this.arcDots.geometry.attributes.position;
     for (let i = 0; i < n; i++) {
-      const p = pred.points[i];
+      const p = pts[i];
       dattr.setXYZ(i, p.x, p.y, p.z);
     }
     dattr.needsUpdate = true;
@@ -4587,7 +4635,8 @@
       const spec = {
         Footstep: { type: 'noise', f: 900, q: 1.2, dur: 0.09, atk: 0.004 },
         Door:     { type: 'noise', f: 420, q: 3.0, dur: 0.35, atk: 0.01 },
-        Impact:   { type: 'noise', f: 240, q: 1.0, dur: 0.22, atk: 0.002 },
+        // 石头砸中是全场最重要的一次反馈：钝一点、长一点，才听得出「砸到了」
+        Impact:   { type: 'noise', f: 190, q: 1.2, dur: 0.34, atk: 0.001 },
         Ambient:  { type: 'noise', f: 600, q: 0.7, dur: 0.55, atk: 0.12 },
         Voice:    { type: 'tone',  f: 82,  dur: 0.9,  atk: 0.06 },
         Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 }
@@ -4701,7 +4750,60 @@
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
+  /* 石头落点标记。`[实测]` 蓄力时的预览承诺了「落点在哪、引怪半径多大」，
+     松手之后如果只有一声 0.2 秒的响动，玩家会以为石头根本没砸到东西 ——
+     声纹那套只显示丧尸发出的声音，刚好把玩家自己的石头滤掉了。
+     这里补上：落点画一圈扩散的环 + 引怪半径，1.6 秒后淡出。 */
+  Hud.prototype._initLandMarks = function () {
+    this.landMarks = [];
+    C.EventBus.subscribe('ProjectileLandedEvent', (e) => {
+      this.landMarks.push({ pos: e.pos, radius: e.radius, born: performance.now() / 1000 });
+      if (this.landMarks.length > 6) this.landMarks.shift();
+    });
+  };
+
+  /** 世界坐标 → 屏幕像素。相机背后或出屏就返回 null（落点标记不做边缘指示） */
+  Hud.prototype._project = function (p, camera) {
+    if (!camera || !root.THREE) return null;
+    const v = this._proj || (this._proj = new root.THREE.Vector3());
+    v.set(p.x, p.y, p.z);
+    v.project(camera);
+    if (v.z > 1) return null;
+    const W = this.canvas.width, H = this.canvas.height;
+    const x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+    if (x < 0 || x > W || y < 0 || y > H) return null;
+    return { x, y };
+  };
+
+  Hud.prototype._drawLandMarks = function (camera) {
+    if (!this.landMarks || !this.landMarks.length) return;
+    const ctx = this.ctx, now = performance.now() / 1000;
+    const life = C.Config.throwing.landMarkerSeconds;
+    while (this.landMarks.length && now - this.landMarks[0].born > life) this.landMarks.shift();
+    for (const m of this.landMarks) {
+      const age = now - m.born, t = age / life;
+      const p = this._project(m.pos, camera);
+      if (!p) continue;
+      const a = 1 - t;
+      // 内圈：砸中的那一点
+      ctx.strokeStyle = 'rgba(229,180,92,' + (0.95 * a).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.stroke();
+      // 外圈：随时间扩散，画的是「这一下能引来多远的丧尸」
+      const rr = 6 + 26 * Math.min(1, t * 2.2);
+      ctx.strokeStyle = 'rgba(229,180,92,' + (0.5 * a).toFixed(3) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2); ctx.stroke();
+      if (t < 0.6) {
+        ctx.fillStyle = 'rgba(229,180,92,' + (0.85 * a).toFixed(3) + ')';
+        ctx.font = '10.5px ' + MONO; ctx.textAlign = 'center';
+        ctx.fillText('引怪 ' + m.radius.toFixed(0) + 'm', p.x, p.y - rr - 5);
+      }
+    }
+  };
+
   Hud.prototype.draw = function (player, time, dt, camera) {
+    if (!this.landMarks) this._initLandMarks();
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
     const cx = W / 2, cy = H / 2;
@@ -4712,6 +4814,7 @@
 
     // 声纹指示环（只在屏息时显示）
     if (player.holdBreath || C.Config.debug.showSoundprintAlways) this._soundprint(player, camera);
+    this._drawLandMarks(camera);      // 石头落点：不受屏息与「只显示丧尸」的限制
 
     /* 屏息时把「现在能听多远」写出来。支柱三要求玩家能在脑内推演 ——
        一个看不见半径的听觉系统，玩家只会觉得「时灵时不灵」。

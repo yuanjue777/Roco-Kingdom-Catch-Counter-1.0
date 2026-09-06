@@ -43,7 +43,8 @@
       const spec = {
         Footstep: { type: 'noise', f: 900, q: 1.2, dur: 0.09, atk: 0.004 },
         Door:     { type: 'noise', f: 420, q: 3.0, dur: 0.35, atk: 0.01 },
-        Impact:   { type: 'noise', f: 240, q: 1.0, dur: 0.22, atk: 0.002 },
+        // 石头砸中是全场最重要的一次反馈：钝一点、长一点，才听得出「砸到了」
+        Impact:   { type: 'noise', f: 190, q: 1.2, dur: 0.34, atk: 0.001 },
         Ambient:  { type: 'noise', f: 600, q: 0.7, dur: 0.55, atk: 0.12 },
         Voice:    { type: 'tone',  f: 82,  dur: 0.9,  atk: 0.06 },
         Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 }

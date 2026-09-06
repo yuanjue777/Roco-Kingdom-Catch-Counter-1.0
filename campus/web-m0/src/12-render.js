@@ -394,10 +394,23 @@
     if (!show) return;
 
     const pred = player.predictThrow();
+    /* 出手点挪到右手之后，弧线的头几个点离相机只有几十厘米 ——
+       点阵开了 sizeAttenuation，这么近会被放大成糊住半个屏幕的黄方块。
+       跳过 NEAR_SKIP 以内的点：那几个点本来就在自己身上，不带任何信息。 */
+    const NEAR_SKIP = 1.0;
+    const cam = this.camera.position;
+    const pts = [];
+    for (const p of pred.points) {
+      if (pts.length === 0) {
+        const dx = p.x - cam.x, dy = p.y - cam.y, dz = p.z - cam.z;
+        if (dx * dx + dy * dy + dz * dz < NEAR_SKIP * NEAR_SKIP) continue;
+      }
+      pts.push(p);
+    }
     const attr = this.arcLine.geometry.attributes.position;
-    const n = Math.min(pred.points.length, attr.count);
+    const n = Math.min(pts.length, attr.count);
     for (let i = 0; i < n; i++) {
-      const p = pred.points[i];
+      const p = pts[i];
       attr.setXYZ(i, p.x, p.y, p.z);
     }
     attr.needsUpdate = true;
@@ -405,7 +418,7 @@
     this.arcLine.computeLineDistances();          // 虚线必须重算，否则不显示间隔
     const dattr = this.arcDots.geometry.attributes.position;
     for (let i = 0; i < n; i++) {
-      const p = pred.points[i];
+      const p = pts[i];
       dattr.setXYZ(i, p.x, p.y, p.z);
     }
     dattr.needsUpdate = true;

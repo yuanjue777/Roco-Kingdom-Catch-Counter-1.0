@@ -323,13 +323,19 @@ player.pitch = 0; player.charge = 0;
   const pr = player.predictThrow();
   C.SoundSystem.log.length = 0; C.Projectiles.list.length = 0; C.Projectiles._acc = 0;
   const sp = C.M.lerp(C.Config.throwing.speedMin, C.Config.throwing.speedMax, player.charge);
-  C.Projectiles.spawn(player.eyePos(), player.aimDir(), sp, player.id);
+  // 起点必须和 predictThrow 用同一个 —— 出手点在右手，不在眼睛正中
+  C.Projectiles.spawn(player.throwOrigin(), player.aimDir(), sp, player.id);
   let landed = null;
   const off = C.SoundSystem.emit.bind(C.SoundSystem);
   C.SoundSystem.emit = (d) => { if (d.label === '石头落地') landed = d.worldPosition; return off(d); };
   for (let i = 0; i < 400 && !landed; i++) C.Projectiles.update(1 / 60);
   C.SoundSystem.emit = off;
   ok('实弹落地了', !!landed);
+  // 出手点在右手：应该明显偏离眼睛正中，但仍然贴着身体
+  const eye = player.eyePos(), hand = player.throwOrigin();
+  const off2 = C.V.dist(eye, hand);
+  ok('出手点在右手，不是眼睛正中', off2 > 0.2 && off2 < 0.6, off2.toFixed(2) + 'm');
+  ok('出手点比眼睛低（手在肩下）', hand.y < eye.y, (eye.y - hand.y).toFixed(2) + 'm');
   ok('预览落点与实弹落点完全一致（误差 < 1cm）',
      landed && C.V.dist(landed, pr.impact) < 0.01,
      landed ? C.V.dist(landed, pr.impact).toFixed(4) + 'm' : '—');
@@ -1241,6 +1247,50 @@ section('32. 俯视调试图限流（性能）');
   const hz = +dbg.match(/REDRAW_HZ\s*=\s*(\d+)/)[1];
   ok('上限在 10~30fps 之间（再低会看出卡顿，再高省不下什么）', hz >= 10 && hz <= 30, String(hz));
   ok('不可见时直接返回，不做任何计算', /if \(!this\.visible\) \{ this\._acc = 0; return; \}/.test(dbg));
+}
+
+section('33. 石头落地的反馈');
+{
+  /* `[实测]` 用户反馈「丢石头砸到东西没有产生声音，也没有吸引丧尸」。
+     查下来**规则层一直是对的** —— 声音发了、丧尸也反应了；
+     缺的是**看得见的反馈**：声纹只显示丧尸发出的声音（soundprintZombiesOnly），
+     刚好把玩家自己的石头滤掉，于是松手之后只剩一声 0.3 秒的响动。
+     这一节把「发声 + 引怪 + 广播落点」三件事一起钉住。 */
+  const s17 = makeSim();
+  const pl = new C.Player(s17.level, s17.world);
+  // yaw = π/2 时 aimDir 指向 −x，所以丧尸放在西边（落点会在西楼梯附近）
+  const z = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.make(-2, 0.0, 1.3) }, s17.world);
+  pl.pos = { x: 6, y: 0.02, z: 1.3 }; pl.yaw = Math.PI / 2; pl.pitch = 0.25;
+
+  let landed = null;
+  C.EventBus.subscribe('ProjectileLandedEvent', (e) => { landed = e; });
+  C.SoundSystem.log.length = 0;
+  C.Projectiles.spawn(pl.throwOrigin(), pl.aimDir(), 14, pl.id);
+  /* 丧尸必须跟着一起跑：它的听觉位置/所在节点是在 update 里刷新的，
+     只跑投掷物的话丧尸的 nodeId 还是 -1，声音传播找不到它，测出来像是「没引到」。 */
+  for (let i = 0; i < 120 && !landed; i++) {
+    s17.time.update(1 / 30); C.Projectiles.update(1 / 30);
+    C.ZombieManager.update(1 / 30, pl, s17.time);
+  }
+
+  ok('石头砸到东西会广播落点事件', !!landed);
+  ok('落点事件带着响度', landed && landed.loudness === C.Config.loudness.stoneImpact, landed && String(landed.loudness));
+  ok('落点事件带着引怪半径（界面据此画圈）',
+     landed && Math.abs(landed.radius - (C.Config.loudness.stoneImpact - C.Config.hearing.zombie) / C.Config.sound.kIndoor) < 0.01,
+     landed && landed.radius.toFixed(1) + 'm');
+  const snd = C.SoundSystem.log.find(e => e.label === '石头落地');
+  ok('**确实发出了声音**（规则层从来没坏过）', !!snd && snd.loud === C.Config.loudness.stoneImpact);
+  ok('落点声音不算在玩家头上（emitterId = -1，才不会被当成自己的动静）',
+     snd && snd.emitter === -1, snd && String(snd.emitter));
+
+  // 丧尸确实被引过来
+  for (let i = 0; i < 60; i++) { s17.time.update(1 / 30); C.ZombieManager.update(1 / 30, pl, s17.time); }
+  ok('**丧尸确实被引过来了**', z.state !== C.ZombieState.Wander, '游荡 → ' + z.state);
+
+  /* 声纹那套确实会把石头滤掉 —— 这不是 bug，是设计（只显示丧尸的动静）。
+     钉住它，免得以后有人「修」错方向。 */
+  ok('声纹依旧只显示丧尸发出的声音（石头不进声纹）',
+     C.Config.hearing.soundprintZombiesOnly === true);
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

@@ -628,11 +628,32 @@
     } else if (this.charge > 0) {
       if (this.takeStone()) {
         const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-        C.Projectiles.spawn(this.eyePos(), this.aimDir(), speed, this.id);
+        C.Projectiles.spawn(this.throwOrigin(), this.aimDir(), speed, this.id);
         this.lastAction = '投石';
       }
       this.charge = 0;
     }
+  };
+
+  /**
+   * 投掷起点：**右手的位置**，不是眼睛正中。
+   * 从眼睛正中抛出去的弧线在屏幕上是左右对称的，看着像"从脑门射出来"；
+   * 挪到右肩下方之后，弧线是斜着从画面右下角甩出去的，才像人在扔东西。
+   * `[实测]` 预览和实弹**必须共用这个函数** —— 起点差一点，落点就差一截，
+   * 而落点是这个动作唯一的产出。
+   */
+  Player.prototype.throwOrigin = function () {
+    const T = C.Config.throwing;
+    const eye = this.eyePos();
+    // 右手方向：yaw 的正右方（与相机的 right 向量一致）
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    // 前方一点点，免得起点埋在自己的碰撞体里，贴墙时尤其明显
+    const fx = Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    return {
+      x: eye.x + rx * T.handRight + fx * T.handForward,
+      y: eye.y - T.handDown,
+      z: eye.z + rz * T.handRight + fz * T.handForward
+    };
   };
 
   Player.prototype.aimDir = function () {
@@ -651,7 +672,7 @@
   Player.prototype.predictThrow = function () {
     const T = C.Config.throwing;
     const speed = M.lerp(T.speedMin, T.speedMax, this.charge);
-    const points = C.Projectiles.simulate(this.eyePos(), this.aimDir(), speed, this.world, T.arcSamples);
+    const points = C.Projectiles.simulate(this.throwOrigin(), this.aimDir(), speed, this.world, T.arcSamples);
     const impact = points[points.length - 1];
     const node = C.SoundSystem.graph.getNodeAt(impact);
     const k = C.SoundSystem.kFor(node);
@@ -707,9 +728,19 @@
         const p = this.list[i];
         const r = this._step(p.pos, p.vel, dt);
         if (this._hit(p.pos, r.pos)) {
+          const at = this.contact(p.pos, r.pos);
+          const loud = C.Config.loudness.stoneImpact;
           C.SoundSystem.emit({
-            worldPosition: this.contact(p.pos, r.pos), loudness: C.Config.loudness.stoneImpact,
+            worldPosition: at, loudness: loud,
             category: C.SoundCategory.Impact, emitterId: -1, label: '石头落地'
+          });
+          /* 落地必须有**看得见**的反馈。蓄力时预览已经承诺了「落点在哪、引怪半径多大」，
+             松手之后如果只有一声 0.2 秒的响动，玩家会以为石头根本没砸到东西 ——
+             实测就是这么被当成「没有产生声音」的。声纹那套只显示丧尸发出的声音
+             （soundprintZombiesOnly），刚好把玩家自己的石头滤掉了。 */
+          C.EventBus.publish('ProjectileLandedEvent', {
+            pos: at, loudness: loud, ownerId: p.ownerId,
+            radius: Math.max(0, (loud - C.Config.hearing.zombie) / C.Config.sound.kIndoor)
           });
           this.list.splice(i, 1);
           continue;

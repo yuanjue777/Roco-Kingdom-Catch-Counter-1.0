@@ -249,6 +249,10 @@
     throwing: {
       gravity: 9.8,
       speedMin: 7, speedMax: 19, chargeSeconds: 1.2,
+      /* 出手点相对眼睛的偏移 = 右手的位置。从眼睛正中抛出去的弧线左右对称，
+         看着像「从脑门射出来」；挪到右肩下方，弧线才是斜着从画面右下角甩出去的。 */
+      handRight: 0.30, handDown: 0.22, handForward: 0.18,
+      landMarkerSeconds: 1.6,       // 落点标记停留多久
       arcSamples: 60,
       showLandingMarker: true,     // 落点标记
       showAudibleRing: true        // 落点的引怪半径圈 = (响度 − 丧尸阈值) / k，
