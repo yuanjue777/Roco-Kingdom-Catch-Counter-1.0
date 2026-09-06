@@ -94,6 +94,8 @@
       layer.addEventListener('pointercancel', endLook);
 
       // 全屏：手机上最有效的一招 —— 浏览器地址栏消失，就没有可以被拖下来的东西
+      this._bindTap(document.getElementById('btnGod'), () => this.game.toggleCheat('godMode', '无敌'));
+      this._bindTap(document.getElementById('btnGhost'), () => this.game.toggleCheat('ghost', '隐身'));
       this._bindTap(document.getElementById('btnFull'), () => this.toggleFullscreen());
 
       this._lockPageScroll();

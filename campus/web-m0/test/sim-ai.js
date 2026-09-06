@@ -1189,5 +1189,59 @@ section('30. 鼠标只在面板开着时解锁（源码契约）');
      /toggle\(\)\s*\{[\s\S]{0,200}this\.close\(\);\s*return;/.test(note));
 }
 
+section('31. 探索用开关：无敌 / 隐身');
+{
+  const s16 = makeSim();
+  const pl = new C.Player(s16.level, s16.world);
+  C.Config.debug.godMode = false; C.Config.debug.ghost = false;
+
+  pl.die('测试');
+  ok('平时该死就死', pl.alive === false);
+
+  // 无敌：所有致死路径都汇到 die()，所以只要在这一个口子上拦
+  const pl2 = new C.Player(s16.level, s16.world);
+  C.Config.debug.godMode = true;
+  pl2.die('被游荡者抓住');
+  ok('无敌时挡下「被抓住」', pl2.alive === true);
+  pl2.needs.thirst = 100; pl2.needs.dead = true;
+  pl2.die('渴死');
+  ok('无敌时也挡下「渴死」', pl2.alive === true);
+  ok('并且把需求拉回安全线（否则下一帧又触发一次）',
+     pl2.needs.dead === false && pl2.needs.thirst <= 80, String(pl2.needs.thirst));
+
+  // 隐身只关视觉，听觉照常 —— 它不是上帝模式
+  C.Config.debug.godMode = false; C.Config.debug.ghost = true;
+  ok('隐身时丧尸的视觉判定归零', pl2.detectMultiplier() === 0);
+  /* input 必须给全 —— 少给字段会让姿态/速度算出 NaN，角色原地不动，
+     测出来像是「隐身把人冻住了」。装配层的 _input() 永远给全字段。 */
+  const walk = { forward: 1, right: 0, run: false, crouch: false, wallHug: false,
+                 lean: 0, holdBreath: false, interact: false, throwHeld: false, jump: false };
+  const pl3 = new C.Player(s16.level, s16.world);
+  C.SoundSystem.log.length = 0;
+  for (let i = 0; i < 90; i++) pl3.update(1 / 30, walk, s16.time);
+  ok('**隐身时脚步照样出声** —— 隐身不是无声',
+     C.SoundSystem.log.length > 0, C.SoundSystem.log.length + ' 条');
+
+  C.Config.debug.ghost = false;
+  ok('关掉之后视觉判定恢复正常', pl3.detectMultiplier() > 0, String(pl3.detectMultiplier()));
+
+  // 这两个开关是调试用的，默认必须是关的
+  const cfgSrc = require('fs').readFileSync(path.join(SRC, '00-config.js'), 'utf8');
+  ok('配置里两个开关默认都是 false',
+     /godMode: false/.test(cfgSrc) && /ghost: false/.test(cfgSrc));
+}
+
+section('32. 俯视调试图限流（性能）');
+{
+  /* `[实测]` 整幅重画一次 5.8ms，是全场最贵的一项 —— 比 320 只丧尸的
+     全部逻辑（1.4ms）还贵四倍，比声音传播（0.03ms）贵近两百倍。
+     它是开发工具，不该跟渲染抢帧预算，所以限到 20fps 重画。 */
+  const dbg = require('fs').readFileSync(path.join(SRC, '15-debug.js'), 'utf8');
+  ok('调试图有重画频率上限', /REDRAW_HZ\s*=\s*(\d+)/.test(dbg));
+  const hz = +dbg.match(/REDRAW_HZ\s*=\s*(\d+)/)[1];
+  ok('上限在 10~30fps 之间（再低会看出卡顿，再高省不下什么）', hz >= 10 && hz <= 30, String(hz));
+  ok('不可见时直接返回，不做任何计算', /if \(!this\.visible\) \{ this\._acc = 0; return; \}/.test(dbg));
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

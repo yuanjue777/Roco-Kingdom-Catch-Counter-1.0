@@ -126,6 +126,9 @@
     // 姿态 / 状态
     const tags = [];
     if (player.holdBreath) tags.push('屏息');
+    // 作弊开关必须一直看得见，否则「怎么打不死我」会被当成 bug 查半天
+    if (C.Config.debug.godMode) tags.push('无敌');
+    if (C.Config.debug.ghost) tags.push('隐身');
     if (player.posture === 'crouch') tags.push('蹲');
     if (player.wallHug) tags.push('贴墙');
     if (player.lean) tags.push(player.lean < 0 ? '左探头' : '右探头');

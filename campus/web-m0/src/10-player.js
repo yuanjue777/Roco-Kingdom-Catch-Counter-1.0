@@ -219,6 +219,7 @@
   };
   /** 丧尸看见玩家的半径乘数（主文档 4.5） */
   Player.prototype.detectMultiplier = function () {
+    if (C.Config.debug.ghost) return 0;      // 隐身：丧尸看不见你（听觉照常）
     const v = C.Config.vision;
     const base = this.posture === 'crouch' ? v.crouchDetectMul : 1.0;
     // 侧身到一半就只减一半：探出去多少，暴露多少
@@ -662,8 +663,18 @@
     };
   };
 
+  /* 所有致死路径（被抓、渴死、饿死）都汇到这里，所以无敌只要在这一个口子上拦。
+     **调试用**：正式版应该把 godMode / ghost 一并砍掉，或者锁在开发者构建里。 */
   Player.prototype.die = function (cause) {
     if (!this.alive) return;
+    if (C.Config.debug.godMode) {
+      // 无敌时把需求拉回安全线，否则下一帧又会立刻触发一次
+      this.needs.dead = false;
+      this.needs.hunger = Math.min(this.needs.hunger, 80);
+      this.needs.thirst = Math.min(this.needs.thirst, 80);
+      this.lastAction = '无敌：挡下了「' + cause + '」';
+      return;
+    }
     this.alive = false;
     C.EventBus.publish(C.Events.PlayerDied, { cause });
   };

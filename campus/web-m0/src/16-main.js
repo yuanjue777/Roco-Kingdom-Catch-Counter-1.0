@@ -160,6 +160,9 @@
                关掉之后要把这一次 F 吃掉，否则同一帧的交互判定会立刻把它再打开。 */
             if (C.LootUI.open) { C.LootUI.close(); this._eatF = true; }
             break;
+          // 探索用开关（正式版要砍掉）：无敌 / 隐身
+          case 'KeyO': this.toggleCheat('godMode', '无敌'); break;
+          case 'KeyI': this.toggleCheat('ghost', '隐身'); break;
           case 'KeyJ': C.NotebookUI.toggle(); break;
           case 'KeyR':
             // 拖动中按 R 转 90°；没在拖就是原来的重开
@@ -267,6 +270,17 @@
       addEventListener('blur', () => {
         this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
       });
+    },
+
+    /** 探索用开关。**正式版必须砍掉或锁进开发者构建。** */
+    toggleCheat(key, label) {
+      const on = !C.Config.debug[key];
+      C.Config.debug[key] = on;
+      if (on && key === 'godMode' && !this.player.alive) this.restart();
+      this.msg(label + (on ? '：开' : '：关') +
+        (on && key === 'ghost' ? '　（丧尸看不见你，但**听得见**你的脚步）' : ''));
+      const btn = document.getElementById(key === 'godMode' ? 'btnGod' : 'btnGhost');
+      if (btn) btn.classList.toggle('on', on);
     },
 
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
