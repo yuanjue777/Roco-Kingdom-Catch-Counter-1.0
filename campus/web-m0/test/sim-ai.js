@@ -943,5 +943,24 @@ section('23. 存档 v2：背包与容器');
   ok('v1 老存档被明确判为不兼容', C.Save.version === 2);
 }
 
+section('24. 开始游戏不能依赖指针锁定');
+{
+  /* 回归：这个页面经常被嵌在 sandbox 的 iframe 里（artifact / 各种嵌入）。
+     少了 allow-pointer-lock 权限时 requestPointerLock 直接被拒，
+     曾经把「开始游戏」挂在 pointerlockchange 上 —— 结果点了没反应，游戏根本进不去。
+     纯逻辑无法起浏览器，所以这里检查的是源码里的契约：
+     ① 点击处理里必须先 start() 再谈锁定；② 必须监听 pointerlockerror 并退到拖动模式。 */
+  const fs2 = require('fs');
+  const src = fs2.readFileSync(path.join(SRC, '16-main.js'), 'utf8');
+  ok('有拖动转视角的退路（_fallbackToDrag）', /_fallbackToDrag/.test(src));
+  ok('监听 pointerlockerror', /pointerlockerror/.test(src));
+  ok('requestPointerLock 的 Promise 失败也接住', /requestPointerLock\(\)[\s\S]{0,220}catch/.test(src));
+  const click = src.slice(src.indexOf("document.addEventListener('click'"));
+  const iStart = click.indexOf('start();'), iLock = click.indexOf('requestPointerLock');
+  ok('点击时先开始游戏，再尝试锁定（顺序不能反）', iStart >= 0 && iLock > iStart);
+  ok('拖动模式下视角仍然会更新', /this\.locked \|\| this\.lookMode === 'drag'/.test(src));
+  ok('开场层不会在拖动模式下弹回来', /lookMode === 'lock' && !this\.locked/.test(src));
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -167,6 +167,11 @@
   .note-when { font-family: var(--mono); font-size: 11px; color: var(--dim); flex: none; min-width: 92px; }
   .note-need { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; }
   .note-empty { color: var(--dim); font-size: 13px; padding: 24px 4px; }
+  /* 拖动模式（指针锁定被 iframe 禁掉时的退路）：给个抓手光标，
+     否则玩家不知道要按住左键 */
+  body.dragLook #view { cursor: grab; }
+  body.dragLook #view:active { cursor: grabbing; }
+
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -384,7 +389,7 @@
       <div class="row"><span><kbd>L</kbd> <kbd>X</kbd> <kbd>F5</kbd></span><span class="act">手电 / 看表 / 存档</span><span class="val none">—</span></div>
       <div class="row"><span><kbd>N</kbd> <kbd>T</kbd></span><span class="act">昼夜 / 时间流速</span><span class="val none">—</span></div>
     </div>
-    <div class="go desktop-only"><span class="dot"></span>点击画面开始 · 会锁定鼠标，<kbd>Esc</kbd> 退出锁定</div>
+    <div class="go desktop-only"><span class="dot"></span>点击画面开始 · 会锁定鼠标（<kbd>Esc</kbd> 退出）；页面若不允许锁定，则改为按住左键拖动转视角</div>
     <div class="go touch-only"><span class="dot"></span>点击任意处开始 · 左下摇杆移动，空白处拖拽转视角</div>
   </div>
 </div>

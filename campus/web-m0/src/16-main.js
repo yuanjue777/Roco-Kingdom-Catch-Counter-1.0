@@ -174,6 +174,25 @@
       });
       addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
+      /* 转视角有两种模式：
+           lock —— 指针锁定，鼠标随便动（正常情况）
+           drag —— 按住左键拖动（**指针锁定被禁用时的退路**）
+         退路是必需的：这个页面经常被嵌在 sandbox 的 iframe 里
+         （artifact / itch.io / 各种嵌入），少了 allow-pointer-lock
+         权限时 requestPointerLock 会被直接拒绝，控制台只留一行
+         「Blocked pointer lock … the element's frame is sandboxed」。
+         以前把「开始游戏」挂在 pointerlockchange 上，于是**点了没反应，游戏根本进不去**。
+         现在点击立刻开始，锁不上就换成拖动。 */
+      this.lookMode = 'lock';
+      this.started = false;
+
+      const start = () => {
+        if (this.started) return;
+        this.started = true;
+        document.getElementById('startHint').style.display = 'none';
+      };
+      this._startPlay = start;
+
       // 监听在 document 上：开场提示层盖在画布之上，挂在画布上的点击永远收不到
       document.addEventListener('click', (e) => {
         C.Audio.init(); C.Audio.resume();
@@ -183,26 +202,62 @@
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
-          document.getElementById('startHint').style.display = 'none';
+          start();
           C.Touch.autoFullscreenOnce();
           return;
         }
-        if (!this.locked) this.canvas3d.requestPointerLock();
+        start();                                  // 先开始，再谈锁不锁得上
+        if (this.lookMode !== 'lock' || this.locked) return;
+        const p2 = this.canvas3d.requestPointerLock();
+        // 新版浏览器返回 Promise，旧版不返回；两条路都要接住失败
+        if (p2 && p2.catch) p2.catch(() => this._fallbackToDrag());
       });
+      document.addEventListener('pointerlockerror', () => this._fallbackToDrag());
       document.addEventListener('pointerlockchange', () => {
         this.locked = document.pointerLockElement === this.canvas3d;
-        document.getElementById('startHint').style.display = this.locked ? 'none' : 'flex';
+        // 只有「本该锁上却没锁上」才把开场层放回来（按 Esc 解锁）；
+        // 拖动模式下永远不放回来，否则一松手提示层就糊在脸上
+        const hint = document.getElementById('startHint');
+        hint.style.display = (this.lookMode === 'lock' && !this.locked) ? 'flex' : 'none';
       });
+
+      this.drag = { on: false, x: 0, y: 0 };
       addEventListener('mousemove', (e) => {
-        if (!this.locked) return;
-        this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
+        if (this.locked) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; return; }
+        if (this.lookMode !== 'drag' || !this.drag.on) return;
+        this.mouse.dx += e.clientX - this.drag.x;
+        this.mouse.dy += e.clientY - this.drag.y;
+        this.drag.x = e.clientX; this.drag.y = e.clientY;
       });
       // 按住鼠标右键 = 屏息（Space 让给了跳跃）
       this.rmb = false;
-      addEventListener('mousedown', (e) => { if (e.button === 2) this.rmb = true; });
-      addEventListener('mouseup', (e) => { if (e.button === 2) this.rmb = false; });
+      addEventListener('mousedown', (e) => {
+        if (e.button === 2) this.rmb = true;
+        // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
+        if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled &&
+            !(e.target && e.target.closest && e.target.closest('#inv, #note, #tuner'))) {
+          this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
+          e.preventDefault();
+        }
+      });
+      addEventListener('mouseup', (e) => {
+        if (e.button === 2) this.rmb = false;
+        if (e.button === 0) this.drag.on = false;
+      });
       addEventListener('contextmenu', (e) => { if (this.locked) e.preventDefault(); });
-      addEventListener('blur', () => { this.rmb = false; this.keys = {}; this.tapped = {}; });
+      addEventListener('blur', () => {
+        this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
+      });
+    },
+
+    /** 指针锁定用不了（多半是被 sandbox 的 iframe 挡了）：换成按住左键拖动 */
+    _fallbackToDrag() {
+      if (this.lookMode === 'drag') return;
+      this.lookMode = 'drag';
+      this.locked = false;
+      document.getElementById('startHint').style.display = 'none';
+      document.body.classList.add('dragLook');
+      this.msg('这个页面不允许锁定鼠标 —— 改为「按住左键拖动」转视角，其余按键照常');
     },
 
     _useHotbar(i) {
@@ -256,8 +311,9 @@
       this.last = now;
 
       // 视角
-      if (this.locked) {
-        const sens = 0.0022;
+      if (this.locked || this.lookMode === 'drag') {
+        // 拖动模式的行程被窗口宽度限制住，灵敏度要高一些，手感才跟锁定时接近
+        const sens = this.locked ? 0.0022 : 0.0040;
         this.player.yaw -= this.mouse.dx * sens;
         this.player.pitch = M.clamp(this.player.pitch - this.mouse.dy * sens, -1.4, 1.4);
       }
