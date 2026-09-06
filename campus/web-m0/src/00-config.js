@@ -140,21 +140,22 @@
       Wanderer: {
         /* `[实测]` 速度从 v1 的 1.0 / 3.2 下调，两个值理由不同：
              游荡 1.0 m/s 是「正常人快走」，看着根本不像拖着腿的东西 ——
-               而这是玩家 99% 的时间里看到的样子。压到 0.65（比玩家蹲行 1.2 还慢一半）。
-             追击 3.2 → 2.9，仍然**快过玩家走路 2.4**，所以「被发现只能跑」这条没变，
+               而这是玩家 99% 的时间里看到的样子。两轮实测后压到 **0.45**
+               （玩家蹲行 1.2 的三分之一），拖着腿的感觉才出来。
+             追击 3.2 → **2.7**，仍然快过玩家走路 2.4，所以「被发现只能跑」这条没变，
                但留出了「跑两步拉开、拐个弯断视线」的余地，而不是必死。
            两个值都在调参面板里（P），手感不对可以现场改。 */
         name: '游荡者', hp: 100, threshold: 10,
-        speedWander: 0.65, speedChase: 2.9,
-        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        speedWander: 0.45, speedChase: 2.7,
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
         breathLoudness: 0, breathInterval: 3.0,
         shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
-        speedWander: 0.55, speedChase: 2.9,   // 刚从地上爬起来的，游荡时比游荡者还慢
-        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        speedWander: 0.4, speedChase: 2.7,    // 刚从地上爬起来的，游荡时比游荡者还慢
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
         riseDistance: 8,            // 声源在 8 米内才起身
         breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
         shuffleInterval: 1.1
@@ -163,7 +164,7 @@
         // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.0, speedChase: 5.0,
-        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
+        visionRadius: 18, visionAngle: 110, eyeHeight: 1.45, shuffleInterval: 0.8
       }
     },
     // 视觉修正（主文档 4.5）
@@ -256,7 +257,10 @@
     level: {
       floors: 4, roomsPerFloor: 6,
       roomW: 4.0, roomD: 5.0, roomGap: 1.0,
-      corridorD: 2.6, floorHeight: 3.2, wallThickness: 0.2,
+      /* `[实测]` 走廊 2.6 → 3.4m。2.6m 是「两个人勉强错身」的宽度，
+         第一人称里两侧墙压在脸上，而走廊是这个游戏里待得最久的地方。
+         3.4m 还是窄的（真实教学楼走廊 2.4~3m），但配合 78° FOV 才不憋。 */
+      corridorD: 3.4, floorHeight: 3.2, wallThickness: 0.2,
       stairWellW: 6.0, stairWellD: 6.0,
       stairStepH: 0.2, stairStepD: 0.3, stairWidth: 2.4, stairSlabThickness: 0.45,
       spawnRoomFloor: 3,            // 0-based：第 4 层

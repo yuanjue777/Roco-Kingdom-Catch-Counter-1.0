@@ -172,6 +172,48 @@
   body.dragLook #view { cursor: grab; }
   body.dragLook #view:active { cursor: grabbing; }
 
+  /* ── 搜刮界面（14.2b）────────────────────────────────
+     和背包总览最大的区别：**没有全屏黑底**。翻找时游戏不暂停，
+     玩家必须还能看见身后的走廊 —— 挡住画面等于把这份紧张感抹掉。 */
+  /* 容器在上、自己的背包在下，整组靠下摆 —— 背包在「中间下面」是玩家指定的位置，
+     画面上半部分留给游戏本身（走廊、丧尸、门）。 */
+  #loot { position: fixed; inset: 0; z-index: 8; display: none;
+          pointer-events: none; align-items: center; flex-direction: column;
+          justify-content: flex-end; gap: 12px; padding: 16px 16px 7vh; }
+  #loot.open { display: flex; }
+  .loot-panel {
+    pointer-events: auto;
+    background: rgba(12,16,22,0.90); border: 1px solid var(--line); border-radius: 6px;
+    padding: 9px 11px 11px; box-shadow: 0 10px 34px rgba(0,0,0,0.45);
+  }
+  .loot-panel h5 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--ink);
+                   display: flex; align-items: baseline; gap: 8px; }
+  .loot-panel h5 small { font-family: var(--mono); font-size: 10.5px; color: var(--dim); font-weight: 400; }
+  .loot-btn { margin-left: auto; font-family: var(--cjk); font-size: 11px; padding: 2px 9px; cursor: pointer;
+              background: rgba(30,38,48,0.9); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; }
+  .loot-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .loot-grid { position: relative; }
+  .loot-grid > i { position: absolute; border: 1px solid rgba(255,255,255,0.08);
+                   background: rgba(255,255,255,0.035); border-radius: 2px; }
+  .loot-item {
+    position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 10.5px; line-height: 1.15; font-weight: 400; padding: 2px;
+    background: rgba(52,66,82,0.95); border: 1px solid rgba(150,175,200,0.42); border-radius: 3px;
+    color: var(--ink); cursor: grab; overflow: hidden; touch-action: none; user-select: none;
+  }
+  .loot-item.rare { border-color: var(--warn, #E5B45C); color: var(--warn, #E5B45C); }
+  .loot-item.hid { background: rgba(30,36,44,0.9); color: rgba(220,227,235,0.3);
+                   border-style: dashed; cursor: default; }
+  .loot-item.dragging { opacity: 0.25; }
+  .loot-item u { position: absolute; right: 2px; bottom: 1px; font-family: var(--mono);
+                 font-size: 9.5px; text-decoration: none; color: var(--dim); }
+  .loot-ghost { position: fixed; z-index: 30; pointer-events: none; opacity: 0.92;
+                cursor: grabbing; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .loot-tip { pointer-events: none; font-size: 11px; color: rgba(220,227,235,0.75);
+              background: rgba(10,13,18,0.72); border-radius: 3px; padding: 3px 10px; }
+  /* 矮屏（手机横屏）：两块板挨紧一点，别把格子挤出屏幕 */
+  @media (max-height: 520px) { #loot { gap: 7px; padding: 8px 8px 4vh; } .loot-panel { padding: 6px 8px 8px; } }
+
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -227,7 +269,7 @@
      只在触屏层上写是堵不住的 */
   body.touch #view, body.touch #hud, body.touch #dbg { touch-action: none; }
   /* 会滚的面板反过来要把纵向滚动还给自己，并且不把滚动传给页面 */
-  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note {
+  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note, body.touch #loot {
     touch-action: pan-y; overscroll-behavior: contain;
   }
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
@@ -327,6 +369,7 @@
 <button id="btnNote" type="button">笔记本 J</button>
 <div id="inv"></div>
 <div id="note"></div>
+<div id="loot"></div>
 <button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -422,6 +465,7 @@
 <script src="src/26-notebook.js"></script>
 <script src="src/23-inventory-ui.js"></script>
 <script src="src/27-notebook-ui.js"></script>
+<script src="src/28-loot-ui.js"></script>
 <script src="src/20-save.js"></script>
 <script src="src/17-touch.js"></script>
 <script src="src/16-main.js"></script>

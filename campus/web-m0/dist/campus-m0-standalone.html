@@ -170,6 +170,48 @@
   body.dragLook #view { cursor: grab; }
   body.dragLook #view:active { cursor: grabbing; }
 
+  /* ── 搜刮界面（14.2b）────────────────────────────────
+     和背包总览最大的区别：**没有全屏黑底**。翻找时游戏不暂停，
+     玩家必须还能看见身后的走廊 —— 挡住画面等于把这份紧张感抹掉。 */
+  /* 容器在上、自己的背包在下，整组靠下摆 —— 背包在「中间下面」是玩家指定的位置，
+     画面上半部分留给游戏本身（走廊、丧尸、门）。 */
+  #loot { position: fixed; inset: 0; z-index: 8; display: none;
+          pointer-events: none; align-items: center; flex-direction: column;
+          justify-content: flex-end; gap: 12px; padding: 16px 16px 7vh; }
+  #loot.open { display: flex; }
+  .loot-panel {
+    pointer-events: auto;
+    background: rgba(12,16,22,0.90); border: 1px solid var(--line); border-radius: 6px;
+    padding: 9px 11px 11px; box-shadow: 0 10px 34px rgba(0,0,0,0.45);
+  }
+  .loot-panel h5 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--ink);
+                   display: flex; align-items: baseline; gap: 8px; }
+  .loot-panel h5 small { font-family: var(--mono); font-size: 10.5px; color: var(--dim); font-weight: 400; }
+  .loot-btn { margin-left: auto; font-family: var(--cjk); font-size: 11px; padding: 2px 9px; cursor: pointer;
+              background: rgba(30,38,48,0.9); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; }
+  .loot-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .loot-grid { position: relative; }
+  .loot-grid > i { position: absolute; border: 1px solid rgba(255,255,255,0.08);
+                   background: rgba(255,255,255,0.035); border-radius: 2px; }
+  .loot-item {
+    position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 10.5px; line-height: 1.15; font-weight: 400; padding: 2px;
+    background: rgba(52,66,82,0.95); border: 1px solid rgba(150,175,200,0.42); border-radius: 3px;
+    color: var(--ink); cursor: grab; overflow: hidden; touch-action: none; user-select: none;
+  }
+  .loot-item.rare { border-color: var(--warn, #E5B45C); color: var(--warn, #E5B45C); }
+  .loot-item.hid { background: rgba(30,36,44,0.9); color: rgba(220,227,235,0.3);
+                   border-style: dashed; cursor: default; }
+  .loot-item.dragging { opacity: 0.25; }
+  .loot-item u { position: absolute; right: 2px; bottom: 1px; font-family: var(--mono);
+                 font-size: 9.5px; text-decoration: none; color: var(--dim); }
+  .loot-ghost { position: fixed; z-index: 30; pointer-events: none; opacity: 0.92;
+                cursor: grabbing; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .loot-tip { pointer-events: none; font-size: 11px; color: rgba(220,227,235,0.75);
+              background: rgba(10,13,18,0.72); border-radius: 3px; padding: 3px 10px; }
+  /* 矮屏（手机横屏）：两块板挨紧一点，别把格子挤出屏幕 */
+  @media (max-height: 520px) { #loot { gap: 7px; padding: 8px 8px 4vh; } .loot-panel { padding: 6px 8px 8px; } }
+
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -225,7 +267,7 @@
      只在触屏层上写是堵不住的 */
   body.touch #view, body.touch #hud, body.touch #dbg { touch-action: none; }
   /* 会滚的面板反过来要把纵向滚动还给自己，并且不把滚动传给页面 */
-  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note {
+  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note, body.touch #loot {
     touch-action: pan-y; overscroll-behavior: contain;
   }
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
@@ -324,6 +366,7 @@
 <button id="btnNote" type="button">笔记本 J</button>
 <div id="inv"></div>
 <div id="note"></div>
+<div id="loot"></div>
 <button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -641,21 +684,22 @@
       Wanderer: {
         /* `[实测]` 速度从 v1 的 1.0 / 3.2 下调，两个值理由不同：
              游荡 1.0 m/s 是「正常人快走」，看着根本不像拖着腿的东西 ——
-               而这是玩家 99% 的时间里看到的样子。压到 0.65（比玩家蹲行 1.2 还慢一半）。
-             追击 3.2 → 2.9，仍然**快过玩家走路 2.4**，所以「被发现只能跑」这条没变，
+               而这是玩家 99% 的时间里看到的样子。两轮实测后压到 **0.45**
+               （玩家蹲行 1.2 的三分之一），拖着腿的感觉才出来。
+             追击 3.2 → **2.7**，仍然快过玩家走路 2.4，所以「被发现只能跑」这条没变，
                但留出了「跑两步拉开、拐个弯断视线」的余地，而不是必死。
            两个值都在调参面板里（P），手感不对可以现场改。 */
         name: '游荡者', hp: 100, threshold: 10,
-        speedWander: 0.65, speedChase: 2.9,
-        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        speedWander: 0.45, speedChase: 2.7,
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
         // 主文档 13.1 待定问题 4：游荡者是否有常态呼吸声。默认 0（关闭），改成 12 可实测。
         breathLoudness: 0, breathInterval: 3.0,
         shuffleInterval: 1.1          // 游荡/调查时每隔多久发一次脚步
       },
       Crawler: {
         name: '蜷伏者', hp: 100, threshold: 6,
-        speedWander: 0.55, speedChase: 2.9,   // 刚从地上爬起来的，游荡时比游荡者还慢
-        visionRadius: 14, visionAngle: 110, eyeHeight: 1.6,
+        speedWander: 0.4, speedChase: 2.7,    // 刚从地上爬起来的，游荡时比游荡者还慢
+        visionRadius: 14, visionAngle: 110, eyeHeight: 1.45,
         riseDistance: 8,            // 声源在 8 米内才起身
         breathInterval: 2.5,        // 呼吸声间隔（文档未给频率，此值为实测占位）
         shuffleInterval: 1.1
@@ -664,7 +708,7 @@
         // 奔行者是唯一「跑得过玩家」的东西 —— 这一点不能动，它是第三幕的时钟
         name: '奔行者', hp: 60, threshold: 6,
         speedWander: 1.0, speedChase: 5.0,
-        visionRadius: 18, visionAngle: 110, eyeHeight: 1.6, shuffleInterval: 0.8
+        visionRadius: 18, visionAngle: 110, eyeHeight: 1.45, shuffleInterval: 0.8
       }
     },
     // 视觉修正（主文档 4.5）
@@ -757,7 +801,10 @@
     level: {
       floors: 4, roomsPerFloor: 6,
       roomW: 4.0, roomD: 5.0, roomGap: 1.0,
-      corridorD: 2.6, floorHeight: 3.2, wallThickness: 0.2,
+      /* `[实测]` 走廊 2.6 → 3.4m。2.6m 是「两个人勉强错身」的宽度，
+         第一人称里两侧墙压在脸上，而走廊是这个游戏里待得最久的地方。
+         3.4m 还是窄的（真实教学楼走廊 2.4~3m），但配合 78° FOV 才不憋。 */
+      corridorD: 3.4, floorHeight: 3.2, wallThickness: 0.2,
       stairWellW: 6.0, stairWellD: 6.0,
       stairStepH: 0.2, stairStepD: 0.3, stairWidth: 2.4, stairSlabThickness: 0.45,
       spawnRoomFloor: 3,            // 0-based：第 4 层
@@ -3340,8 +3387,14 @@
     }
   };
 
-  /** 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3） */
+  /**
+   * 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3）。
+   * 已经开着的时候再按一次 = 关掉，**且不再发一次声音** ——
+   * 收界面不是「又翻了一遍」。
+   */
   Player.prototype.openContainer = function (box) {
+    if (box.searching) { this.closeContainer(box); return; }
+    box.searching = true;
     box.opened = true; box._t = 0;
     if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
     else box.revealed = 0;
@@ -3350,6 +3403,14 @@
                          emitterId: this.id, label: '翻找' });
     this.lastAction = '翻找 ' + box.name;
     C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  /** 收起搜刮界面。界面层走远自动关、按 Esc 关，都要回到这里，
+      否则规则层以为还开着，下一次按 F 会变成「关」而不是「开」。 */
+  Player.prototype.closeContainer = function (box) {
+    if (!box || !box.searching) return;
+    box.searching = false;
+    C.EventBus.publish('ContainerClosedEvent', { box });
   };
 
   /**
@@ -3864,7 +3925,12 @@
     if (len < 1e-3) return;
     const nx = dx / len, nz = dz / len;
     this._turnTo(Math.atan2(nx, nz), dt, 6.0);
-    this.world.moveCharacter(this.pos, nx * speed * dt, nz * speed * dt, 0.38, 1.7, C.Config.player.stepHeight);
+    /* 碰撞体只把高度从 1.7 降到 1.6（跟着模型变矮），**半径仍然是 0.38**。
+       `[实测]` 半径低于 0.36 时丧尸会卡在楼梯上爬不上去 —— 楼梯踏板只有 0.3m 深，
+       半径一小，它就能挤进踏板的立面里，然后被「推到最近的面」推回来，来回震荡。
+       模型宽 0.42 而碰撞直径 0.76，是有出入，但宁可撞得早一点，不要卡楼梯。
+       根因在碰撞层（见待决策 #17），这里先按住不动。 */
+    this.world.moveCharacter(this.pos, nx * speed * dt, nz * speed * dt, 0.38, 1.6, C.Config.player.stepHeight);
   };
 
   Zombie.prototype._turnTo = function (targetYaw, dt, rate) {
@@ -4255,9 +4321,11 @@
   Renderer.prototype._buildZombies = function () {
     const n = Math.max(1, C.ZombieManager.list.length);
     const parts = [
-      { key: 'body', geo: new THREE.BoxGeometry(0.55, 1.15, 0.35), off: 0.75, color: 0x9a5555 },
-      { key: 'head', geo: new THREE.BoxGeometry(0.30, 0.32, 0.30), off: 1.50, color: 0xc8b49a },
-      { key: 'nose', geo: new THREE.BoxGeometry(0.12, 0.08, 0.22), off: 1.50, color: 0x222222, z: 0.22 }
+      /* `[实测]` 尺寸下调：肩宽 0.55 → 0.42（成年人肩宽约 0.45），
+         总高 1.66 → 1.55m。原尺寸在 2.6m 的走廊里像堵墙，两只并排就把路封死了。 */
+      { key: 'body', geo: new THREE.BoxGeometry(0.42, 1.05, 0.28), off: 0.70, color: 0x9a5555 },
+      { key: 'head', geo: new THREE.BoxGeometry(0.24, 0.26, 0.24), off: 1.36, color: 0xc8b49a },
+      { key: 'nose', geo: new THREE.BoxGeometry(0.10, 0.07, 0.18), off: 1.36, color: 0x222222, z: 0.17 }
     ];
     this.zInst = {};
     for (const p2 of parts) {
@@ -6155,6 +6223,291 @@
   C.NotebookUI = UI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/28-loot-ui.js ===== */
+/*
+ * 28-loot-ui.js —— 搜刮界面（主文档 14.2b）
+ *
+ * 与背包总览（23-inventory-ui）的区别，只有一条但很关键：
+ * **搜刮界面不遮挡游戏画面。** 没有全屏黑底，只有两块浮在画面上的格子板 ——
+ * 容器在上、自己的背包在下。翻找期间游戏不暂停，玩家必须能看见身后的走廊。
+ *
+ * 交互：F 开、再按 F 关；格子里的物品可以拖动 ——
+ * 容器 ↔ 背包互拖，同一个格子板内拖动 = 挪位置。
+ * 放不下时自动试转 90°，再放不下就弹回原位（东西永远不会凭空消失）。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* 格子边长。手机上屏幕小、手指粗，格子反而要更大一点才点得准，
+     但格子板整体不能超过屏幕宽度，所以按可用宽度回退。 */
+  function cellSize() {
+    const touch = C.Touch && C.Touch.enabled;
+    const base = touch ? 40 : 36;
+    const budget = Math.min(innerWidth, innerHeight * 1.9) - 60;
+    return Math.max(24, Math.min(base, Math.floor(budget / 12)));
+  }
+  const GAP = 2;
+
+  const UI = {
+    open: false, container: null, game: null, drag: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('loot');
+      this.el.innerHTML =
+        '<div class="loot-panel" id="lootBox"></div>' +
+        '<div class="loot-panel" id="lootBag"></div>' +
+        '<div class="loot-tip" id="lootTip"></div>';
+      this.boxPane = document.getElementById('lootBox');
+      this.bagPane = document.getElementById('lootBag');
+      this.tip = document.getElementById('lootTip');
+      // 拖动用 pointer 事件：鼠标和手指走同一条路
+      this.el.addEventListener('pointerdown', (e) => this._down(e));
+      addEventListener('pointermove', (e) => this._move(e));
+      addEventListener('pointerup', (e) => this._up(e));
+      addEventListener('pointercancel', () => this._cancel());
+    },
+
+    /** 打开某个容器的搜刮界面。开关由规则层（Player.openContainer）决定，这里只负责显示 */
+    toggle(box) {
+      this.container = box || this.container;
+      if (!this.container) return;
+      this.open = true;
+      this.el.classList.add('open');
+      // 桌面端要把鼠标还回来，否则拖不动格子
+      if (document.pointerLockElement) document.exitPointerLock();
+      this.render();
+    },
+
+    close() {
+      this._cancel();
+      // 通知规则层：不然它以为还开着，下一次按 F 会变成「关」
+      if (this.container && this.game) this.game.player.closeContainer(this.container);
+      this.open = false; this.container = null;
+      this.el.classList.remove('open');
+    },
+
+    /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */
+    tickSearch(dt) {
+      const box = this.container;
+      if (!this.open || !box || !box.opened || box.revealed >= box.grid.items.length) return;
+      box._t = (box._t || 0) + dt;
+      const per = box.searchSeconds / Math.max(1, box.grid.items.length);
+      while (box._t >= per && box.revealed < box.grid.items.length) { box._t -= per; box.revealed++; this.render(); }
+    },
+
+    /** 走远了自动关 —— 界面不遮画面，玩家很容易忘了它还开着 */
+    update(player) {
+      if (!this.open || !this.container) return;
+      if (C.V.dist(player.pos, this.container.pos) > C.Config.interact.range + 1.6) this.close();
+    },
+
+    /* ── 渲染 ────────────────────────────────────────── */
+
+    render() {
+      if (!this.open) return;
+      const p = this.game.player, box = this.container;
+      const cell = cellSize();
+      const total = box.grid.items.length;
+      const done = box.revealed >= total;
+
+      this.boxPane.innerHTML =
+        `<h5>${box.name}<small>${box.roomName || ''}　${done ? '已翻完' : `翻找中 ${box.revealed}/${total}`}</small>` +
+        `<button class="loot-btn" id="lootClose">关闭</button></h5>` +
+        this._grid(box.grid, cell, 'box', box.revealed);
+
+      this.bagPane.innerHTML = p.bag
+        ? `<h5>${p.bag.label}<small>空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格　` +
+          `${p.totalWeight().toFixed(2)}/${C.Config.player.weightLimit}kg</small>` +
+          `<button class="loot-btn" id="lootTidy">整理</button></h5>` +
+          this._grid(p.bag, cell, 'bag')
+        : `<h5>快取栏<small>你还没有背包</small></h5>${this._hotbar(p, cell)}`;
+
+      const tidy = document.getElementById('lootTidy');
+      if (tidy) tidy.onclick = () => { p.bag.tidy(); this.render(); this.game.msg('整理完毕'); };
+      // 手机上没有 F 键可按，标题栏留一个明确的关闭按钮
+      document.getElementById('lootClose').onclick = () => this.close();
+      this.tip.textContent = C.Touch && C.Touch.enabled
+        ? '拖动搬运物品 · 再按一次 F 关闭'
+        : '拖动搬运物品 · 拖动时按 R 转 90° · 再按 F 或 Esc 关闭';
+    },
+
+    _grid(grid, cell, which, revealLimit) {
+      const st = cell + GAP;
+      let html = `<div class="loot-grid" data-grid="${which}" ` +
+        `style="width:${grid.w * st - GAP}px;height:${grid.h * st - GAP}px">`;
+      for (let i = 0; i < grid.w * grid.h; i++) {
+        html += `<i style="left:${(i % grid.w) * st}px;top:${Math.floor(i / grid.w) * st}px;` +
+                `width:${cell}px;height:${cell}px"></i>`;
+      }
+      grid.items.forEach((it, idx) => {
+        const hidden = revealLimit !== undefined && idx >= revealLimit;
+        const s = C.itemSize(it), d = C.ITEMS[it.id];
+        html += `<b class="loot-item${hidden ? ' hid' : ''}${d.rare ? ' rare' : ''}" ` +
+          `data-uid="${it.uid}" data-grid="${which}" ` +
+          `style="left:${it.x * st}px;top:${it.y * st}px;` +
+          `width:${s[0] * cell + (s[0] - 1) * GAP}px;height:${s[1] * cell + (s[1] - 1) * GAP}px" ` +
+          `title="${d.name}　${d.weight}kg">${hidden ? '？' : d.name}` +
+          `${it.count > 1 ? `<u>${it.count}</u>` : ''}</b>`;
+      });
+      return html + '</div>';
+    },
+
+    /** 没背包时下面那块显示六格快取栏，拖进去一样能用 */
+    _hotbar(p, cell) {
+      const st = cell + GAP;
+      let html = `<div class="loot-grid" data-grid="hotbar" style="width:${6 * st - GAP}px;height:${cell}px">`;
+      for (let i = 0; i < 6; i++) {
+        html += `<i style="left:${i * st}px;top:0;width:${cell}px;height:${cell}px"></i>`;
+      }
+      p.hotbar.forEach((it, i) => {
+        if (!it) return;
+        html += `<b class="loot-item" data-uid="${it.uid}" data-grid="hotbar" ` +
+          `style="left:${i * st}px;top:0;width:${cell}px;height:${cell}px">` +
+          `${C.ITEMS[it.id].name}${it.count > 1 ? `<u>${it.count}</u>` : ''}</b>`;
+      });
+      return html + '</div>';
+    },
+
+    /* ── 拖动 ────────────────────────────────────────── */
+
+    _locate(uid) {
+      const p = this.game.player, box = this.container;
+      if (box) { const it = box.grid.items.find(i => i.uid === uid); if (it) return { it, grid: box.grid, which: 'box' }; }
+      if (p.bag) { const it = p.bag.items.find(i => i.uid === uid); if (it) return { it, grid: p.bag, which: 'bag' }; }
+      const hi = p.hotbar.findIndex(i => i && i.uid === uid);
+      if (hi >= 0) return { it: p.hotbar[hi], grid: null, which: 'hotbar', slot: hi };
+      return null;
+    },
+
+    _down(e) {
+      const el = e.target.closest('.loot-item');
+      if (!el || el.classList.contains('hid')) {
+        if (el) this.game.msg('还没翻到这件');
+        return;
+      }
+      const f = this._locate(+el.dataset.uid);
+      if (!f) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const ghost = el.cloneNode(true);
+      ghost.className = 'loot-item loot-ghost' + (C.ITEMS[f.it.id].rare ? ' rare' : '');
+      ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+      document.body.appendChild(ghost);
+      this.drag = { ...f, el, ghost, rot: f.it.rot || 0,
+                    // 抓在物品内部的哪个位置：放下时要按这个偏移算落点，不然会差半格
+                    ox: e.clientX - r.left, oy: e.clientY - r.top, cell: cellSize() };
+      el.classList.add('dragging');
+      this._moveGhost(e.clientX, e.clientY);
+    },
+
+    _moveGhost(x, y) {
+      const d = this.drag;
+      d.ghost.style.left = (x - d.ox) + 'px';
+      d.ghost.style.top = (y - d.oy) + 'px';
+    },
+
+    _move(e) { if (this.drag) { e.preventDefault(); this._moveGhost(e.clientX, e.clientY); } },
+
+    /** 拖动中按 R：转 90°（装配层把按键转过来） */
+    rotate() {
+      const d = this.drag;
+      if (!d) return false;
+      const base = C.ITEMS[d.it.id].size;
+      if (base[0] === base[1]) return true;            // 方的转了也一样
+      d.rot = d.rot ? 0 : 1;
+      const st = d.cell + GAP;
+      const w = d.rot ? base[1] : base[0], h = d.rot ? base[0] : base[1];
+      d.ghost.style.width = (w * d.cell + (w - 1) * GAP) + 'px';
+      d.ghost.style.height = (h * d.cell + (h - 1) * GAP) + 'px';
+      d.ox = Math.min(d.ox, w * st - 4); d.oy = Math.min(d.oy, h * st - 4);
+      return true;
+    },
+
+    _cancel() {
+      if (!this.drag) return;
+      this.drag.ghost.remove();
+      this.drag.el.classList.remove('dragging');
+      this.drag = null;
+    },
+
+    _up(e) {
+      const d = this.drag;
+      if (!d) return;
+      // 落点：手指/鼠标下面那块格子板，按物品左上角折算成格坐标
+      const gx = e.clientX - d.ox, gy = e.clientY - d.oy;
+      let target = null;
+      for (const pane of this.el.querySelectorAll('.loot-grid')) {
+        const r = pane.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          target = { which: pane.dataset.grid, r };
+          break;
+        }
+      }
+      const cell = d.cell + GAP;
+      this._cancel();
+      if (!target) { this.render(); return; }              // 拖到界面外：什么也不做
+
+      const p = this.game.player;
+      const dst = target.which === 'box' ? this.container.grid
+                : target.which === 'bag' ? p.bag : null;
+      const cx = Math.round((gx - target.r.left) / cell);
+      const cy = Math.round((gy - target.r.top) / cell);
+
+      if (target.which === 'hotbar') { this._toHotbar(d, cx); this.render(); return; }
+      if (!dst) { this.render(); return; }
+
+      const moved = this._place(d, dst, cx, cy);
+      if (!moved) this.game.msg('这里放不下');
+      else if (d.which === 'box' && target.which !== 'box') {
+        // 从容器里拿走一件：已点亮数跟着减，否则后面的物品会莫名变暗
+        this.container.revealed = Math.max(0, this.container.revealed - 1);
+      }
+      this.render();
+    },
+
+    /**
+     * 把 d.it 放到 dst 的 (cx,cy)。放不下就依次退让：
+     * 转 90° → 自动找位置 → 全都不行则原样退回（**东西不会凭空消失**）。
+     */
+    _place(d, dst, cx, cy) {
+      const from = d.which === 'hotbar' ? null : d.grid;
+      const wasSlot = d.slot;
+      // 先从原处摘下来，否则它自己会挡住自己
+      if (from) from.remove(d.it); else this.game.player.hotbar[wasSlot] = null;
+
+      const put = () => {
+        if (dst.placeAt(d.it, cx, cy, d.rot)) return true;
+        if (dst.placeAt(d.it, cx, cy, d.rot ? 0 : 1)) return true;
+        return dst.autoAdd(d.it).ok;
+      };
+      if (put()) return true;
+
+      // 退回原处。原位一定放得回去（刚从那儿摘下来的）
+      if (from) from.placeAt(d.it, d.it.x, d.it.y, d.it.rot);
+      else this.game.player.hotbar[wasSlot] = d.it;
+      return false;
+    },
+
+    _toHotbar(d, slot) {
+      const p = this.game.player;
+      slot = Math.max(0, Math.min(5, slot));
+      if (d.which === 'hotbar') {                      // 快取栏内部换位：直接交换
+        const tmp = p.hotbar[slot];
+        p.hotbar[slot] = d.it; p.hotbar[d.slot] = tmp;
+        return;
+      }
+      const free = p.hotbar[slot] === null ? slot : p.hotbar.indexOf(null);
+      if (free < 0) { this.game.msg('快取栏满了'); return; }
+      d.grid.remove(d.it);
+      p.hotbar[free] = d.it;
+      if (d.which === 'box') this.container.revealed = Math.max(0, this.container.revealed - 1);
+    }
+  };
+
+  C.LootUI = UI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -6382,7 +6735,7 @@
        所以再挂一个**非被动**的 touchmove，把不是发生在可滚动面板里的手势直接吃掉。
        可滚动面板（背包、笔记本、调参、开场层）要放行，否则它们就滚不动了。 */
     _lockPageScroll() {
-      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note');
+      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note, #loot');
       document.addEventListener('touchmove', (e) => {
         if (scrollable(e.target)) return;
         if (e.cancelable) e.preventDefault();
@@ -6574,7 +6927,9 @@
       C.Streaming.onChange = (loaded) => this.renderer.setLoadedBuildings(loaded);
       C.Streaming.update(this.player.pos);
       this.renderer.setLoadedBuildings(C.Streaming.loaded);
-      if (!this._noteReady) { C.NotebookUI.init(this); this._noteReady = true; }
+      if (!this._noteReady) { C.NotebookUI.init(this); C.LootUI.init(this); this._noteReady = true; }
+      C.LootUI.game = this;
+      C.LootUI.close();
       C.NotebookUI.game = this;
       C.NotebookUI.close();
       this._resize();
@@ -6585,10 +6940,10 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
-      C.EventBus.subscribe('ContainerOpenedEvent', (e) => {
-        C.InventoryUI.container = e.box; C.InventoryUI.open = true;
-        C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
-      });
+      /* 翻找走轻量的搜刮界面（28-loot-ui），不是全屏背包总览 ——
+         翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
+      C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
+      C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
       C.EventBus.subscribe('BagGrabbedEvent', (e) => {
         C.Notebook.lootContainer(e.box, this.time);
@@ -6656,10 +7011,20 @@
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
+          case 'KeyF':
+            /* 搜刮界面开着时，F 无论朝哪儿看都能关掉它 ——
+               交互键要求「瞄着容器」，但界面开着的时候玩家很可能已经转头看走廊了。
+               关掉之后要把这一次 F 吃掉，否则同一帧的交互判定会立刻把它再打开。 */
+            if (C.LootUI.open) { C.LootUI.close(); this._eatF = true; }
+            break;
           case 'KeyJ': C.NotebookUI.toggle(); break;
-          case 'Escape': C.NotebookUI.close(); break;
+          case 'KeyR':
+            // 拖动中按 R 转 90°；没在拖就是原来的重开
+            if (C.LootUI.rotate()) { C.LootUI.render(); break; }
+            if (!this.player.alive) this.restart();
+            break;
+          case 'Escape': C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close(); break;
           case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
-          case 'KeyR': if (!this.player.alive) this.restart(); break;
           case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
           case 'BracketRight': this.debug.floor = Math.min(this.level.bounds.floors - 1, this.debug.floor + 1); this.debug.followPlayer = false; break;
           case 'Backslash': this.debug.followPlayer = !this.debug.followPlayer; break;
@@ -6681,7 +7046,7 @@
             break;
         }
       });
-      addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+      addEventListener('keyup', (e) => { this.keys[e.code] = false; if (e.code === 'KeyF') this._eatF = false; });
 
       /* 转视角有两种模式：
            lock —— 指针锁定，鼠标随便动（正常情况）
@@ -6797,7 +7162,7 @@
         wallHug: !!k.KeyV || !!this.tapped.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
-        interact: !!k.KeyF,
+        interact: !!k.KeyF && !this._eatF,
         throwHeld: !!k.KeyG,
         jump: !!k.Space || !!this.tapped.Space
       };
@@ -6812,7 +7177,7 @@
         wallHug: kb.wallHug || t.wallHug,
         lean: kb.lean || t.lean,
         holdBreath: kb.holdBreath || t.holdBreath,
-        interact: kb.interact || t.interact,
+        interact: (kb.interact || t.interact) && !this._eatF,
         throwHeld: kb.throwHeld || t.throwHeld,
         jump: kb.jump || t.jump
       };
@@ -6871,7 +7236,8 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
-      C.InventoryUI.tickSearch(dt);
+      C.LootUI.tickSearch(dt);
+      C.LootUI.update(this.player);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));

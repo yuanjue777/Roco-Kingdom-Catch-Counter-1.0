@@ -70,7 +70,9 @@
       C.Streaming.onChange = (loaded) => this.renderer.setLoadedBuildings(loaded);
       C.Streaming.update(this.player.pos);
       this.renderer.setLoadedBuildings(C.Streaming.loaded);
-      if (!this._noteReady) { C.NotebookUI.init(this); this._noteReady = true; }
+      if (!this._noteReady) { C.NotebookUI.init(this); C.LootUI.init(this); this._noteReady = true; }
+      C.LootUI.game = this;
+      C.LootUI.close();
       C.NotebookUI.game = this;
       C.NotebookUI.close();
       this._resize();
@@ -81,10 +83,10 @@
       C.EventBus.subscribe(C.Events.SoundEmitted, (evt) => {
         if (evt.emitterId === this.player.id) C.Audio.onSelf(evt);
       });
-      C.EventBus.subscribe('ContainerOpenedEvent', (e) => {
-        C.InventoryUI.container = e.box; C.InventoryUI.open = true;
-        C.InventoryUI.el.classList.add('open'); C.InventoryUI.render();
-      });
+      /* 翻找走轻量的搜刮界面（28-loot-ui），不是全屏背包总览 ——
+         翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
+      C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
+      C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
       C.EventBus.subscribe('BagGrabbedEvent', (e) => {
         C.Notebook.lootContainer(e.box, this.time);
@@ -152,10 +154,20 @@
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
+          case 'KeyF':
+            /* 搜刮界面开着时，F 无论朝哪儿看都能关掉它 ——
+               交互键要求「瞄着容器」，但界面开着的时候玩家很可能已经转头看走廊了。
+               关掉之后要把这一次 F 吃掉，否则同一帧的交互判定会立刻把它再打开。 */
+            if (C.LootUI.open) { C.LootUI.close(); this._eatF = true; }
+            break;
           case 'KeyJ': C.NotebookUI.toggle(); break;
-          case 'Escape': C.NotebookUI.close(); break;
+          case 'KeyR':
+            // 拖动中按 R 转 90°；没在拖就是原来的重开
+            if (C.LootUI.rotate()) { C.LootUI.render(); break; }
+            if (!this.player.alive) this.restart();
+            break;
+          case 'Escape': C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close(); break;
           case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
-          case 'KeyR': if (!this.player.alive) this.restart(); break;
           case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
           case 'BracketRight': this.debug.floor = Math.min(this.level.bounds.floors - 1, this.debug.floor + 1); this.debug.followPlayer = false; break;
           case 'Backslash': this.debug.followPlayer = !this.debug.followPlayer; break;
@@ -177,7 +189,7 @@
             break;
         }
       });
-      addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+      addEventListener('keyup', (e) => { this.keys[e.code] = false; if (e.code === 'KeyF') this._eatF = false; });
 
       /* 转视角有两种模式：
            lock —— 指针锁定，鼠标随便动（正常情况）
@@ -293,7 +305,7 @@
         wallHug: !!k.KeyV || !!this.tapped.KeyV,
         lean: (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0),
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
-        interact: !!k.KeyF,
+        interact: !!k.KeyF && !this._eatF,
         throwHeld: !!k.KeyG,
         jump: !!k.Space || !!this.tapped.Space
       };
@@ -308,7 +320,7 @@
         wallHug: kb.wallHug || t.wallHug,
         lean: kb.lean || t.lean,
         holdBreath: kb.holdBreath || t.holdBreath,
-        interact: kb.interact || t.interact,
+        interact: (kb.interact || t.interact) && !this._eatF,
         throwHeld: kb.throwHeld || t.throwHeld,
         jump: kb.jump || t.jump
       };
@@ -367,7 +379,8 @@
       this.debug.draw(this.level, this.player, this.time);
       this.dbgCanvas.style.display = this.debug.visible ? 'block' : 'none';
       C.Touch.sync(this.player);
-      C.InventoryUI.tickSearch(dt);
+      C.LootUI.tickSearch(dt);
+      C.LootUI.update(this.player);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));

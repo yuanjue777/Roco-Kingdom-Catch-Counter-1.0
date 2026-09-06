@@ -248,9 +248,11 @@
   Renderer.prototype._buildZombies = function () {
     const n = Math.max(1, C.ZombieManager.list.length);
     const parts = [
-      { key: 'body', geo: new THREE.BoxGeometry(0.55, 1.15, 0.35), off: 0.75, color: 0x9a5555 },
-      { key: 'head', geo: new THREE.BoxGeometry(0.30, 0.32, 0.30), off: 1.50, color: 0xc8b49a },
-      { key: 'nose', geo: new THREE.BoxGeometry(0.12, 0.08, 0.22), off: 1.50, color: 0x222222, z: 0.22 }
+      /* `[实测]` 尺寸下调：肩宽 0.55 → 0.42（成年人肩宽约 0.45），
+         总高 1.66 → 1.55m。原尺寸在 2.6m 的走廊里像堵墙，两只并排就把路封死了。 */
+      { key: 'body', geo: new THREE.BoxGeometry(0.42, 1.05, 0.28), off: 0.70, color: 0x9a5555 },
+      { key: 'head', geo: new THREE.BoxGeometry(0.24, 0.26, 0.24), off: 1.36, color: 0xc8b49a },
+      { key: 'nose', geo: new THREE.BoxGeometry(0.10, 0.07, 0.18), off: 1.36, color: 0x222222, z: 0.17 }
     ];
     this.zInst = {};
     for (const p2 of parts) {

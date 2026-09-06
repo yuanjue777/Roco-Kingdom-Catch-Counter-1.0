@@ -1034,5 +1034,51 @@ section('25. 翻找只有一种，背包类可以整个拎走');
      bag3.grid.items.length + '/' + n3);
 }
 
+section('26. 搜刮界面的开关（F 开 F 关）');
+{
+  const s11 = makeSim();
+  const pl = new C.Player(s11.level, s11.world);
+  const box = s11.level.containers.find(b => !b.carry);
+  let opened = 0, closed = 0;
+  C.EventBus.subscribe('ContainerOpenedEvent', () => opened++);
+  C.EventBus.subscribe('ContainerClosedEvent', () => closed++);
+
+  C.SoundSystem.log.length = 0;
+  pl.openContainer(box);
+  ok('第一次按 F：打开并发出翻找声', box.searching === true && opened === 1 &&
+     C.SoundSystem.log.length === 1, String(C.SoundSystem.log.length));
+
+  pl.openContainer(box);
+  ok('再按一次 F：关掉', box.searching === false && closed === 1);
+  ok('**关掉不再发一次声音**（收界面不是又翻了一遍）', C.SoundSystem.log.length === 1,
+     String(C.SoundSystem.log.length));
+
+  pl.openContainer(box);
+  ok('第三次按 F：又打开了', box.searching === true && opened === 2);
+  ok('重新打开会再发一次声音', C.SoundSystem.log.length === 2);
+
+  pl.closeContainer(box);
+  ok('界面层主动收起也会同步给规则层', box.searching === false && closed === 2);
+  pl.closeContainer(box);
+  ok('重复关闭不会重复发事件', closed === 2);
+
+  // 已翻完的容器再打开，不会把已点亮数清零（否则拿走一半会突然全变暗）
+  box.revealed = box.grid.items.length;
+  pl.openContainer(box);
+  ok('已翻完的容器重开，保持全部点亮', box.revealed === box.grid.items.length);
+}
+
+section('27. 楼梯的碰撞半径下限（回归）');
+{
+  /* `[实测]` 楼梯踏板只有 0.3m 深，碰撞半径小于 0.36 时角色会挤进踏板立面、
+     被「推到最近的面」推回来，来回震荡爬不上去。这条断言把这个下限钉住 ——
+     以后谁想再把丧尸改瘦，会先在这里红。根因在碰撞层，见待决策 #17。 */
+  const src = require('fs').readFileSync(path.join(SRC, '11-zombie.js'), 'utf8');
+  const m = src.match(/moveCharacter\(this\.pos,[^)]*?,\s*([0-9.]+),\s*([0-9.]+),/);
+  ok('丧尸碰撞半径不小于 0.36', m && parseFloat(m[1]) >= 0.36, m && m[1]);
+  ok('踏板深度确实比「半径 × 0.5」的探测范围还浅（这就是根因）',
+     C.Config.level.stairStepD < 0.36, C.Config.level.stairStepD + 'm');
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

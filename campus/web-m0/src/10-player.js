@@ -523,8 +523,14 @@
     }
   };
 
-  /** 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3） */
+  /**
+   * 打开容器开始翻找。**只有快速这一种**：4s / 响度 40（主文档 5.3）。
+   * 已经开着的时候再按一次 = 关掉，**且不再发一次声音** ——
+   * 收界面不是「又翻了一遍」。
+   */
   Player.prototype.openContainer = function (box) {
+    if (box.searching) { this.closeContainer(box); return; }
+    box.searching = true;
     box.opened = true; box._t = 0;
     if (box.revealed >= box.grid.items.length) box.revealed = box.grid.items.length;
     else box.revealed = 0;
@@ -533,6 +539,14 @@
                          emitterId: this.id, label: '翻找' });
     this.lastAction = '翻找 ' + box.name;
     C.EventBus.publish('ContainerOpenedEvent', { box });
+  };
+
+  /** 收起搜刮界面。界面层走远自动关、按 Esc 关，都要回到这里，
+      否则规则层以为还开着，下一次按 F 会变成「关」而不是「开」。 */
+  Player.prototype.closeContainer = function (box) {
+    if (!box || !box.searching) return;
+    box.searching = false;
+    C.EventBus.publish('ContainerClosedEvent', { box });
   };
 
   /**

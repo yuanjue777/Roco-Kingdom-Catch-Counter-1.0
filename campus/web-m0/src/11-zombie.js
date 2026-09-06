@@ -315,7 +315,12 @@
     if (len < 1e-3) return;
     const nx = dx / len, nz = dz / len;
     this._turnTo(Math.atan2(nx, nz), dt, 6.0);
-    this.world.moveCharacter(this.pos, nx * speed * dt, nz * speed * dt, 0.38, 1.7, C.Config.player.stepHeight);
+    /* 碰撞体只把高度从 1.7 降到 1.6（跟着模型变矮），**半径仍然是 0.38**。
+       `[实测]` 半径低于 0.36 时丧尸会卡在楼梯上爬不上去 —— 楼梯踏板只有 0.3m 深，
+       半径一小，它就能挤进踏板的立面里，然后被「推到最近的面」推回来，来回震荡。
+       模型宽 0.42 而碰撞直径 0.76，是有出入，但宁可撞得早一点，不要卡楼梯。
+       根因在碰撞层（见待决策 #17），这里先按住不动。 */
+    this.world.moveCharacter(this.pos, nx * speed * dt, nz * speed * dt, 0.38, 1.6, C.Config.player.stepHeight);
   };
 
   Zombie.prototype._turnTo = function (targetYaw, dt, rate) {
