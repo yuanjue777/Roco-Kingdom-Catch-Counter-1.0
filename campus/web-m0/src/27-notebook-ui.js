@@ -58,7 +58,10 @@
         this.render();
       }
     },
-    close() { this.open = false; this.el.classList.remove('open'); },
+    close() {
+      this.open = false; this.el.classList.remove('open');
+      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
+    },
 
     render() {
       if (!this.open) return;

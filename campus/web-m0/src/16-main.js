@@ -206,7 +206,7 @@
       const start = () => {
         if (this.started) return;
         this.started = true;
-        document.getElementById('startHint').style.display = 'none';
+        this._syncStartHint();
       };
       this._startPlay = start;
 
@@ -215,7 +215,9 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner')) return;
+        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot')) return;
+        // 搜刮界面开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
+        if (C.LootUI.open) return;
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
@@ -232,10 +234,7 @@
       document.addEventListener('pointerlockerror', () => this._fallbackToDrag());
       document.addEventListener('pointerlockchange', () => {
         this.locked = document.pointerLockElement === this.canvas3d;
-        // 只有「本该锁上却没锁上」才把开场层放回来（按 Esc 解锁）；
-        // 拖动模式下永远不放回来，否则一松手提示层就糊在脸上
-        const hint = document.getElementById('startHint');
-        hint.style.display = (this.lookMode === 'lock' && !this.locked) ? 'flex' : 'none';
+        this._syncStartHint();
       });
 
       this.drag = { on: false, x: 0, y: 0 };
@@ -268,6 +267,23 @@
       addEventListener('blur', () => {
         this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
       });
+    },
+
+    /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
+    _panelOpen() {
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open;
+    },
+
+    /* 开场层什么时候该回来。
+       `[实测]` 只判断「没锁上」是不够的：背包/笔记本/搜刮界面**主动解除了指针锁定**，
+       于是一开面板，「点击画面开始」就糊在面板背后弹出来。
+       正确条件是：还没开始过，或者玩家自己按 Esc 放开了鼠标且没有任何面板开着。 */
+    _syncStartHint() {
+      const hint = document.getElementById('startHint');
+      if (!hint) return;
+      const show = !this.started ||
+        (this.lookMode === 'lock' && !this.locked && !this._panelOpen());
+      hint.style.display = show ? 'flex' : 'none';
     },
 
     /** 指针锁定用不了（多半是被 sandbox 的 iframe 挡了）：换成按住左键拖动 */

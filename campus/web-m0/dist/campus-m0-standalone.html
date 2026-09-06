@@ -173,11 +173,13 @@
   /* ── 搜刮界面（14.2b）────────────────────────────────
      和背包总览最大的区别：**没有全屏黑底**。翻找时游戏不暂停，
      玩家必须还能看见身后的走廊 —— 挡住画面等于把这份紧张感抹掉。 */
-  /* 容器在上、自己的背包在下，整组靠下摆 —— 背包在「中间下面」是玩家指定的位置，
-     画面上半部分留给游戏本身（走廊、丧尸、门）。 */
+  /* 左边背包、右边容器，并排摆在画面正中。
+     仍然**没有全屏黑底** —— 翻找时游戏不暂停，玩家必须还能看见身后的走廊。 */
   #loot { position: fixed; inset: 0; z-index: 8; display: none;
           pointer-events: none; align-items: center; flex-direction: column;
-          justify-content: flex-end; gap: 12px; padding: 16px 16px 7vh; }
+          justify-content: center; gap: 12px; padding: 16px; }
+  .loot-row { display: flex; gap: 20px; align-items: flex-start;
+              justify-content: center; flex-wrap: wrap; pointer-events: none; }
   #loot.open { display: flex; }
   .loot-panel {
     pointer-events: auto;
@@ -210,7 +212,8 @@
   .loot-tip { pointer-events: none; font-size: 11px; color: rgba(220,227,235,0.75);
               background: rgba(10,13,18,0.72); border-radius: 3px; padding: 3px 10px; }
   /* 矮屏（手机横屏）：两块板挨紧一点，别把格子挤出屏幕 */
-  @media (max-height: 520px) { #loot { gap: 7px; padding: 8px 8px 4vh; } .loot-panel { padding: 6px 8px 8px; } }
+  @media (max-height: 520px) { #loot { gap: 7px; padding: 8px; } .loot-row { gap: 12px; }
+                              .loot-panel { padding: 6px 8px 8px; } }
 
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
@@ -6064,7 +6067,10 @@
         this.render();
       }
     },
-    close() { this.open = false; this.el.classList.remove('open'); },
+    close() {
+      this.open = false; this.el.classList.remove('open');
+      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
+    },
 
     render() {
       if (!this.open) return;
@@ -6254,9 +6260,13 @@
     init(game) {
       this.game = game;
       this.el = document.getElementById('loot');
+      /* 左边是自己的背包、右边是容器 —— 和「从右边往左边搬」的动作方向一致。
+         两块板并排放在画面正中，中间那条缝就是拖动的路径。 */
       this.el.innerHTML =
-        '<div class="loot-panel" id="lootBox"></div>' +
-        '<div class="loot-panel" id="lootBag"></div>' +
+        '<div class="loot-row">' +
+          '<div class="loot-panel" id="lootBag"></div>' +
+          '<div class="loot-panel" id="lootBox"></div>' +
+        '</div>' +
         '<div class="loot-tip" id="lootTip"></div>';
       this.boxPane = document.getElementById('lootBox');
       this.bagPane = document.getElementById('lootBag');
@@ -6285,6 +6295,7 @@
       if (this.container && this.game) this.game.player.closeContainer(this.container);
       this.open = false; this.container = null;
       this.el.classList.remove('open');
+      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
     },
 
     /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */
@@ -7063,7 +7074,7 @@
       const start = () => {
         if (this.started) return;
         this.started = true;
-        document.getElementById('startHint').style.display = 'none';
+        this._syncStartHint();
       };
       this._startPlay = start;
 
@@ -7072,7 +7083,9 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner')) return;
+        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot')) return;
+        // 搜刮界面开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
+        if (C.LootUI.open) return;
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
@@ -7089,10 +7102,7 @@
       document.addEventListener('pointerlockerror', () => this._fallbackToDrag());
       document.addEventListener('pointerlockchange', () => {
         this.locked = document.pointerLockElement === this.canvas3d;
-        // 只有「本该锁上却没锁上」才把开场层放回来（按 Esc 解锁）；
-        // 拖动模式下永远不放回来，否则一松手提示层就糊在脸上
-        const hint = document.getElementById('startHint');
-        hint.style.display = (this.lookMode === 'lock' && !this.locked) ? 'flex' : 'none';
+        this._syncStartHint();
       });
 
       this.drag = { on: false, x: 0, y: 0 };
@@ -7125,6 +7135,23 @@
       addEventListener('blur', () => {
         this.rmb = false; this.drag.on = false; this.keys = {}; this.tapped = {};
       });
+    },
+
+    /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
+    _panelOpen() {
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open;
+    },
+
+    /* 开场层什么时候该回来。
+       `[实测]` 只判断「没锁上」是不够的：背包/笔记本/搜刮界面**主动解除了指针锁定**，
+       于是一开面板，「点击画面开始」就糊在面板背后弹出来。
+       正确条件是：还没开始过，或者玩家自己按 Esc 放开了鼠标且没有任何面板开着。 */
+    _syncStartHint() {
+      const hint = document.getElementById('startHint');
+      if (!hint) return;
+      const show = !this.started ||
+        (this.lookMode === 'lock' && !this.locked && !this._panelOpen());
+      hint.style.display = show ? 'flex' : 'none';
     },
 
     /** 指针锁定用不了（多半是被 sandbox 的 iframe 挡了）：换成按住左键拖动 */

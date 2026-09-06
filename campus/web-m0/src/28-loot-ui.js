@@ -28,9 +28,13 @@
     init(game) {
       this.game = game;
       this.el = document.getElementById('loot');
+      /* 左边是自己的背包、右边是容器 —— 和「从右边往左边搬」的动作方向一致。
+         两块板并排放在画面正中，中间那条缝就是拖动的路径。 */
       this.el.innerHTML =
-        '<div class="loot-panel" id="lootBox"></div>' +
-        '<div class="loot-panel" id="lootBag"></div>' +
+        '<div class="loot-row">' +
+          '<div class="loot-panel" id="lootBag"></div>' +
+          '<div class="loot-panel" id="lootBox"></div>' +
+        '</div>' +
         '<div class="loot-tip" id="lootTip"></div>';
       this.boxPane = document.getElementById('lootBox');
       this.bagPane = document.getElementById('lootBag');
@@ -59,6 +63,7 @@
       if (this.container && this.game) this.game.player.closeContainer(this.container);
       this.open = false; this.container = null;
       this.el.classList.remove('open');
+      if (this.game && this.game._syncStartHint) this.game._syncStartHint();
     },
 
     /** 逐个点亮：翻找到第几件就显示到第几件（三角洲式） */
