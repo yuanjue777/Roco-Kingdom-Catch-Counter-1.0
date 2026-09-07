@@ -149,6 +149,8 @@
     fuse:       { name: '保险丝',       size: [1, 1], weight: 0.03, kind: 'tool', stack: 4 },
     diesel:     { name: '柴油桶',       size: [3, 3], weight: 6.50, kind: 'material', rare: true },
     generator:  { name: '发电机',       size: [4, 4], weight: 14.0, kind: 'tool', rare: true },
+    // 太阳能板：实验员老师开局自带一块（角色规格 2.5）。3×3 是为了它「背着很占地方」
+    solarPanel: { name: '太阳能板',     size: [3, 3], weight: 7.00, kind: 'tool', rare: true },
 
     // 行政楼：结局一/三的前置
     broadcastPart: { name: '广播设备零件', size: [3, 2], weight: 2.10, kind: 'material', rare: true },

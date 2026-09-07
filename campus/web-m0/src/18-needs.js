@@ -30,7 +30,10 @@
     return Math.max(0, C.Config.needs.barLength - this.hunger - this.thirst);
   };
   Needs.prototype.staminaMax = function () {
-    return Math.max(0, C.Config.needs.barLength - this.fatigue);
+    /* 先算被困乏挤占后的上限，**再**让特性加减 ——
+       反过来的话「铁人 +40」会被困乏按比例吃掉一部分，读起来对不上。 */
+    const base = Math.max(0, C.Config.needs.barLength - this.fatigue);
+    return Math.max(0, C.ModifierPipeline.query('stamina.max', base, this.ownerId));
   };
   Needs.prototype.isRested = function () { return this.restedHours > 0; };
 
@@ -42,19 +45,22 @@
     if (this.dead || dtHours <= 0) return;
     const N = C.Config.needs, L = N.barLength;
 
-    let thirstRate = L / N.thirstFullHours;
+    /* 三条速率全部走管线。特性（耐渴/大胃口/嗜睡…）就挂在这三个 key 上，
+       **这里永远不知道世界上存在「角色」这回事**（角色规格 4.2）。 */
+    let thirstRate = C.ModifierPipeline.query('need.thirst_rate', L / N.thirstFullHours, this.ownerId);
     if (this.diarrheaHours > 0) {
       thirstRate *= N.diarrheaThirstMul;
       this.diarrheaHours = Math.max(0, this.diarrheaHours - dtHours);
     }
+    const hungerRate = C.ModifierPipeline.query('need.hunger_rate', L / N.hungerFullHours, this.ownerId);
     this.thirst = M.clamp(this.thirst + thirstRate * dtHours, 0, L);
-    this.hunger = M.clamp(this.hunger + (L / N.hungerFullHours) * dtHours, 0, L);
+    this.hunger = M.clamp(this.hunger + hungerRate * dtHours, 0, L);
 
     // 困乏：清醒时涨、睡眠时退。精力充沛期间涨得慢
     if (sleeping) {
       this.fatigue = M.clamp(this.fatigue - N.fatigueSleepPerHour * dtHours, 0, L);
     } else {
-      let rate = N.fatigueRatePerHour;
+      let rate = C.ModifierPipeline.query('need.fatigue_rate', N.fatigueRatePerHour, this.ownerId);
       if (this.restedHours > 0) { rate *= N.restedFatigueMul; this.restedHours = Math.max(0, this.restedHours - dtHours); }
       this.fatigue = M.clamp(this.fatigue + rate * dtHours, 0, L);
     }

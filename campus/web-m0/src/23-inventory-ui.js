@@ -78,7 +78,7 @@
         return `<h4>快取栏 <small>6 格</small></h4>${hot}
           <p class="inv-empty">你还没有背包。<br>宿舍里到处都是书包，找一个背上。</p>`;
       }
-      const kg = p.totalWeight(), max = C.Config.player.weightLimit;
+      const kg = p.totalWeight(), max = p.weightLimit();
       const r = Math.min(1, kg / max);
       return `<h4>${p.bag.label} <small>${p.bag.w}×${p.bag.h}　空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格</small>
                 <button class="inv-btn" id="btnTidy">整理</button></h4>` +

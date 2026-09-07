@@ -28,6 +28,17 @@
     if (C.Config.player.startingStones > 0) {
       this.hotbar[0] = C.makeItem('stone', C.Config.player.startingStones);
     }
+    /* 角色自带的开局物品（角色规格 2.x）。
+       `[id, 数量]` 或直接 `id`。**每个角色的清单都控制在 5 格以内** ——
+       石头占掉快取位 0，剩下五格必须够放，否则会有角色一开局就按不了 G。 */
+    for (const entry of (C.Loadout ? C.Loadout.startingItems() : [])) {
+      const id = Array.isArray(entry) ? entry[0] : entry;
+      const n = Array.isArray(entry) ? entry[1] : 1;
+      if (!C.ITEMS[id]) continue;
+      const slot = this.hotbar.indexOf(null);
+      if (slot >= 0) this.hotbar[slot] = C.makeItem(id, n);
+      else if (this.bag) this.bag.autoAdd(C.makeItem(id, n));
+    }
     this.stamina = P.stamina.max;
     this.exhausted = false;
     this.flashlight = false;
@@ -121,11 +132,15 @@
     let kg = this.bag ? this.bag.weight() : 0;
     if (this.bag) kg += C.ITEMS[this.bagItemId || 'smallBag'].weight;
     for (const it of this.hotbar) if (it) kg += C.ITEMS[it.id].weight * it.count;
-    return kg;
+    // 「会收拾」减的是**东西的计重**，不是上限 —— 两者对负重比的影响一样，但读起来不是一回事
+    return C.ModifierPipeline.query('inventory.item_weight', kg, PLAYER_ID);
+  };
+  Player.prototype.weightLimit = function () {
+    return Math.max(1, C.ModifierPipeline.query('inventory.weight_limit', C.Config.player.weightLimit, PLAYER_ID));
   };
   /** 负重比 r = 当前重量 / 上限（主文档 10.1） */
   Player.prototype.weightRatio = function () {
-    return this.totalWeight() / C.Config.player.weightLimit;
+    return this.totalWeight() / this.weightLimit();
   };
   Player.prototype.stoneCount = function () {
     let n = this.bag ? this.bag.count('stone') : 0;
@@ -281,6 +296,9 @@
     else speed = P.speedWalk;
     if (this.holdBreath) speed = P.speedCrouch * P.holdBreathSpeedMul;   // 允许缓慢移动（主文档 4.2）
     if (this.lean !== 0 && !this.wallHug) speed = 0;   // 侧身探头时移动速度为 0（贴墙时仍可沿墙挪）
+    /* 全姿态通用的速度修正（腿伤、上了年纪…）。放在最后，
+       这样它对走/跑/蹲/贴墙一视同仁 —— 「腿伤 −8%」就该是所有走法都慢 8%。 */
+    speed = C.ModifierPipeline.query('move.speed', speed, PLAYER_ID);
     if (this.exhausted) speed *= S.exhaustedSpeedMul;
 
     // ── 移动 ──────────────────────────────────────────
@@ -314,7 +332,9 @@
     if (drain > 0) this.stamina -= drain * dt;
     else if (!this.moving) {
       const mul = this.needs.isRested() ? C.Config.needs.restedStaminaRegenMul : 1;
-      this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * mul * dt;
+      const rate = C.ModifierPipeline.query('stamina.regen',
+        (this.posture === 'crouch' ? S.regenCrouch : S.regenStand), PLAYER_ID);
+      this.stamina += rate * mul * dt;
     }
     // 体力上限被困乏挤占（主文档 3.3）
     this.stamina = M.clamp(this.stamina, 0, this.needs.staminaMax());

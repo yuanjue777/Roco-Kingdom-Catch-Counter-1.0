@@ -650,6 +650,275 @@
       simplifiedTick: 0.25          // 简化模拟的更新间隔（秒）
     },
 
+    /* ── 特性表（角色与特性规格 第三部分）───────────────
+       每条特性只有两种生效方式，**不允许第三种**：
+         `keys`  —— 挂到数值修正管线上（[key, 'add'|'mul'|'set', 数值]）
+         `flags` —— 管线表达不了的，写成标记，由对应系统自己去读
+
+       `live: false` = **规格里有，但它依赖的系统还没做**（战斗、伤势、幸存者、视觉模糊）。
+       这类特性照样能选、照样进存档、照样算点数，只是现在不产生效果 ——
+       选择界面会把它标成「未实装」。**骗玩家比缺功能更糟。**
+
+       `group` 是互斥组：同组只能选一个，和角色固定特性冲突时置灰。 */
+    traits: {
+      // ══ 正向 · 声音与感知 ══
+      sharpEars:   { name: '天生耳力', value: 4, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', -10], ['hearing.localization', 'mul', 0.6]],
+                     desc: '听觉阈值 −10；声纹方向误差 −40%' },
+      keenEar:     { name: '耳朵尖', value: 3, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', -6]], desc: '听觉阈值 −6' },
+      catStep:     { name: '猫步', value: 3, live: true,
+                     keys: [['sound.footstep', 'mul', 0.8]], desc: '所有脚步类响度 −20%' },
+      lightFoot:   { name: '轻手轻脚', value: 2, live: true, skill: ['quietStep', 2],
+                     desc: '静步熟练度 2 级起步' },
+      longWind:    { name: '长气', value: 2, live: true,
+                     keys: [['hold_breath.stamina_cost', 'mul', 0.5]], desc: '屏息体力消耗 −50%' },
+      goodEyes:    { name: '眼力好', value: 2, live: false, flags: ['HIGHLIGHT_CROUCHER'],
+                     desc: '蜷伏者 6 米内自动高亮；可拾取物高亮距离 +50%' },
+      nightEye:    { name: '夜眼', value: 2, group: 'darkSight', live: false, flags: ['NIGHT_VISION'],
+                     desc: '暗处无手电时视野半径 +60%' },
+
+      // ══ 正向 · 体能 ══
+      ironMan:     { name: '铁人', value: 4, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 40], ['stamina.run_cost', 'mul', 0.75],
+                            ['stamina.climb_cost', 'mul', 0.75], ['hold_breath.stamina_cost', 'mul', 0.75]],
+                     desc: '体力上限 +40，所有体力消耗 −25%' },
+      longRunner:  { name: '长跑底子', value: 3, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 25], ['stamina.run_cost', 'mul', 0.85]],
+                     desc: '体力上限 +25，奔跑消耗 −15%' },
+      agile:       { name: '灵活', value: 3, live: false, desc: '敏捷熟练度 2 级起步（敏捷系统未实装）' },
+      fastRegen:   { name: '恢复快', value: 2, group: 'staminaRegen', live: true,
+                     keys: [['stamina.regen', 'mul', 1.3]], desc: '体力回复速率 +30%' },
+
+      // ══ 正向 · 需求 ══
+      lightEater:  { name: '吃得少', value: 3, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 0.75]], desc: '饥饿增速 −25%' },
+      thirstProof: { name: '耐渴', value: 3, group: 'thirst', live: true,
+                     keys: [['need.thirst_rate', 'mul', 0.8]], desc: '口渴增速 −20%' },
+      shortSleep:  { name: '觉少', value: 3, group: 'fatigue', live: true,
+                     keys: [['need.fatigue_rate', 'mul', 0.7]], desc: '困乏增速 −30%' },
+      ironGut:     { name: '铁胃', value: 2, group: 'gut', live: false, flags: ['IRON_GUT'],
+                     desc: '变质食物不再腹泻，生食腹泻率减半（腐败逐帧推进未实装）' },
+
+      // ══ 正向 · 负重与技艺 ══
+      strongBack:  { name: '力气大', value: 3, group: 'carry', live: true,
+                     keys: [['inventory.weight_limit', 'add', 8]], desc: '负重上限 +8 kg' },
+      handy:       { name: '巧手', value: 3, live: false, desc: '手艺熟练度 2 级起步（手艺系统未实装）' },
+      chef:        { name: '掌勺', value: 3, group: 'cook', live: true, skill: ['cooking', 2],
+                     desc: '烹饪熟练度 2 级起步' },
+      neatPacker:  { name: '会收拾', value: 2, live: true,
+                     keys: [['inventory.item_weight', 'mul', 0.88]], desc: '所有物品计重 −12%' },
+      electrician: { name: '电工底子', value: 2, live: false, flags: ['ELECTRICIAN'],
+                     desc: '手艺 1 级即可修复线路；电力界面显示实时功率明细' },
+      gourmet:     { name: '老饕', value: 2, live: true,
+                     keys: [['cooking.satiety', 'mul', 1.12]], desc: '烹饪食物饱腹额外 +12%' },
+
+      // ══ 正向 · 伤势（战斗系统是 M4，全部未实装）══
+      infectProof: { name: '抗感染', value: 4, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
+      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 0.5]], desc: '出血速度 −50%' },
+      firstAid:    { name: '会包扎', value: 2, live: false,
+                     keys: [['injury.bandage_power', 'mul', 1.5]], desc: '绷带效果 +50%，可自制夹板' },
+
+      // ══ 正向 · 其他 ══
+      knowsCampus: { name: '熟悉校园', value: 3, live: false, flags: ['MAP_REVEAL_50'],
+                     desc: '开局地图揭示 50%' },
+      deepSleeper: { name: '睡得沉', value: 2, group: 'sleepDepth', live: true,
+                     keys: [['sleep.interrupt_threshold', 'set', 35]],
+                     desc: '睡眠中断阈值 15 → 35' },
+      silverTongue:{ name: '会说话', value: 2, group: 'social', live: false,
+                     keys: [['survivor.requirement_multiplier', 'mul', 0.5]],
+                     desc: '幸存者招募需求数量减半（幸存者是 M5）' },
+      hasKey:      { name: '有钥匙', value: 2, live: false, flags: ['KEYRING_teachA'],
+                     desc: '开局持有教学楼 A 的通用钥匙（门锁未实装）' },
+
+      // ══ 负向 · 声音与感知 ══
+      hardOfHear:  { name: '重听', value: -4, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 14], ['hearing.localization', 'mul', 2]],
+                     desc: '听觉阈值 +14；声纹方向误差 ×2' },
+      dullEar:     { name: '耳背', value: -3, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 8]], desc: '听觉阈值 +8' },
+      heavyFoot:   { name: '脚步重', value: -3, live: true,
+                     keys: [['sound.footstep', 'mul', 1.25]], desc: '所有脚步类响度 +25%' },
+      myopia:      { name: '近视', value: -3, live: false, flags: ['MYOPIA'],
+                     desc: '8 米外模糊，丧尸识别延迟 +0.6 秒；被抓或跌落 25% 摔碎眼镜' },
+      nightBlind:  { name: '夜盲', value: -3, group: 'darkSight', live: false, flags: ['NIGHT_BLIND'],
+                     desc: '暗处视野半径 −50%' },
+      nervous:     { name: '神经质', value: -2, live: false, flags: ['NERVOUS'],
+                     desc: '听到 margin > 20 的声音时视野抖动 3 秒' },
+
+      // ══ 负向 · 体能 ══
+      asthma:      { name: '哮喘', value: -4, live: false, flags: ['ASTHMA'],
+                     desc: '连续奔跑超 4 秒后每秒多耗 6 体力，并持续产生响度 32 的喘息' },
+      frail:       { name: '体弱', value: -3, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
+      badLeg:      { name: '腿伤', value: -2, live: true,
+                     keys: [['move.speed', 'mul', 0.92], ['stamina.climb_cost', 'mul', 1.6]],
+                     desc: '移动速度 −8%，翻越体力消耗 ×1.6' },
+      slowRegen:   { name: '恢复慢', value: -2, group: 'staminaRegen', live: true,
+                     keys: [['stamina.regen', 'mul', 0.7]], desc: '体力回复速率 −30%' },
+
+      // ══ 负向 · 需求 ══
+      bigAppetite: { name: '大胃口', value: -4, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 1.4]], desc: '饥饿增速 +40%' },
+      needsWater:  { name: '离不开水', value: -3, group: 'thirst', live: true,
+                     keys: [['need.thirst_rate', 'mul', 1.3]], desc: '口渴增速 +30%' },
+      sleepyHead:  { name: '嗜睡', value: -3, group: 'fatigue', live: true,
+                     keys: [['need.fatigue_rate', 'mul', 1.35]], desc: '困乏增速 +35%' },
+      weakGut:     { name: '肠胃弱', value: -2, group: 'gut', live: false, flags: ['WEAK_GUT'],
+                     desc: '腹泻概率 ×2，持续时间 +50%' },
+
+      // ══ 负向 · 负重与技艺 ══
+      smallFrame:  { name: '体格小', value: -2, group: 'carry', live: true,
+                     keys: [['inventory.weight_limit', 'add', -5]], desc: '负重上限 −5 kg' },
+      clumsy:      { name: '笨手笨脚', value: -2, live: false,
+                     keys: [['craft.time', 'mul', 1.5], ['craft.fail_chance', 'add', 0.08]],
+                     desc: '制作与修理耗时 +50%，8% 概率损失一份材料' },
+      kitchenBane: { name: '厨房杀手', value: -2, group: 'cook', live: true,
+                     keys: [['cooking.golden_window', 'mul', 0.4]], desc: '烹饪黄金窗口时长 −60%' },
+      dawdler:     { name: '磨蹭', value: -2, live: false,
+                     keys: [['loot.time', 'mul', 1.4]], desc: '搜刮耗时 +40%（搜刮改成即时后暂无耗时可加）' },
+
+      // ══ 负向 · 伤势 ══
+      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 1.417]], desc: '被咬感染概率 60% → 85%' },
+      bleeder:     { name: '血友', value: -3, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 2]], desc: '出血速度 ×2' },
+      painful:     { name: '怕疼', value: -2, live: false,
+                     desc: '受伤后视野抖动 5 秒，呼痛响度 +20' },
+
+      // ══ 负向 · 其他 ══
+      badWithMaps: { name: '认路差', value: -2, live: false, flags: ['NO_AUTO_MAP'],
+                     desc: '笔记本不自动记录地图，必须手动标记' },
+      cleanFreak:  { name: '洁癖', value: -2, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
+                     desc: '无法食用新鲜度 < 60 的食物' },
+      loner:       { name: '不合群', value: -2, group: 'social', live: false,
+                     keys: [['survivor.requirement_multiplier', 'mul', 2]],
+                     desc: '幸存者招募需求数量翻倍（幸存者是 M5）' },
+      lightSleeper:{ name: '浅眠', value: -2, group: 'sleepDepth', live: true,
+                     keys: [['sleep.interrupt_threshold', 'set', 6]],
+                     desc: '睡眠中断阈值 15 → 6' },
+
+      /* ── 角色固定特性（`fixed: true`）──────────────────
+         **不进选择池、不消耗点数、不占名额。** 它们是角色的个性来源。 */
+      young:       { name: '年轻', value: 0, fixed: true, live: true,
+                     keys: [['stamina.regen', 'mul', 1.2]], desc: '体力回复速率 +20%' },
+      fastLearner: { name: '学得快', value: 0, fixed: true, live: true,
+                     keys: [['skill.cooking.xp_gain', 'mul', 1.15]], desc: '所有熟练度经验获取 +15%' },
+      enduring:    { name: '熬得住', value: 0, fixed: true, live: true,
+                     keys: [['need.fatigue_rate', 'mul', 0.9]], desc: '困乏增速 −10%' },
+      blankSlate:  { name: '一无所知', value: 0, fixed: true, live: true,
+                     desc: '开局地图完全未揭示，所有熟练度 0 级' },
+      unarmed:     { name: '手无寸铁', value: 0, fixed: true, live: true,
+                     desc: '无任何初始武器' },
+      armed:       { name: '有家伙', value: 0, fixed: true, live: false,
+                     keys: [['combat.melee_damage', 'mul', 1.15], ['combat.durability_cost', 'mul', 0.75]],
+                     desc: '近战伤害 +15%，耐久消耗 −25%（战斗是 M4）' },
+      aged:        { name: '上了年纪', value: 0, fixed: true, live: true,
+                     keys: [['stamina.max', 'add', -22], ['move.speed', 'mul', 0.945]],
+                     desc: '体力上限 −22，移动速度 −5.5%' },
+      badBack:     { name: '腰不好', value: 0, fixed: true, live: true,
+                     keys: [['inventory.weight_limit', 'add', -4]], desc: '负重上限 −4 kg' },
+      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: false,
+                     keys: [['combat.melee_damage', 'mul', 0.7], ['stamina.max', 'add', -25]],
+                     desc: '近战伤害 −30%，体力上限 −25' },
+      /* 保安的耳背是**固定**的，不能借用可选池里那条 —— 借用会让一条特性
+         同时活在两个身份里（可选 −3 / 固定 0 点），点数账目立刻说不清。
+         效果和 `dullEar` 一样，互斥组也一样，所以他永远选不了任何听觉特性。 */
+      hardEar:     { name: '耳背', value: 0, fixed: true, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 8]], desc: '听觉阈值 +8' },
+      keyring:     { name: '钥匙串', value: 0, fixed: true, live: false, flags: ['KEYRING_all'],
+                     desc: '可开启全部教学楼、行政楼、办公室的普通门锁' },
+      knowsCampus60:{ name: '熟悉校园', value: 0, fixed: true, live: false, flags: ['MAP_REVEAL_60'],
+                     desc: '开局地图揭示 60%' },
+      bigEater:    { name: '大胃口', value: 0, fixed: true, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 1.35]], desc: '饥饿增速 +35%' },
+      heavyStep:   { name: '脚步重', value: 0, fixed: true, live: true,
+                     keys: [['sound.footstep', 'mul', 1.2]], desc: '所有脚步类响度 +20%' },
+      sprinter:    { name: '长跑底子', value: 0, fixed: true, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 30], ['stamina.run_cost', 'mul', 0.8]],
+                     desc: '体力上限 +30，奔跑消耗 −20%' },
+      nimble:      { name: '灵活', value: 0, fixed: true, live: false, desc: '敏捷熟练度 2 级起步' },
+      masterChef:  { name: '掌勺', value: 0, fixed: true, group: 'cook', live: true, skill: ['cooking', 3],
+                     desc: '烹饪熟练度 3 级起步' },
+      bigGourmet:  { name: '老饕', value: 0, fixed: true, live: true,
+                     keys: [['cooking.satiety', 'mul', 1.15]], desc: '烹饪食物饱腹额外 +15%' },
+      steelGut:    { name: '铁胃', value: 0, fixed: true, group: 'gut', live: false, flags: ['IRON_GUT'],
+                     desc: '变质食物不再腹泻，生食腹泻率减半' },
+      wiring:      { name: '电工底子', value: 0, fixed: true, live: false, flags: ['ELECTRICIAN'],
+                     desc: '手艺 1 级即可修复线路；电力界面显示实时功率与预估耗尽时间' },
+      craftHands:  { name: '巧手', value: 0, fixed: true, live: false, desc: '手艺熟练度 2 级起步' },
+      frailBody:   { name: '体弱', value: 0, fixed: true, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
+      glasses:     { name: '近视', value: 0, fixed: true, live: false, flags: ['MYOPIA'],
+                     desc: '8 米外模糊，识别延迟 +0.6 秒，25% 概率摔碎眼镜' },
+      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
+      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 0.4], ['injury.bandage_power', 'mul', 1.5]],
+                     desc: '出血速度 −60%，绷带效果 +50%，可自行处理骨折' },
+      germaphobe:  { name: '洁癖', value: 0, fixed: true, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
+                     desc: '无法食用新鲜度 < 60 的食物' }
+    },
+
+    /* 特性点数规则（规格 1.2）。**确认条件只有一条：剩余点数 ≥ 0。** */
+    traitRules: {
+      positiveMax: 5,          // 正向特性最多选 5 个
+      negativeMax: 4,          // 负向特性最多选 4 个
+      valueMin: -4, valueMax: 4
+    },
+
+    /* ── 角色（规格 第二部分）─────────────────────────
+       **「出生地不同」是这个系统的核心。**
+       换角色不是换一张属性表，是换一整个开局：你醒来时身边有什么、
+       离哪栋楼近、第一天的目标是什么，全都不一样。
+
+       `spawn` = [楼 id, 楼层(0 起), 房间序号]。`tutorial` 只有学生是 true。 */
+    characters: [
+      { id: 'student', name: '睡过头的学生', stars: 1, points: 5, tutorial: true,
+        spawn: ['dormM', 3, 1], where: '男生宿舍 402（四楼，全校离出口最远）',
+        flavor: '你是那个把闹钟按掉又睡回去的人。今天这救了你的命。',
+        items: ['flashlight', 'kettle', 'water', 'biscuit', 'shortWire'],
+        fixed: ['young', 'fastLearner', 'enduring', 'blankSlate', 'unarmed'],
+        note: '他是白纸。固定加成最弱，但点数最多，可以捏出任何流派。**新手教学只支持这个角色。**' },
+
+      { id: 'athlete', name: '体育队长', stars: 2, points: 3,
+        spawn: ['gym', 0, 0], where: '体育馆运动员休息室（紧邻器材室）',
+        flavor: '晨训完在休息室眯了一会儿。醒来的时候，球场上全是人，但都不太对劲。',
+        items: ['water', ['biscuit', 2], 'pitchfork'],
+        fixed: ['sprinter', 'nimble', 'armed', 'bigEater', 'heavyStep'],
+        note: '唯一一个「打得过」的角色，但他的存在方式与核心支柱正面冲突 —— **他很吵，而且吃得多。**' },
+
+      { id: 'cook', name: '后厨师傅', stars: 2, points: 2,
+        spawn: ['canteen', 0, 0], where: '食堂后厨休息间',
+        flavor: '早班五点就来了，备完料在休息间躺了一会儿。外面的动静你听见了，但你以为是学生打架。',
+        items: ['wok', 'oil', 'salt', 'soySauce', ['riceBag', 2]],
+        fixed: ['masterChef', 'bigGourmet', 'steelGut', 'aged', 'badBack'],
+        note: '开局就站在全校粮食的中心，但食堂是丧尸密度最高的建筑之一，而他跑不快、背不动。**他必须在最危险的地方安家，或者扛着一身锅搬家。**' },
+
+      { id: 'guard', name: '夜班保安', stars: 3, points: 1,
+        spawn: ['guard', 0, 0], where: '保安室（正门旁，全校丧尸最密）',
+        flavor: '交接班前打了个盹。醒来的时候监控屏还亮着，十六个画面里，没有一个是正常的。',
+        items: ['flashlight', 'masterKey', 'radio', 'campusMap'],
+        fixed: ['knowsCampus60', 'keyring', 'armed', 'hardEar', 'aged'],
+        note: '情报最强，身体最差，**而且在这个游戏里耳背是重罪。** 前期极难、中期极强。' },
+
+      { id: 'teacher', name: '实验员老师', stars: 2, points: 3,
+        spawn: ['lab', 0, 0], where: '实验楼准备室',
+        flavor: '你在准备室调设备，门是关着的，你戴着降噪耳机。等你摘下耳机的时候，一切都晚了。',
+        items: ['toolkit', ['shortWire', 2], 'solarPanel', 'stockpot'],
+        fixed: ['wiring', 'craftHands', 'frailBody', 'glasses'],
+        note: '他解决的是**第 11 天停电**这个全游戏最大的基础设施危机。近视不是恒定惩罚，是一个**会被打碎的东西**。' },
+
+      { id: 'medic', name: '校医', stars: 2, points: 2,
+        spawn: ['clinic', 0, 0], where: '医务室',
+        flavor: '上午没什么人来。你在诊床上躺了一会儿。走廊里传来跑步声，然后是撞门声，然后是别的。',
+        items: [['bandage', 4], 'antibiotic'],
+        fixed: ['infectWard', 'dresser', 'feeble', 'germaphobe'],
+        note: '容错率最高，战斗最弱。**洁癖到后期会强迫她成为一个厨子** —— 熟食按新做的算新鲜度。' }
+    ],
+
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,

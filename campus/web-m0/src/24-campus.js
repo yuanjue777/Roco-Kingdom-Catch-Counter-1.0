@@ -126,7 +126,7 @@
   /* ── 丧尸布置 ──────────────────────────────────────
      总数 320，不刷新（7.1）。配比游荡者 85% / 蜷伏者 10% / 奔行者 5%。
      奔行者第 12 天才出现，所以先按游荡者放，到点由 ZombieManager 顶替（7.2）。 */
-  function placeZombies(built, cfg, rng) {
+  function placeZombies(built, cfg, rng, tutorialDorm) {
     const spawns = [];
 
     /* ── 出生的宿舍楼走教学关卡的危险分层（教学设计 0.2）──
@@ -137,7 +137,9 @@
        省下来的名额挪到室外，全校总数仍然是 320。 */
     let surplus = 0;
     for (const b of built) {
-      if (!b.spec.spawn) continue;
+      /* **只有走教学的那一局才给宿舍楼铺这套分层。**
+         选了体育队长却让宿舍楼只剩 2 只，等于凭空送出一栋空楼。 */
+      if (!b.spec.spawn || !tutorialDorm) continue;
       surplus = b.spec.zombies - 2;
       const L = C.Config.level;
       // 205：走廊中段那间，门被家具从里面顶死
@@ -157,7 +159,10 @@
 
     // 楼内：每栋楼把名额摊到「房间门前的空地」和「走廊」上
     for (const b of built) {
-      if (b.spec.spawn) continue;                 // 出生楼上面已经单独摆过
+      /* 只有**已经铺过教学分层**的那栋要跳过。
+         `[实测]` 写成 `if (b.spec.spawn) continue` 会在非教学局里把宿舍楼整栋漏掉 ——
+         26 只凭空消失，全校总数掉到 294，而且不报任何错。 */
+      if (b.spec.spawn && tutorialDorm) continue;
       const spots = [];
       for (const meta of b.floorsMeta) {
         for (const room of meta.rooms) {
@@ -224,7 +229,13 @@
     return spawns;
   }
 
-  function buildCampus() {
+  /**
+   * @param {object} opts  { spawn:[楼id,楼层,房间序号], tutorial:bool }
+   *   出生点由角色决定（角色规格 2.0）。**换角色不是换一张属性表，是换一整个开局** ——
+   *   所以出生点必须能被外面指定，而不是写死在 402。
+   */
+  function buildCampus(opts) {
+    opts = opts || {};
     const cfg = C.Config.campus;
     const L = C.Config.level;
     const g = new C.SoundGraph();
@@ -325,14 +336,19 @@
       b.zoneNodeId = zone.id;
     }
 
-    // ── 出生点：男生宿舍楼 402（13.2）────────────────
-    const home = built.find(b => b.spec.spawn);
-    const spawnRoom = home.floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
+    /* ── 出生点（13.2 + 角色规格 2.0）──────────────────
+       默认男生宿舍楼 402；角色可以把它换到体育馆、食堂、保安室…… */
+    const want = opts.spawn || ['dormM', L.spawnRoomFloor, L.spawnRoomIndex];
+    const home = built.find(b => b.spec.id === want[0]) || built.find(b => b.spec.spawn);
+    // 楼层/房间号越界就夹回去 —— 医务室只有 1 层 3 间，写错一个数不该把整局炸掉
+    const fl = Math.max(0, Math.min(home.floorsMeta.length - 1, want[1] | 0));
+    const rooms = home.floorsMeta[fl].rooms;
+    const spawnRoom = rooms[Math.max(0, Math.min(rooms.length - 1, want[2] | 0))];
     const src = AABB.center(spawnRoom.bounds);
-    const spawn = { x: src.x, y: L.spawnRoomFloor * H + 0.02, z: src.z, yaw: 0 };
+    const spawn = { x: src.x, y: fl * H + 0.02, z: src.z, yaw: 0 };
 
     const rng = new C.Rng(cfg.zombieSeed);
-    const zombieSpawns = placeZombies(built, cfg, rng);
+    const zombieSpawns = placeZombies(built, cfg, rng, opts.tutorial !== false);
 
     const floorsMeta = [];
     for (const b of built) for (const m of b.floorsMeta) floorsMeta.push(m);
@@ -350,7 +366,8 @@
         id: 'circuit-' + b.spec.id,
         name: b.name + ' 照明插座',
         buildingId: b.buildingId,
-        breakerOn: !b.spec.spawn,               // 出生楼的闸是断的
+        // 出生楼的闸是断的（教学目标 3 靠它成立）；不在出生楼时照常通电
+        breakerOn: b.spec.id !== home.spec.id,
         panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
       };
     });

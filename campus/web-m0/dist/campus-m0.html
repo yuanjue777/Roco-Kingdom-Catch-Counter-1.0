@@ -248,6 +248,110 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 开局选择界面（角色与特性规格 4.5）───────────────
+     三栏：角色 ｜ 他是谁 ｜ 特性池。剩余点数永远挂在最上面。
+     **固定特性与自选特性分区显示** —— 玩家要一眼看清哪些是改不了的。 */
+  #pick { position: fixed; inset: 0; z-index: 9; display: none;
+          background: radial-gradient(120% 90% at 50% 20%, #0E1218, #07090C);
+          overflow: auto; padding: 20px 22px 26px; }
+  #pick.on { display: block; }
+  .pick-wrap { max-width: 1180px; margin: 0 auto; }
+  .pick-head { display: flex; align-items: center; gap: 18px; margin-bottom: 14px;
+               border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  .pick-head h5 { margin: 0; font-size: 22px; letter-spacing: 0.28em; font-weight: 600; }
+  .pick-head h5 small { display: block; margin-top: 5px; font-size: 11.5px; letter-spacing: 0;
+                        color: var(--muted); font-weight: 400; }
+  .pick-points { margin-left: auto; text-align: right; }
+  .pick-points b { font-family: var(--mono); font-size: 30px; color: var(--signal); line-height: 1; }
+  .pick-points span { display: block; font-size: 10.5px; letter-spacing: 0.16em; color: var(--dim); margin-top: 3px; }
+  .pick-points.bad b { color: var(--accent); }
+  .pick-go { font-family: var(--cjk); font-size: 14px; padding: 11px 30px; cursor: pointer;
+             background: var(--accent); color: #0B0D11; border: 0; border-radius: 4px; font-weight: 600; }
+  .pick-go.no { background: var(--surface); color: var(--dim); border: 1px solid var(--line); }
+
+  .pick-cols { display: grid; grid-template-columns: 208px 1fr 1.15fr; gap: 16px; align-items: start; }
+  .pick-col { min-width: 0; }
+  .pick-chars { display: flex; flex-direction: column; gap: 7px; }
+  .pick-char { text-align: left; cursor: pointer; padding: 9px 11px; border-radius: 4px;
+               background: rgba(20,26,34,0.7); border: 1px solid var(--line);
+               border-left: 2px solid var(--line); color: var(--ink); font-family: var(--cjk); }
+  .pick-char:hover { border-color: var(--muted); }
+  .pick-char.on { border-color: var(--accent); border-left-color: var(--accent);
+                  background: rgba(228,87,61,0.10); }
+  .pick-char b { display: block; font-size: 13.5px; font-weight: 600; }
+  .pick-stars { color: var(--accent); font-size: 11px; letter-spacing: 0.1em; }
+  .pick-char em { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pick-char u { display: inline-block; margin-top: 4px; font-family: var(--mono); font-size: 10.5px;
+                 text-decoration: none; color: var(--signal); }
+  .pick-tut { display: block; font-style: normal; font-size: 10px; color: var(--dim); margin-top: 2px; }
+
+  .pick-mid, .pick-pool { background: rgba(16,21,28,0.72); border: 1px solid var(--line);
+                          border-radius: 5px; padding: 13px 15px 15px; }
+  .pick-mid h6 { margin: 0 0 6px; font-size: 16px; font-weight: 600;
+                 display: flex; align-items: baseline; gap: 10px; }
+  .pick-wrap h7 { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+                  color: var(--dim); margin: 14px 0 6px; text-transform: uppercase; }
+  .pick-wrap h7 small { font-family: var(--cjk); letter-spacing: 0; color: var(--muted); }
+  .pick-flavor { margin: 0; font-size: 12.5px; line-height: 1.85; color: rgba(220,227,235,0.8);
+                 font-style: italic; border-left: 2px solid var(--line); padding-left: 11px; }
+  .pick-where { margin: 0; font-size: 12.5px; color: var(--ink); }
+  .pick-items { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pick-item { font-size: 11.5px; padding: 2px 9px; border-radius: 3px;
+               background: rgba(52,66,82,0.7); border: 1px solid rgba(150,175,200,0.28); }
+  .pick-chips { display: flex; flex-direction: column; gap: 5px; }
+  .pick-chip { padding: 5px 9px; border-radius: 3px; background: rgba(255,255,255,0.035);
+               border-left: 2px solid var(--dim); }
+  .pick-chip.p { border-left-color: var(--signal); }
+  .pick-chip.n { border-left-color: var(--accent); }
+  .pick-chip b { font-size: 12px; margin-right: 8px; }
+  .pick-chip em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .pick-chip i, .pick-dead { font-style: normal; font-size: 9.5px; color: var(--dim);
+                             border: 1px solid var(--line); border-radius: 2px; padding: 0 4px; margin-left: 6px; }
+  .pick-note { margin: 12px 0 0; font-size: 12px; line-height: 1.8; color: var(--muted); }
+  .pick-note b { color: var(--ink); }
+  .pick-warn2 { margin: 10px 0 0; font-size: 11.5px; line-height: 1.7; color: var(--accent);
+                border: 1px solid rgba(228,87,61,0.4); border-radius: 3px; padding: 7px 10px; }
+  .pick-empty { color: var(--dim); font-size: 13px; }
+
+  .pick-poolhead { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); }
+  .pick-poolhead b { color: var(--signal); font-family: var(--mono); }
+  .pick-poolhead .loot-btn { margin-left: auto; }
+  .pick-sels { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 2px;
+               padding-bottom: 9px; border-bottom: 1px solid var(--line); min-height: 26px; align-items: center; }
+  .pick-sel { cursor: pointer; font-family: var(--cjk); font-size: 11.5px; padding: 3px 8px 3px 10px;
+              border-radius: 3px; background: rgba(255,255,255,0.05); color: var(--ink);
+              border: 1px solid var(--line); border-left-width: 2px; }
+  .pick-sel.p { border-left-color: var(--signal); }
+  .pick-sel.n { border-left-color: var(--accent); }
+  .pick-sel u { font-family: var(--mono); font-size: 10px; text-decoration: none;
+                color: var(--muted); margin: 0 7px 0 6px; }
+  .pick-sel:hover { border-color: var(--accent); color: var(--accent); }
+  .pick-selnone { font-size: 11.5px; color: var(--dim); }
+  .pick-traits { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 5px; }
+  .pick-trait { position: relative; text-align: left; cursor: pointer; padding: 6px 9px 7px;
+                border-radius: 3px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+                color: var(--ink); font-family: var(--cjk); }
+  .pick-trait:hover { border-color: var(--muted); }
+  .pick-trait.on { border-color: var(--signal); background: rgba(111,211,232,0.10); }
+  .pick-trait.no { opacity: 0.42; cursor: not-allowed; }
+  .pick-trait b { font-size: 12.5px; font-weight: 600; }
+  .pick-trait u { float: right; font-family: var(--mono); font-size: 12px; text-decoration: none; }
+  .pick-trait u.p { color: var(--signal); }
+  .pick-trait u.n { color: var(--accent); }
+  .pick-trait em { display: block; clear: both; font-style: normal; font-size: 10.5px;
+                   line-height: 1.5; color: var(--muted); margin-top: 2px; }
+  .pick-why { display: block; font-style: normal; font-size: 10px; color: var(--accent); margin-top: 3px; }
+  .pick-warn { position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px;
+               background: rgba(20,26,34,0.95); border: 1px solid var(--accent); color: var(--ink);
+               padding: 8px 18px; border-radius: 4px; font-size: 12.5px; opacity: 0;
+               transition: opacity .3s; pointer-events: none; }
+  .pick-warn.on { opacity: 1; }
+  @media (max-width: 960px) {
+    .pick-cols { grid-template-columns: 1fr; }
+    .pick-chars { flex-direction: row; flex-wrap: wrap; }
+    .pick-char { flex: 1 1 150px; }
+  }
+
   /* ── 教学提示（教学设计 4.1）────────────────────────
      **四种全部不暂停游戏。** 这个游戏从第一秒起就不给人喘息。 */
   #tut { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
@@ -479,6 +583,7 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="pick"></div>
 <div id="startHint">
   <div class="card">
     <p class="eyebrow" id="startStage">M3 · 供电与烹饪</p>
@@ -1269,6 +1374,275 @@
       streaming: { loadRadius: 60, unloadRadius: 78, simplifyRadius: 60 },
       simplifiedTick: 0.25          // 简化模拟的更新间隔（秒）
     },
+
+    /* ── 特性表（角色与特性规格 第三部分）───────────────
+       每条特性只有两种生效方式，**不允许第三种**：
+         `keys`  —— 挂到数值修正管线上（[key, 'add'|'mul'|'set', 数值]）
+         `flags` —— 管线表达不了的，写成标记，由对应系统自己去读
+
+       `live: false` = **规格里有，但它依赖的系统还没做**（战斗、伤势、幸存者、视觉模糊）。
+       这类特性照样能选、照样进存档、照样算点数，只是现在不产生效果 ——
+       选择界面会把它标成「未实装」。**骗玩家比缺功能更糟。**
+
+       `group` 是互斥组：同组只能选一个，和角色固定特性冲突时置灰。 */
+    traits: {
+      // ══ 正向 · 声音与感知 ══
+      sharpEars:   { name: '天生耳力', value: 4, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', -10], ['hearing.localization', 'mul', 0.6]],
+                     desc: '听觉阈值 −10；声纹方向误差 −40%' },
+      keenEar:     { name: '耳朵尖', value: 3, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', -6]], desc: '听觉阈值 −6' },
+      catStep:     { name: '猫步', value: 3, live: true,
+                     keys: [['sound.footstep', 'mul', 0.8]], desc: '所有脚步类响度 −20%' },
+      lightFoot:   { name: '轻手轻脚', value: 2, live: true, skill: ['quietStep', 2],
+                     desc: '静步熟练度 2 级起步' },
+      longWind:    { name: '长气', value: 2, live: true,
+                     keys: [['hold_breath.stamina_cost', 'mul', 0.5]], desc: '屏息体力消耗 −50%' },
+      goodEyes:    { name: '眼力好', value: 2, live: false, flags: ['HIGHLIGHT_CROUCHER'],
+                     desc: '蜷伏者 6 米内自动高亮；可拾取物高亮距离 +50%' },
+      nightEye:    { name: '夜眼', value: 2, group: 'darkSight', live: false, flags: ['NIGHT_VISION'],
+                     desc: '暗处无手电时视野半径 +60%' },
+
+      // ══ 正向 · 体能 ══
+      ironMan:     { name: '铁人', value: 4, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 40], ['stamina.run_cost', 'mul', 0.75],
+                            ['stamina.climb_cost', 'mul', 0.75], ['hold_breath.stamina_cost', 'mul', 0.75]],
+                     desc: '体力上限 +40，所有体力消耗 −25%' },
+      longRunner:  { name: '长跑底子', value: 3, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 25], ['stamina.run_cost', 'mul', 0.85]],
+                     desc: '体力上限 +25，奔跑消耗 −15%' },
+      agile:       { name: '灵活', value: 3, live: false, desc: '敏捷熟练度 2 级起步（敏捷系统未实装）' },
+      fastRegen:   { name: '恢复快', value: 2, group: 'staminaRegen', live: true,
+                     keys: [['stamina.regen', 'mul', 1.3]], desc: '体力回复速率 +30%' },
+
+      // ══ 正向 · 需求 ══
+      lightEater:  { name: '吃得少', value: 3, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 0.75]], desc: '饥饿增速 −25%' },
+      thirstProof: { name: '耐渴', value: 3, group: 'thirst', live: true,
+                     keys: [['need.thirst_rate', 'mul', 0.8]], desc: '口渴增速 −20%' },
+      shortSleep:  { name: '觉少', value: 3, group: 'fatigue', live: true,
+                     keys: [['need.fatigue_rate', 'mul', 0.7]], desc: '困乏增速 −30%' },
+      ironGut:     { name: '铁胃', value: 2, group: 'gut', live: false, flags: ['IRON_GUT'],
+                     desc: '变质食物不再腹泻，生食腹泻率减半（腐败逐帧推进未实装）' },
+
+      // ══ 正向 · 负重与技艺 ══
+      strongBack:  { name: '力气大', value: 3, group: 'carry', live: true,
+                     keys: [['inventory.weight_limit', 'add', 8]], desc: '负重上限 +8 kg' },
+      handy:       { name: '巧手', value: 3, live: false, desc: '手艺熟练度 2 级起步（手艺系统未实装）' },
+      chef:        { name: '掌勺', value: 3, group: 'cook', live: true, skill: ['cooking', 2],
+                     desc: '烹饪熟练度 2 级起步' },
+      neatPacker:  { name: '会收拾', value: 2, live: true,
+                     keys: [['inventory.item_weight', 'mul', 0.88]], desc: '所有物品计重 −12%' },
+      electrician: { name: '电工底子', value: 2, live: false, flags: ['ELECTRICIAN'],
+                     desc: '手艺 1 级即可修复线路；电力界面显示实时功率明细' },
+      gourmet:     { name: '老饕', value: 2, live: true,
+                     keys: [['cooking.satiety', 'mul', 1.12]], desc: '烹饪食物饱腹额外 +12%' },
+
+      // ══ 正向 · 伤势（战斗系统是 M4，全部未实装）══
+      infectProof: { name: '抗感染', value: 4, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
+      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 0.5]], desc: '出血速度 −50%' },
+      firstAid:    { name: '会包扎', value: 2, live: false,
+                     keys: [['injury.bandage_power', 'mul', 1.5]], desc: '绷带效果 +50%，可自制夹板' },
+
+      // ══ 正向 · 其他 ══
+      knowsCampus: { name: '熟悉校园', value: 3, live: false, flags: ['MAP_REVEAL_50'],
+                     desc: '开局地图揭示 50%' },
+      deepSleeper: { name: '睡得沉', value: 2, group: 'sleepDepth', live: true,
+                     keys: [['sleep.interrupt_threshold', 'set', 35]],
+                     desc: '睡眠中断阈值 15 → 35' },
+      silverTongue:{ name: '会说话', value: 2, group: 'social', live: false,
+                     keys: [['survivor.requirement_multiplier', 'mul', 0.5]],
+                     desc: '幸存者招募需求数量减半（幸存者是 M5）' },
+      hasKey:      { name: '有钥匙', value: 2, live: false, flags: ['KEYRING_teachA'],
+                     desc: '开局持有教学楼 A 的通用钥匙（门锁未实装）' },
+
+      // ══ 负向 · 声音与感知 ══
+      hardOfHear:  { name: '重听', value: -4, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 14], ['hearing.localization', 'mul', 2]],
+                     desc: '听觉阈值 +14；声纹方向误差 ×2' },
+      dullEar:     { name: '耳背', value: -3, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 8]], desc: '听觉阈值 +8' },
+      heavyFoot:   { name: '脚步重', value: -3, live: true,
+                     keys: [['sound.footstep', 'mul', 1.25]], desc: '所有脚步类响度 +25%' },
+      myopia:      { name: '近视', value: -3, live: false, flags: ['MYOPIA'],
+                     desc: '8 米外模糊，丧尸识别延迟 +0.6 秒；被抓或跌落 25% 摔碎眼镜' },
+      nightBlind:  { name: '夜盲', value: -3, group: 'darkSight', live: false, flags: ['NIGHT_BLIND'],
+                     desc: '暗处视野半径 −50%' },
+      nervous:     { name: '神经质', value: -2, live: false, flags: ['NERVOUS'],
+                     desc: '听到 margin > 20 的声音时视野抖动 3 秒' },
+
+      // ══ 负向 · 体能 ══
+      asthma:      { name: '哮喘', value: -4, live: false, flags: ['ASTHMA'],
+                     desc: '连续奔跑超 4 秒后每秒多耗 6 体力，并持续产生响度 32 的喘息' },
+      frail:       { name: '体弱', value: -3, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
+      badLeg:      { name: '腿伤', value: -2, live: true,
+                     keys: [['move.speed', 'mul', 0.92], ['stamina.climb_cost', 'mul', 1.6]],
+                     desc: '移动速度 −8%，翻越体力消耗 ×1.6' },
+      slowRegen:   { name: '恢复慢', value: -2, group: 'staminaRegen', live: true,
+                     keys: [['stamina.regen', 'mul', 0.7]], desc: '体力回复速率 −30%' },
+
+      // ══ 负向 · 需求 ══
+      bigAppetite: { name: '大胃口', value: -4, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 1.4]], desc: '饥饿增速 +40%' },
+      needsWater:  { name: '离不开水', value: -3, group: 'thirst', live: true,
+                     keys: [['need.thirst_rate', 'mul', 1.3]], desc: '口渴增速 +30%' },
+      sleepyHead:  { name: '嗜睡', value: -3, group: 'fatigue', live: true,
+                     keys: [['need.fatigue_rate', 'mul', 1.35]], desc: '困乏增速 +35%' },
+      weakGut:     { name: '肠胃弱', value: -2, group: 'gut', live: false, flags: ['WEAK_GUT'],
+                     desc: '腹泻概率 ×2，持续时间 +50%' },
+
+      // ══ 负向 · 负重与技艺 ══
+      smallFrame:  { name: '体格小', value: -2, group: 'carry', live: true,
+                     keys: [['inventory.weight_limit', 'add', -5]], desc: '负重上限 −5 kg' },
+      clumsy:      { name: '笨手笨脚', value: -2, live: false,
+                     keys: [['craft.time', 'mul', 1.5], ['craft.fail_chance', 'add', 0.08]],
+                     desc: '制作与修理耗时 +50%，8% 概率损失一份材料' },
+      kitchenBane: { name: '厨房杀手', value: -2, group: 'cook', live: true,
+                     keys: [['cooking.golden_window', 'mul', 0.4]], desc: '烹饪黄金窗口时长 −60%' },
+      dawdler:     { name: '磨蹭', value: -2, live: false,
+                     keys: [['loot.time', 'mul', 1.4]], desc: '搜刮耗时 +40%（搜刮改成即时后暂无耗时可加）' },
+
+      // ══ 负向 · 伤势 ══
+      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 1.417]], desc: '被咬感染概率 60% → 85%' },
+      bleeder:     { name: '血友', value: -3, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 2]], desc: '出血速度 ×2' },
+      painful:     { name: '怕疼', value: -2, live: false,
+                     desc: '受伤后视野抖动 5 秒，呼痛响度 +20' },
+
+      // ══ 负向 · 其他 ══
+      badWithMaps: { name: '认路差', value: -2, live: false, flags: ['NO_AUTO_MAP'],
+                     desc: '笔记本不自动记录地图，必须手动标记' },
+      cleanFreak:  { name: '洁癖', value: -2, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
+                     desc: '无法食用新鲜度 < 60 的食物' },
+      loner:       { name: '不合群', value: -2, group: 'social', live: false,
+                     keys: [['survivor.requirement_multiplier', 'mul', 2]],
+                     desc: '幸存者招募需求数量翻倍（幸存者是 M5）' },
+      lightSleeper:{ name: '浅眠', value: -2, group: 'sleepDepth', live: true,
+                     keys: [['sleep.interrupt_threshold', 'set', 6]],
+                     desc: '睡眠中断阈值 15 → 6' },
+
+      /* ── 角色固定特性（`fixed: true`）──────────────────
+         **不进选择池、不消耗点数、不占名额。** 它们是角色的个性来源。 */
+      young:       { name: '年轻', value: 0, fixed: true, live: true,
+                     keys: [['stamina.regen', 'mul', 1.2]], desc: '体力回复速率 +20%' },
+      fastLearner: { name: '学得快', value: 0, fixed: true, live: true,
+                     keys: [['skill.cooking.xp_gain', 'mul', 1.15]], desc: '所有熟练度经验获取 +15%' },
+      enduring:    { name: '熬得住', value: 0, fixed: true, live: true,
+                     keys: [['need.fatigue_rate', 'mul', 0.9]], desc: '困乏增速 −10%' },
+      blankSlate:  { name: '一无所知', value: 0, fixed: true, live: true,
+                     desc: '开局地图完全未揭示，所有熟练度 0 级' },
+      unarmed:     { name: '手无寸铁', value: 0, fixed: true, live: true,
+                     desc: '无任何初始武器' },
+      armed:       { name: '有家伙', value: 0, fixed: true, live: false,
+                     keys: [['combat.melee_damage', 'mul', 1.15], ['combat.durability_cost', 'mul', 0.75]],
+                     desc: '近战伤害 +15%，耐久消耗 −25%（战斗是 M4）' },
+      aged:        { name: '上了年纪', value: 0, fixed: true, live: true,
+                     keys: [['stamina.max', 'add', -22], ['move.speed', 'mul', 0.945]],
+                     desc: '体力上限 −22，移动速度 −5.5%' },
+      badBack:     { name: '腰不好', value: 0, fixed: true, live: true,
+                     keys: [['inventory.weight_limit', 'add', -4]], desc: '负重上限 −4 kg' },
+      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: false,
+                     keys: [['combat.melee_damage', 'mul', 0.7], ['stamina.max', 'add', -25]],
+                     desc: '近战伤害 −30%，体力上限 −25' },
+      /* 保安的耳背是**固定**的，不能借用可选池里那条 —— 借用会让一条特性
+         同时活在两个身份里（可选 −3 / 固定 0 点），点数账目立刻说不清。
+         效果和 `dullEar` 一样，互斥组也一样，所以他永远选不了任何听觉特性。 */
+      hardEar:     { name: '耳背', value: 0, fixed: true, group: 'ear', live: true,
+                     keys: [['hearing.threshold', 'add', 8]], desc: '听觉阈值 +8' },
+      keyring:     { name: '钥匙串', value: 0, fixed: true, live: false, flags: ['KEYRING_all'],
+                     desc: '可开启全部教学楼、行政楼、办公室的普通门锁' },
+      knowsCampus60:{ name: '熟悉校园', value: 0, fixed: true, live: false, flags: ['MAP_REVEAL_60'],
+                     desc: '开局地图揭示 60%' },
+      bigEater:    { name: '大胃口', value: 0, fixed: true, group: 'hunger', live: true,
+                     keys: [['need.hunger_rate', 'mul', 1.35]], desc: '饥饿增速 +35%' },
+      heavyStep:   { name: '脚步重', value: 0, fixed: true, live: true,
+                     keys: [['sound.footstep', 'mul', 1.2]], desc: '所有脚步类响度 +20%' },
+      sprinter:    { name: '长跑底子', value: 0, fixed: true, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', 30], ['stamina.run_cost', 'mul', 0.8]],
+                     desc: '体力上限 +30，奔跑消耗 −20%' },
+      nimble:      { name: '灵活', value: 0, fixed: true, live: false, desc: '敏捷熟练度 2 级起步' },
+      masterChef:  { name: '掌勺', value: 0, fixed: true, group: 'cook', live: true, skill: ['cooking', 3],
+                     desc: '烹饪熟练度 3 级起步' },
+      bigGourmet:  { name: '老饕', value: 0, fixed: true, live: true,
+                     keys: [['cooking.satiety', 'mul', 1.15]], desc: '烹饪食物饱腹额外 +15%' },
+      steelGut:    { name: '铁胃', value: 0, fixed: true, group: 'gut', live: false, flags: ['IRON_GUT'],
+                     desc: '变质食物不再腹泻，生食腹泻率减半' },
+      wiring:      { name: '电工底子', value: 0, fixed: true, live: false, flags: ['ELECTRICIAN'],
+                     desc: '手艺 1 级即可修复线路；电力界面显示实时功率与预估耗尽时间' },
+      craftHands:  { name: '巧手', value: 0, fixed: true, live: false, desc: '手艺熟练度 2 级起步' },
+      frailBody:   { name: '体弱', value: 0, fixed: true, group: 'staminaMax', live: true,
+                     keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
+      glasses:     { name: '近视', value: 0, fixed: true, live: false, flags: ['MYOPIA'],
+                     desc: '8 米外模糊，识别延迟 +0.6 秒，25% 概率摔碎眼镜' },
+      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: false,
+                     keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
+      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: false,
+                     keys: [['injury.bleed_rate', 'mul', 0.4], ['injury.bandage_power', 'mul', 1.5]],
+                     desc: '出血速度 −60%，绷带效果 +50%，可自行处理骨折' },
+      germaphobe:  { name: '洁癖', value: 0, fixed: true, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
+                     desc: '无法食用新鲜度 < 60 的食物' }
+    },
+
+    /* 特性点数规则（规格 1.2）。**确认条件只有一条：剩余点数 ≥ 0。** */
+    traitRules: {
+      positiveMax: 5,          // 正向特性最多选 5 个
+      negativeMax: 4,          // 负向特性最多选 4 个
+      valueMin: -4, valueMax: 4
+    },
+
+    /* ── 角色（规格 第二部分）─────────────────────────
+       **「出生地不同」是这个系统的核心。**
+       换角色不是换一张属性表，是换一整个开局：你醒来时身边有什么、
+       离哪栋楼近、第一天的目标是什么，全都不一样。
+
+       `spawn` = [楼 id, 楼层(0 起), 房间序号]。`tutorial` 只有学生是 true。 */
+    characters: [
+      { id: 'student', name: '睡过头的学生', stars: 1, points: 5, tutorial: true,
+        spawn: ['dormM', 3, 1], where: '男生宿舍 402（四楼，全校离出口最远）',
+        flavor: '你是那个把闹钟按掉又睡回去的人。今天这救了你的命。',
+        items: ['flashlight', 'kettle', 'water', 'biscuit', 'shortWire'],
+        fixed: ['young', 'fastLearner', 'enduring', 'blankSlate', 'unarmed'],
+        note: '他是白纸。固定加成最弱，但点数最多，可以捏出任何流派。**新手教学只支持这个角色。**' },
+
+      { id: 'athlete', name: '体育队长', stars: 2, points: 3,
+        spawn: ['gym', 0, 0], where: '体育馆运动员休息室（紧邻器材室）',
+        flavor: '晨训完在休息室眯了一会儿。醒来的时候，球场上全是人，但都不太对劲。',
+        items: ['water', ['biscuit', 2], 'pitchfork'],
+        fixed: ['sprinter', 'nimble', 'armed', 'bigEater', 'heavyStep'],
+        note: '唯一一个「打得过」的角色，但他的存在方式与核心支柱正面冲突 —— **他很吵，而且吃得多。**' },
+
+      { id: 'cook', name: '后厨师傅', stars: 2, points: 2,
+        spawn: ['canteen', 0, 0], where: '食堂后厨休息间',
+        flavor: '早班五点就来了，备完料在休息间躺了一会儿。外面的动静你听见了，但你以为是学生打架。',
+        items: ['wok', 'oil', 'salt', 'soySauce', ['riceBag', 2]],
+        fixed: ['masterChef', 'bigGourmet', 'steelGut', 'aged', 'badBack'],
+        note: '开局就站在全校粮食的中心，但食堂是丧尸密度最高的建筑之一，而他跑不快、背不动。**他必须在最危险的地方安家，或者扛着一身锅搬家。**' },
+
+      { id: 'guard', name: '夜班保安', stars: 3, points: 1,
+        spawn: ['guard', 0, 0], where: '保安室（正门旁，全校丧尸最密）',
+        flavor: '交接班前打了个盹。醒来的时候监控屏还亮着，十六个画面里，没有一个是正常的。',
+        items: ['flashlight', 'masterKey', 'radio', 'campusMap'],
+        fixed: ['knowsCampus60', 'keyring', 'armed', 'hardEar', 'aged'],
+        note: '情报最强，身体最差，**而且在这个游戏里耳背是重罪。** 前期极难、中期极强。' },
+
+      { id: 'teacher', name: '实验员老师', stars: 2, points: 3,
+        spawn: ['lab', 0, 0], where: '实验楼准备室',
+        flavor: '你在准备室调设备，门是关着的，你戴着降噪耳机。等你摘下耳机的时候，一切都晚了。',
+        items: ['toolkit', ['shortWire', 2], 'solarPanel', 'stockpot'],
+        fixed: ['wiring', 'craftHands', 'frailBody', 'glasses'],
+        note: '他解决的是**第 11 天停电**这个全游戏最大的基础设施危机。近视不是恒定惩罚，是一个**会被打碎的东西**。' },
+
+      { id: 'medic', name: '校医', stars: 2, points: 2,
+        spawn: ['clinic', 0, 0], where: '医务室',
+        flavor: '上午没什么人来。你在诊床上躺了一会儿。走廊里传来跑步声，然后是撞门声，然后是别的。',
+        items: [['bandage', 4], 'antibiotic'],
+        fixed: ['infectWard', 'dresser', 'feeble', 'germaphobe'],
+        note: '容错率最高，战斗最弱。**洁癖到后期会强迫她成为一个厨子** —— 熟食按新做的算新鲜度。' }
+    ],
 
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
@@ -2756,6 +3130,8 @@
     fuse:       { name: '保险丝',       size: [1, 1], weight: 0.03, kind: 'tool', stack: 4 },
     diesel:     { name: '柴油桶',       size: [3, 3], weight: 6.50, kind: 'material', rare: true },
     generator:  { name: '发电机',       size: [4, 4], weight: 14.0, kind: 'tool', rare: true },
+    // 太阳能板：实验员老师开局自带一块（角色规格 2.5）。3×3 是为了它「背着很占地方」
+    solarPanel: { name: '太阳能板',     size: [3, 3], weight: 7.00, kind: 'tool', rare: true },
 
     // 行政楼：结局一/三的前置
     broadcastPart: { name: '广播设备零件', size: [3, 2], weight: 2.10, kind: 'material', rare: true },
@@ -3265,7 +3641,10 @@
     return Math.max(0, C.Config.needs.barLength - this.hunger - this.thirst);
   };
   Needs.prototype.staminaMax = function () {
-    return Math.max(0, C.Config.needs.barLength - this.fatigue);
+    /* 先算被困乏挤占后的上限，**再**让特性加减 ——
+       反过来的话「铁人 +40」会被困乏按比例吃掉一部分，读起来对不上。 */
+    const base = Math.max(0, C.Config.needs.barLength - this.fatigue);
+    return Math.max(0, C.ModifierPipeline.query('stamina.max', base, this.ownerId));
   };
   Needs.prototype.isRested = function () { return this.restedHours > 0; };
 
@@ -3277,19 +3656,22 @@
     if (this.dead || dtHours <= 0) return;
     const N = C.Config.needs, L = N.barLength;
 
-    let thirstRate = L / N.thirstFullHours;
+    /* 三条速率全部走管线。特性（耐渴/大胃口/嗜睡…）就挂在这三个 key 上，
+       **这里永远不知道世界上存在「角色」这回事**（角色规格 4.2）。 */
+    let thirstRate = C.ModifierPipeline.query('need.thirst_rate', L / N.thirstFullHours, this.ownerId);
     if (this.diarrheaHours > 0) {
       thirstRate *= N.diarrheaThirstMul;
       this.diarrheaHours = Math.max(0, this.diarrheaHours - dtHours);
     }
+    const hungerRate = C.ModifierPipeline.query('need.hunger_rate', L / N.hungerFullHours, this.ownerId);
     this.thirst = M.clamp(this.thirst + thirstRate * dtHours, 0, L);
-    this.hunger = M.clamp(this.hunger + (L / N.hungerFullHours) * dtHours, 0, L);
+    this.hunger = M.clamp(this.hunger + hungerRate * dtHours, 0, L);
 
     // 困乏：清醒时涨、睡眠时退。精力充沛期间涨得慢
     if (sleeping) {
       this.fatigue = M.clamp(this.fatigue - N.fatigueSleepPerHour * dtHours, 0, L);
     } else {
-      let rate = N.fatigueRatePerHour;
+      let rate = C.ModifierPipeline.query('need.fatigue_rate', N.fatigueRatePerHour, this.ownerId);
       if (this.restedHours > 0) { rate *= N.restedFatigueMul; this.restedHours = Math.max(0, this.restedHours - dtHours); }
       this.fatigue = M.clamp(this.fatigue + rate * dtHours, 0, L);
     }
@@ -3369,6 +3751,17 @@
        身上揣着几块并不牵强。数量少到必须尽快去找补给，这一点没变。 */
     if (C.Config.player.startingStones > 0) {
       this.hotbar[0] = C.makeItem('stone', C.Config.player.startingStones);
+    }
+    /* 角色自带的开局物品（角色规格 2.x）。
+       `[id, 数量]` 或直接 `id`。**每个角色的清单都控制在 5 格以内** ——
+       石头占掉快取位 0，剩下五格必须够放，否则会有角色一开局就按不了 G。 */
+    for (const entry of (C.Loadout ? C.Loadout.startingItems() : [])) {
+      const id = Array.isArray(entry) ? entry[0] : entry;
+      const n = Array.isArray(entry) ? entry[1] : 1;
+      if (!C.ITEMS[id]) continue;
+      const slot = this.hotbar.indexOf(null);
+      if (slot >= 0) this.hotbar[slot] = C.makeItem(id, n);
+      else if (this.bag) this.bag.autoAdd(C.makeItem(id, n));
     }
     this.stamina = P.stamina.max;
     this.exhausted = false;
@@ -3463,11 +3856,15 @@
     let kg = this.bag ? this.bag.weight() : 0;
     if (this.bag) kg += C.ITEMS[this.bagItemId || 'smallBag'].weight;
     for (const it of this.hotbar) if (it) kg += C.ITEMS[it.id].weight * it.count;
-    return kg;
+    // 「会收拾」减的是**东西的计重**，不是上限 —— 两者对负重比的影响一样，但读起来不是一回事
+    return C.ModifierPipeline.query('inventory.item_weight', kg, PLAYER_ID);
+  };
+  Player.prototype.weightLimit = function () {
+    return Math.max(1, C.ModifierPipeline.query('inventory.weight_limit', C.Config.player.weightLimit, PLAYER_ID));
   };
   /** 负重比 r = 当前重量 / 上限（主文档 10.1） */
   Player.prototype.weightRatio = function () {
-    return this.totalWeight() / C.Config.player.weightLimit;
+    return this.totalWeight() / this.weightLimit();
   };
   Player.prototype.stoneCount = function () {
     let n = this.bag ? this.bag.count('stone') : 0;
@@ -3623,6 +4020,9 @@
     else speed = P.speedWalk;
     if (this.holdBreath) speed = P.speedCrouch * P.holdBreathSpeedMul;   // 允许缓慢移动（主文档 4.2）
     if (this.lean !== 0 && !this.wallHug) speed = 0;   // 侧身探头时移动速度为 0（贴墙时仍可沿墙挪）
+    /* 全姿态通用的速度修正（腿伤、上了年纪…）。放在最后，
+       这样它对走/跑/蹲/贴墙一视同仁 —— 「腿伤 −8%」就该是所有走法都慢 8%。 */
+    speed = C.ModifierPipeline.query('move.speed', speed, PLAYER_ID);
     if (this.exhausted) speed *= S.exhaustedSpeedMul;
 
     // ── 移动 ──────────────────────────────────────────
@@ -3656,7 +4056,9 @@
     if (drain > 0) this.stamina -= drain * dt;
     else if (!this.moving) {
       const mul = this.needs.isRested() ? C.Config.needs.restedStaminaRegenMul : 1;
-      this.stamina += (this.posture === 'crouch' ? S.regenCrouch : S.regenStand) * mul * dt;
+      const rate = C.ModifierPipeline.query('stamina.regen',
+        (this.posture === 'crouch' ? S.regenCrouch : S.regenStand), PLAYER_ID);
+      this.stamina += rate * mul * dt;
     }
     // 体力上限被困乏挤占（主文档 3.3）
     this.stamina = M.clamp(this.stamina, 0, this.needs.staminaMax());
@@ -6010,7 +6412,7 @@
   /* ── 丧尸布置 ──────────────────────────────────────
      总数 320，不刷新（7.1）。配比游荡者 85% / 蜷伏者 10% / 奔行者 5%。
      奔行者第 12 天才出现，所以先按游荡者放，到点由 ZombieManager 顶替（7.2）。 */
-  function placeZombies(built, cfg, rng) {
+  function placeZombies(built, cfg, rng, tutorialDorm) {
     const spawns = [];
 
     /* ── 出生的宿舍楼走教学关卡的危险分层（教学设计 0.2）──
@@ -6021,7 +6423,9 @@
        省下来的名额挪到室外，全校总数仍然是 320。 */
     let surplus = 0;
     for (const b of built) {
-      if (!b.spec.spawn) continue;
+      /* **只有走教学的那一局才给宿舍楼铺这套分层。**
+         选了体育队长却让宿舍楼只剩 2 只，等于凭空送出一栋空楼。 */
+      if (!b.spec.spawn || !tutorialDorm) continue;
       surplus = b.spec.zombies - 2;
       const L = C.Config.level;
       // 205：走廊中段那间，门被家具从里面顶死
@@ -6041,7 +6445,10 @@
 
     // 楼内：每栋楼把名额摊到「房间门前的空地」和「走廊」上
     for (const b of built) {
-      if (b.spec.spawn) continue;                 // 出生楼上面已经单独摆过
+      /* 只有**已经铺过教学分层**的那栋要跳过。
+         `[实测]` 写成 `if (b.spec.spawn) continue` 会在非教学局里把宿舍楼整栋漏掉 ——
+         26 只凭空消失，全校总数掉到 294，而且不报任何错。 */
+      if (b.spec.spawn && tutorialDorm) continue;
       const spots = [];
       for (const meta of b.floorsMeta) {
         for (const room of meta.rooms) {
@@ -6108,7 +6515,13 @@
     return spawns;
   }
 
-  function buildCampus() {
+  /**
+   * @param {object} opts  { spawn:[楼id,楼层,房间序号], tutorial:bool }
+   *   出生点由角色决定（角色规格 2.0）。**换角色不是换一张属性表，是换一整个开局** ——
+   *   所以出生点必须能被外面指定，而不是写死在 402。
+   */
+  function buildCampus(opts) {
+    opts = opts || {};
     const cfg = C.Config.campus;
     const L = C.Config.level;
     const g = new C.SoundGraph();
@@ -6209,14 +6622,19 @@
       b.zoneNodeId = zone.id;
     }
 
-    // ── 出生点：男生宿舍楼 402（13.2）────────────────
-    const home = built.find(b => b.spec.spawn);
-    const spawnRoom = home.floorsMeta[L.spawnRoomFloor].rooms[L.spawnRoomIndex];
+    /* ── 出生点（13.2 + 角色规格 2.0）──────────────────
+       默认男生宿舍楼 402；角色可以把它换到体育馆、食堂、保安室…… */
+    const want = opts.spawn || ['dormM', L.spawnRoomFloor, L.spawnRoomIndex];
+    const home = built.find(b => b.spec.id === want[0]) || built.find(b => b.spec.spawn);
+    // 楼层/房间号越界就夹回去 —— 医务室只有 1 层 3 间，写错一个数不该把整局炸掉
+    const fl = Math.max(0, Math.min(home.floorsMeta.length - 1, want[1] | 0));
+    const rooms = home.floorsMeta[fl].rooms;
+    const spawnRoom = rooms[Math.max(0, Math.min(rooms.length - 1, want[2] | 0))];
     const src = AABB.center(spawnRoom.bounds);
-    const spawn = { x: src.x, y: L.spawnRoomFloor * H + 0.02, z: src.z, yaw: 0 };
+    const spawn = { x: src.x, y: fl * H + 0.02, z: src.z, yaw: 0 };
 
     const rng = new C.Rng(cfg.zombieSeed);
-    const zombieSpawns = placeZombies(built, cfg, rng);
+    const zombieSpawns = placeZombies(built, cfg, rng, opts.tutorial !== false);
 
     const floorsMeta = [];
     for (const b of built) for (const m of b.floorsMeta) floorsMeta.push(m);
@@ -6234,7 +6652,8 @@
         id: 'circuit-' + b.spec.id,
         name: b.name + ' 照明插座',
         buildingId: b.buildingId,
-        breakerOn: !b.spec.spawn,               // 出生楼的闸是断的
+        // 出生楼的闸是断的（教学目标 3 靠它成立）；不在出生楼时照常通电
+        breakerOn: b.spec.id !== home.spec.id,
         panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
       };
     });
@@ -6613,7 +7032,7 @@
         return `<h4>快取栏 <small>6 格</small></h4>${hot}
           <p class="inv-empty">你还没有背包。<br>宿舍里到处都是书包，找一个背上。</p>`;
       }
-      const kg = p.totalWeight(), max = C.Config.player.weightLimit;
+      const kg = p.totalWeight(), max = p.weightLimit();
       const r = Math.min(1, kg / max);
       return `<h4>${p.bag.label} <small>${p.bag.w}×${p.bag.h}　空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格</small>
                 <button class="inv-btn" id="btnTidy">整理</button></h4>` +
@@ -7054,7 +7473,7 @@
 
       this.bagPane.innerHTML = p.bag
         ? `<h5>${p.bag.label}<small>空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格　` +
-          `${p.totalWeight().toFixed(2)}/${C.Config.player.weightLimit}kg</small>` +
+          `${p.totalWeight().toFixed(2)}/${p.weightLimit().toFixed(0)}kg</small>` +
           `<button class="loot-btn" id="lootTidy">整理</button></h5>` +
           this._grid(p.bag, cell, 'bag')
         : `<h5>快取栏<small>你还没有背包</small></h5>${this._hotbar(p, cell)}`;
@@ -7658,12 +8077,17 @@
       return this;
     },
 
-    /* ── 熟练度（规格 12.2）──────────────────────────── */
+    /* ── 熟练度（规格 12.2）────────────────────────────
+       `baseLevel` 是「N 级起步」类特性给的**等级下限**。
+       **只给等级，不给经验**（角色规格 1.5）—— 后厨师傅 3 级起步，
+       但他的经验条还是 0，接下来的成长速率和常人完全一样。
+       写成「直接送 950 点经验」的话，他会在做完两道新菜之后直接跳到 4 级。 */
+    baseLevel: 0,
     level() {
       const L = C.Config.cookingSkill.levels;
       let lv = 0;
       for (let i = 0; i < L.length; i++) if (this.xp >= L[i].xp) lv = i;
-      return lv;
+      return Math.max(lv, this.baseLevel || 0);
     },
     levelDef() { return C.Config.cookingSkill.levels[this.level()]; },
 
@@ -7672,7 +8096,8 @@
       const S = C.Config.cookingSkill;
       const n = (this.made[recipeId] || 0);
       this.made[recipeId] = n + 1;
-      const xp = n === 0 ? S.xpFirstTime : (S.xpRepeat[n - 1] !== undefined ? S.xpRepeat[n - 1] : 0);
+      let xp = n === 0 ? S.xpFirstTime : (S.xpRepeat[n - 1] !== undefined ? S.xpRepeat[n - 1] : 0);
+      xp = C.ModifierPipeline.query('skill.cooking.xp_gain', xp, 0);                 // 学得快
       this.xp += xp;
       return xp;
     },
@@ -7757,6 +8182,7 @@
       let goldenMul = K.goldenWindowRatio;
       const lv = this.levelDef();
       if (lv.goldenWindowMul) goldenMul *= lv.goldenWindowMul;
+      goldenMul = C.ModifierPipeline.query('cooking.golden_window', goldenMul, 0);   // 掌勺 / 厨房杀手
 
       const seasonings = Math.min(opts.seasonings || 0, K.seasoningMaxSlots);
       station.session = new Session(recipe, station, {
@@ -7876,6 +8302,7 @@
         if (cw.halfBatch) satiety *= 0.5;
       }
       satiety *= 1 + this.levelDef().satiety;
+      satiety = C.ModifierPipeline.query('cooking.satiety', satiety, 0);             // 老饕
 
       let name = recipe.name, odor = recipe.odor;
       if (ss.phase === Phase.Ruined) {
@@ -8422,7 +8849,7 @@
           return `<div class="kit-recipe ${chk.ok ? '' : 'no'}">` +
             `<b>${r.name}</b><span class="kit-mat">${mat}</span>` +
             `<span class="kit-eff">${mins.toFixed(0)}分　噪音 ${r.loud}　气味 ${r.odor}</span>` +
-            (chk.ok ? `<button data-act="cook" data-arg="${r.id}">做</button>`
+            (chk.ok ? `<button data-act="startCook" data-arg="${r.id}">做</button>`
                     : `<em class="kit-why">${chk.why}</em>`) + '</div>';
         }).join('');
         doing = `<h6>能做什么　<small>烹饪 ${lv} 级 · ${C.Cooking.xp} 经验</small></h6>` +
@@ -8455,7 +8882,7 @@
         if (r.ok) C.EventBus.publish('FoodCookedEvent', { food: r.food });
         return this.render();
       }
-      if (act === 'cook') {
+      if (act === 'startCook') {   // 不叫 'cook'：那和角色 id 撞名，会绊倒「不许按角色分支」那条测试
         const r = C.Cooking.start(arg, st, now, { seasonings: 0 });
         this.game.msg(r.msg);
         return this.render();
@@ -8551,6 +8978,391 @@
 
   C.KitchenUI = KitchenUI;
   C.TutorialUI = TutorialUI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/33-traits.js ===== */
+/*
+ * 33-traits.js —— 角色与特性（角色与特性规格 v1）
+ *
+ * **这一层只做两件事：算点数、把修正挂上管线。**
+ *
+ * 规格 4.2 是硬约束：
+ *   「所有特性效果必须通过 ModifierPipeline 生效，
+ *     不允许在业务代码中做任何角色/特性的条件判断。」
+ * 也就是说 —— **全项目搜不到一句 `if (character === 'guard')`。**
+ * 角色和特性在开局把自己的 modifiers 一次性注册进管线，之后再不参与任何逻辑。
+ *
+ * 这条规矩的价值在改数值的时候才看得出来：调「耳背」不需要碰听觉系统，
+ * 而听觉系统也永远不需要知道世界上存在「角色」这个概念。
+ *
+ * 第 1–2 层，不依赖渲染。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const MOD_PREFIX = 'loadout:';        // 注册到管线时的 id 前缀，卸载时按前缀清
+
+  const Loadout = {
+    characterId: null,
+    picked: [],                 // 玩家自选的特性 id
+    applied: false,
+    _regs: [],                  // [key, id] —— 卸载用
+
+    /* ── 查询 ──────────────────────────────────────── */
+    character() {
+      return C.Config.characters.find(c => c.id === this.characterId) || null;
+    },
+    trait(id) { return C.Config.traits[id] || null; },
+    /** 可选池：固定特性不入池（规格 1.2） */
+    pool() {
+      return Object.keys(C.Config.traits)
+        .filter(id => !C.Config.traits[id].fixed)
+        .map(id => Object.assign({ id }, C.Config.traits[id]));
+    },
+    fixedTraits() {
+      const ch = this.character();
+      if (!ch) return [];
+      return ch.fixed.map(id => Object.assign({ id }, C.Config.traits[id]));
+    },
+
+    /* ── 点数 ──────────────────────────────────────────
+       正向消耗等于其数值的点数，负向返还其绝对值。
+       **角色的固定特性不消耗点数，也不占名额。** */
+    spent() {
+      let n = 0;
+      for (const id of this.picked) n += this.trait(id).value;
+      return n;
+    },
+    remaining() {
+      const ch = this.character();
+      return (ch ? ch.points : 0) - this.spent();
+    },
+    counts() {
+      let pos = 0, neg = 0;
+      for (const id of this.picked) (this.trait(id).value > 0 ? pos++ : neg++);
+      return { pos, neg };
+    },
+
+    /** 已经被占掉的互斥组 → 组名 -> 占用它的特性 id（含角色固定特性） */
+    takenGroups(exceptId) {
+      const map = {};
+      for (const t of this.fixedTraits()) if (t.group) map[t.group] = t.id;
+      for (const id of this.picked) {
+        if (id === exceptId) continue;
+        const t = this.trait(id);
+        if (t && t.group) map[t.group] = id;
+      }
+      return map;
+    },
+
+    /**
+     * 这条特性现在能不能选。返回 {ok} 或 {ok:false, why}。
+     * **why 要能直接显示在按钮旁边** —— 置灰而不说原因是最让人恼火的界面。
+     */
+    canPick(id) {
+      const t = this.trait(id);
+      if (!t) return { ok: false, why: '没有这条特性' };
+      if (t.fixed) return { ok: false, why: '这是角色固定特性' };
+      if (!this.characterId) return { ok: false, why: '先选角色' };
+      if (this.picked.indexOf(id) >= 0) return { ok: false, why: '已选' };
+
+      const R = C.Config.traitRules, c = this.counts();
+      if (t.value > 0 && c.pos >= R.positiveMax) return { ok: false, why: '正向已满 ' + R.positiveMax + ' 个' };
+      if (t.value < 0 && c.neg >= R.negativeMax) return { ok: false, why: '负向已满 ' + R.negativeMax + ' 个' };
+
+      if (t.group) {
+        const taken = this.takenGroups()[t.group];
+        if (taken) {
+          const other = this.trait(taken);
+          const fixed = this.character().fixed.indexOf(taken) >= 0;
+          return { ok: false, why: (fixed ? '与固定特性「' : '与已选「') + other.name + '」冲突' };
+        }
+      }
+      /* 点数不够只挡正向。**负向永远可以选** ——
+         它是用来换点数的，挡住它等于挡住整个构筑玩法。 */
+      if (t.value > 0 && t.value > this.remaining()) {
+        return { ok: false, why: '还差 ' + (t.value - this.remaining()) + ' 点' };
+      }
+      return { ok: true };
+    },
+
+    pick(id) {
+      const r = this.canPick(id);
+      if (!r.ok) return r;
+      this.picked.push(id);
+      return { ok: true };
+    },
+    unpick(id) {
+      const i = this.picked.indexOf(id);
+      if (i < 0) return { ok: false, why: '没选过' };
+      /* 退掉一条负向可能让点数变成负的（正向已经花掉了）。
+         这时候**不阻止，让剩余点数显示成负数** —— 玩家看得见自己欠了多少，
+         比「这个按钮点不动而且不告诉你为什么」好得多。确认按钮会拦住他。 */
+      this.picked.splice(i, 1);
+      return { ok: true };
+    },
+    toggle(id) { return this.picked.indexOf(id) >= 0 ? this.unpick(id) : this.pick(id); },
+
+    /** 能不能开始游戏。**唯一的条件：剩余点数 ≥ 0**（规格 1.2） */
+    canConfirm() {
+      if (!this.characterId) return { ok: false, why: '还没选角色' };
+      const left = this.remaining();
+      if (left < 0) return { ok: false, why: '点数超了 ' + (-left) + ' 点' };
+      return { ok: true };
+    },
+
+    /* ── 选择 ─────────────────────────────────────── */
+    reset() {
+      this.unapply();
+      this.characterId = null; this.picked = [];
+      return this;
+    },
+    selectCharacter(id) {
+      if (!C.Config.characters.some(c => c.id === id)) return { ok: false, why: '没有这个角色' };
+      if (this.characterId === id) return { ok: true };
+      this.characterId = id;
+      /* 换角色要清空已选：新角色的固定特性可能和已选的冲突，
+         而且起始点数也变了。**留着一份非法的配置比清空更糟。** */
+      this.picked = [];
+      return { ok: true };
+    },
+
+    /* ── 生效 ───────────────────────────────────────
+       把所有 modifiers 一次性注册进管线。之后本模块不再参与任何逻辑。 */
+    apply() {
+      if (this.applied) this.unapply();
+      const all = this.fixedTraits().concat(this.picked.map(id => Object.assign({ id }, this.trait(id))));
+      for (const t of all) {
+        if (!t.keys) continue;
+        for (let i = 0; i < t.keys.length; i++) {
+          const [key, mode, amount] = t.keys[i];
+          const mid = MOD_PREFIX + t.id + ':' + i;
+          if (mode === 'add') C.Mod.add(key, mid, amount);
+          else if (mode === 'set') C.Mod.override(key, mid, amount);
+          else C.Mod.mul(key, mid, amount);
+          this._regs.push([key, mid]);
+        }
+      }
+      // 「N 级起步」类：**只给等级，不给经验**（规格 1.5）
+      for (const t of all) {
+        if (!t.skill) continue;
+        const [name, lv] = t.skill;
+        if (name === 'cooking' && C.Cooking) C.Cooking.baseLevel = Math.max(C.Cooking.baseLevel || 0, lv);
+        else if (C.Config.skills[name]) C.Config.skills[name].level = Math.max(C.Config.skills[name].level, lv);
+      }
+      this.applied = true;
+      C.EventBus.publish('LoadoutAppliedEvent', { characterId: this.characterId, picked: this.picked.slice() });
+      return this;
+    },
+    unapply() {
+      for (const [key, id] of this._regs) C.ModifierPipeline.unregister(key, id);
+      this._regs = [];
+      if (C.Cooking) C.Cooking.baseLevel = 0;
+      for (const k of Object.keys(C.Config.skills)) C.Config.skills[k].level = 0;
+      this.applied = false;
+      return this;
+    },
+
+    /** 某个标记开着没有（`specialFlags`，规格 4.3）。管线表达不了的效果查这里。 */
+    hasFlag(flag) {
+      const all = this.fixedTraits().concat(this.picked.map(id => Object.assign({ id }, this.trait(id))));
+      return all.some(t => t.flags && t.flags.indexOf(flag) >= 0);
+    },
+    /** `MAP_REVEAL_60` → 60。没有就 0。 */
+    flagNumber(prefix) {
+      const all = this.fixedTraits().concat(this.picked.map(id => Object.assign({ id }, this.trait(id))));
+      for (const t of all) {
+        for (const f of (t.flags || [])) {
+          if (f.indexOf(prefix) === 0) { const n = parseFloat(f.slice(prefix.length)); if (!isNaN(n)) return n; }
+        }
+      }
+      return 0;
+    },
+
+    /** 开局物品（角色自带）。返回 item id 数组。 */
+    startingItems() { const ch = this.character(); return ch ? ch.items.slice() : []; },
+    /** 出生点 [楼 id, 楼层, 房间序号] */
+    spawn() { const ch = this.character(); return ch ? ch.spawn.slice() : null; },
+    /** 这个角色支不支持新手教学（规格 5.2 风险四：只有学生支持） */
+    tutorialSupported() { const ch = this.character(); return !!(ch && ch.tutorial); },
+
+    serialize() { return { characterId: this.characterId, picked: this.picked.slice() }; },
+    deserialize(d) {
+      if (!d) return this;
+      this.unapply();
+      this.characterId = d.characterId || null;
+      this.picked = (d.picked || []).filter(id => C.Config.traits[id]);
+      return this;
+    }
+  };
+
+  C.Loadout = Loadout;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/34-loadout-ui.js ===== */
+/*
+ * 34-loadout-ui.js —— 开局的角色与特性选择界面（角色与特性规格 4.5）
+ *
+ * 界面只有一条硬规矩（规格 4.5）：
+ *   **固定特性与自选特性分区显示，不混在一起。**
+ *   玩家需要一眼看清「哪些是我改不了的」。
+ *
+ * 三栏：角色 ｜ 这个角色是谁（固定特性、出生地、开局物品）｜ 特性池。
+ * 顶上永远挂着剩余点数与两个名额计数 —— 那是玩家做每一个决定时唯一要看的数。
+ *
+ * 表现层：只读 Loadout 的状态，不自己算点数。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* 特性池的分组顺序。**正向和负向必须分开显示** ——
+     混在一起的话「这条是花钱的还是赚钱的」要靠数字正负去认，太累。 */
+  const SECTIONS = [
+    { key: 'pos', title: '正向特性　花点数', test: (t) => t.value > 0 },
+    { key: 'neg', title: '负向特性　返点数', test: (t) => t.value < 0 }
+  ];
+
+  const LoadoutUI = {
+    el: null, onStart: null, open: false,
+
+    init(onStart) {
+      this.onStart = onStart;
+      this.el = document.getElementById('pick');
+      this.el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        const act = b.dataset.act, arg = b.dataset.arg;
+        if (act === 'char') C.Loadout.selectCharacter(arg);
+        else if (act === 'trait') {
+          const r = C.Loadout.toggle(arg);
+          if (!r.ok) this._flash(r.why);
+        } else if (act === 'clear') C.Loadout.picked = [];
+        else if (act === 'start') return this._start();
+        this.render();
+      });
+    },
+
+    show() {
+      this.open = true;
+      C.Loadout.reset();
+      C.Loadout.selectCharacter('student');     // 默认落在「推荐首次游玩」那个
+      this.el.classList.add('on');
+      this.render();
+    },
+    hide() { this.open = false; this.el.classList.remove('on'); },
+
+    _start() {
+      const r = C.Loadout.canConfirm();
+      if (!r.ok) return this._flash(r.why);
+      this.hide();
+      if (this.onStart) this.onStart();
+    },
+    _flash(why) {
+      const el = this.el.querySelector('.pick-warn');
+      if (!el) return;
+      el.textContent = why;
+      el.classList.add('on');
+      clearTimeout(this._wt);
+      this._wt = setTimeout(() => el.classList.remove('on'), 2200);
+    },
+
+    render() {
+      const L = C.Loadout, ch = L.character();
+      const left = L.remaining(), cnt = L.counts(), R = C.Config.traitRules;
+
+      // ── 左栏：六个角色
+      const chars = C.Config.characters.map(c =>
+        `<button class="pick-char ${c.id === L.characterId ? 'on' : ''}" data-act="char" data-arg="${c.id}">` +
+        `<b>${c.name}</b><span class="pick-stars">${'★'.repeat(c.stars)}${'☆'.repeat(3 - c.stars)}</span>` +
+        `<em>${c.where.split('（')[0]}</em>` +
+        `<u>起始 ${c.points} 点</u>` +
+        (c.tutorial ? '<i class="pick-tut">含新手引导</i>' : '') +
+        '</button>').join('');
+
+      // ── 中栏：这个角色是谁
+      let mid = '<p class="pick-empty">先选一个角色</p>';
+      if (ch) {
+        const fixed = L.fixedTraits().map(t => this._chip(t, 'fx')).join('');
+        const items = ch.items.map(e => {
+          const id = Array.isArray(e) ? e[0] : e, n = Array.isArray(e) ? e[1] : 1;
+          return `<span class="pick-item">${C.ITEMS[id] ? C.ITEMS[id].name : id}${n > 1 ? ' ×' + n : ''}</span>`;
+        }).join('');
+        mid =
+          `<h6>${ch.name}<span class="pick-stars">${'★'.repeat(ch.stars)}${'☆'.repeat(3 - ch.stars)}</span></h6>` +
+          `<p class="pick-flavor">${ch.flavor}</p>` +
+          `<h7>出生</h7><p class="pick-where">${ch.where}</p>` +
+          `<h7>开局物品</h7><div class="pick-items">${items}</div>` +
+          /* 规格 4.5：**固定特性单独一块，不和自选的混在一起。** */
+          `<h7>固定特性　不消耗点数，也不占名额</h7><div class="pick-chips">${fixed}</div>` +
+          `<p class="pick-note">${this._bold(ch.note)}</p>` +
+          (ch.tutorial ? '' :
+            /* 规格 5.2 风险四：其他五个角色没有引导，**必须在这里说清楚**，
+               而不是让玩家进去以后发现没人说话。 */
+            '<p class="pick-warn2">该角色不含新手引导。建议先用「睡过头的学生」完成一局。</p>');
+      }
+
+      // ── 右栏：特性池
+      const taken = L.takenGroups();
+      const pool = SECTIONS.map(sec => {
+        const rows = L.pool().filter(sec.test)
+          .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+          .map(t => {
+            const on = L.picked.indexOf(t.id) >= 0;
+            const chk = on ? { ok: true } : L.canPick(t.id);
+            return `<button class="pick-trait ${on ? 'on' : ''} ${chk.ok ? '' : 'no'}" ` +
+              `data-act="trait" data-arg="${t.id}">` +
+              `<b>${t.name}</b><u class="${t.value > 0 ? 'p' : 'n'}">${t.value > 0 ? '+' : ''}${t.value}</u>` +
+              `<em>${t.desc}</em>` +
+              (t.live ? '' : '<i class="pick-dead">未实装</i>') +
+              (!on && !chk.ok ? `<i class="pick-why">${chk.why}</i>` : '') +
+              '</button>';
+          }).join('');
+        return `<h7>${sec.title}　<small>${sec.key === 'pos' ? cnt.pos + ' / ' + R.positiveMax
+                                                             : cnt.neg + ' / ' + R.negativeMax}</small></h7>` +
+               `<div class="pick-traits">${rows}</div>`;
+      }).join('');
+
+      /* 已选区（规格 4.5 的示意图里就有这一块）。
+         **不能只给一个「已选 2 正 2 负」的计数** —— 特性池有 53 条，
+         玩家往下滚两屏之后就想不起来自己选了什么，只能滚回去找高亮的。 */
+      const picked = L.picked.length
+        ? L.picked.map(id => {
+            const t = L.trait(id);
+            return `<button class="pick-sel ${t.value > 0 ? 'p' : 'n'}" data-act="trait" data-arg="${id}">` +
+                   `${t.name}<u>${t.value > 0 ? '花 ' + t.value : '返 ' + (-t.value)}</u>×</button>`;
+          }).join('')
+        : '<span class="pick-selnone">还没选特性 —— 直接开始也可以</span>';
+
+      const conf = L.canConfirm();
+      this.el.innerHTML =
+        '<div class="pick-wrap">' +
+          '<div class="pick-head">' +
+            '<h5>校园<small>选一个人，然后决定他有什么毛病</small></h5>' +
+            `<div class="pick-points ${left < 0 ? 'bad' : ''}">` +
+              `<b>${left}</b><span>剩余点数</span></div>` +
+            `<button class="pick-go ${conf.ok ? '' : 'no'}" data-act="start">开始</button>` +
+          '</div>' +
+          '<div class="pick-cols">' +
+            `<div class="pick-col pick-chars">${chars}</div>` +
+            `<div class="pick-col pick-mid">${mid}</div>` +
+            `<div class="pick-col pick-pool">` +
+              `<div class="pick-poolhead">已选 <b>${cnt.pos}</b> 正 · <b>${cnt.neg}</b> 负` +
+              `<button class="loot-btn" data-act="clear">清空</button></div>` +
+              `<div class="pick-sels">${picked}</div>` +
+              pool + '</div>' +
+          '</div>' +
+          '<div class="pick-warn"></div>' +
+        '</div>';
+    },
+
+    _chip(t, cls) {
+      return `<span class="pick-chip ${cls} ${t.value > 0 ? 'p' : (t.value < 0 ? 'n' : '')}">` +
+        `<b>${t.name}</b><em>${t.desc}</em>` + (t.live ? '' : '<i>未实装</i>') + '</span>';
+    },
+    _bold(s) { return String(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+  };
+
+  C.LoadoutUI = LoadoutUI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /* ===== src/20-save.js ===== */
@@ -8928,7 +9740,23 @@
       C.InventoryUI.init(this);
 
       this._bindInput();
-      this.restart();
+
+      /* ── 开局先选人 ────────────────────────────────
+         **选角色发生在建关卡之前**，因为出生点、开局物品、
+         甚至宿舍楼要不要铺教学分层，全都由角色决定（角色规格 1.1）。
+         `?char=guard` 跳过选择直接开某个角色，调试用；
+         `?nopick` 保持老行为（学生 + 零特性）。 */
+      const q = typeof location !== 'undefined' ? location.search : '';
+      const forced = /[?&]char=([a-z]+)/i.exec(q);
+      if (forced || /[?&]nopick\b/.test(q)) {
+        C.Loadout.reset().selectCharacter(forced ? forced[1] : 'student');
+        this.restart();
+      } else {
+        C.LoadoutUI.init(() => { this.restart(); this._resize(); this._syncStartHint(); });
+        C.LoadoutUI.show();
+        this._pickPending = true;
+        document.getElementById('startHint').style.display = 'none';
+      }
       this._resize();
       addEventListener('resize', () => this._resize());
       addEventListener('orientationchange', () => setTimeout(() => this._resize(), 300));
@@ -8943,11 +9771,18 @@
       C.ZombieManager.reset();
       C.ModifierPipeline.clear();
       C.EventBus.clear();
+      this._pickPending = false;
+      /* **管线刚被清空，角色和特性必须紧接着挂回去。**
+         顺序反了的话这一局所有特性都是哑的，而且不会报任何错。 */
+      if (!C.Loadout.characterId) C.Loadout.selectCharacter('student');
+      C.Loadout.applied = false;
+      C.Loadout.apply();
 
       /* 建哪张图：默认全校（M2）。?map=dorm 回到 M0/M1 的单栋宿舍楼 ——
          调声音数值时只想要一栋楼，全校 320 只丧尸的噪声会盖住要看的东西。 */
       const dormOnly = typeof location !== 'undefined' && /[?&]map=dorm\b/.test(location.search);
-      this.level = dormOnly ? C.buildDormitory() : C.buildCampus();
+      this.level = dormOnly ? C.buildDormitory()
+        : C.buildCampus({ spawn: C.Loadout.spawn(), tutorial: C.Loadout.tutorialSupported() });
       if (this.level.isCampus) {
         C.placeCampusContainers(this.level);
         C.placeCampusLooseItems(this.level);
@@ -8959,7 +9794,11 @@
       C.Notebook.reset();
       C.Power.reset(this.level);
       C.Cooking.reset();
-      C.Tutorial.reset(!/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
+      /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
+         教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
+         不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
+      C.Tutorial.reset(C.Loadout.tutorialSupported() &&
+        !/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -9041,7 +9880,8 @@
         prev(info);
         const src = info.evt && C.ZombieManager.list.find(q => q.id === info.evt.emitterId);
         if (src) C.Notebook.observeZombie(src, '听见', this.time);
-        if (C.Sleep.active && info.margin > C.Config.sleep.interruptMargin) {
+        const wake = C.ModifierPipeline.query('sleep.interrupt_threshold', C.Config.sleep.interruptMargin, 0);
+        if (C.Sleep.active && info.margin > wake) {
           C.Sleep.interrupt(this.time, '被' + (info.evt.label || '声音') + '惊醒');
           this.msg(C.Sleep.wokeReason + '，没能睡好');
         }
@@ -9158,7 +9998,7 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot')) return;
+        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot, #pick')) return;
         // 面板开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
         if (this._panelOpen()) return;
         if (C.Touch.enabled) {
@@ -9225,7 +10065,8 @@
 
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
-      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open;
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
+             (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -9256,8 +10097,9 @@
     _syncStartHint() {
       const hint = document.getElementById('startHint');
       if (!hint) return;
-      const show = !this.started ||
-        (this.lookMode === 'lock' && !this.locked && !this._panelOpen());
+      // 选角色界面开着时，「点击画面开始」不能糊在它上面
+      const show = (!this._pickPending && !(C.LoadoutUI && C.LoadoutUI.open)) &&
+        (!this.started || (this.lookMode === 'lock' && !this.locked && !this._panelOpen()));
       hint.style.display = show ? 'flex' : 'none';
     },
 
@@ -9320,6 +10162,9 @@
     _frame(now) {
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
+      /* 还在选角色 —— 世界都还没建。**空转，但循环要继续跑**，
+         否则选完之后没有人再叫 requestAnimationFrame，画面永远是黑的。 */
+      if (this._pickPending || !this.renderer) { requestAnimationFrame((t) => this._frame(t)); return; }
 
       // 视角
       if (this.locked || this.lookMode === 'drag') {
@@ -9518,6 +10363,7 @@
     },
 
     _resize() {
+      if (!this.renderer) return;                 // 选角色阶段还没有渲染器
       // 手机上把渲染分辨率压到 1.25 倍：这套灰盒是四层楼几百个盒子，
       // 中端手机按 3x DPR 渲染会掉到 20fps 以下，潜行手感全毁。
       const vv = root.visualViewport;

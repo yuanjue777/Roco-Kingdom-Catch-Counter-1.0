@@ -116,7 +116,7 @@
           return `<div class="kit-recipe ${chk.ok ? '' : 'no'}">` +
             `<b>${r.name}</b><span class="kit-mat">${mat}</span>` +
             `<span class="kit-eff">${mins.toFixed(0)}分　噪音 ${r.loud}　气味 ${r.odor}</span>` +
-            (chk.ok ? `<button data-act="cook" data-arg="${r.id}">做</button>`
+            (chk.ok ? `<button data-act="startCook" data-arg="${r.id}">做</button>`
                     : `<em class="kit-why">${chk.why}</em>`) + '</div>';
         }).join('');
         doing = `<h6>能做什么　<small>烹饪 ${lv} 级 · ${C.Cooking.xp} 经验</small></h6>` +
@@ -149,7 +149,7 @@
         if (r.ok) C.EventBus.publish('FoodCookedEvent', { food: r.food });
         return this.render();
       }
-      if (act === 'cook') {
+      if (act === 'startCook') {   // 不叫 'cook'：那和角色 id 撞名，会绊倒「不许按角色分支」那条测试
         const r = C.Cooking.start(arg, st, now, { seasonings: 0 });
         this.game.msg(r.msg);
         return this.render();

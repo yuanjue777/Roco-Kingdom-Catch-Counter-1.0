@@ -24,7 +24,23 @@
       C.InventoryUI.init(this);
 
       this._bindInput();
-      this.restart();
+
+      /* ── 开局先选人 ────────────────────────────────
+         **选角色发生在建关卡之前**，因为出生点、开局物品、
+         甚至宿舍楼要不要铺教学分层，全都由角色决定（角色规格 1.1）。
+         `?char=guard` 跳过选择直接开某个角色，调试用；
+         `?nopick` 保持老行为（学生 + 零特性）。 */
+      const q = typeof location !== 'undefined' ? location.search : '';
+      const forced = /[?&]char=([a-z]+)/i.exec(q);
+      if (forced || /[?&]nopick\b/.test(q)) {
+        C.Loadout.reset().selectCharacter(forced ? forced[1] : 'student');
+        this.restart();
+      } else {
+        C.LoadoutUI.init(() => { this.restart(); this._resize(); this._syncStartHint(); });
+        C.LoadoutUI.show();
+        this._pickPending = true;
+        document.getElementById('startHint').style.display = 'none';
+      }
       this._resize();
       addEventListener('resize', () => this._resize());
       addEventListener('orientationchange', () => setTimeout(() => this._resize(), 300));
@@ -39,11 +55,18 @@
       C.ZombieManager.reset();
       C.ModifierPipeline.clear();
       C.EventBus.clear();
+      this._pickPending = false;
+      /* **管线刚被清空，角色和特性必须紧接着挂回去。**
+         顺序反了的话这一局所有特性都是哑的，而且不会报任何错。 */
+      if (!C.Loadout.characterId) C.Loadout.selectCharacter('student');
+      C.Loadout.applied = false;
+      C.Loadout.apply();
 
       /* 建哪张图：默认全校（M2）。?map=dorm 回到 M0/M1 的单栋宿舍楼 ——
          调声音数值时只想要一栋楼，全校 320 只丧尸的噪声会盖住要看的东西。 */
       const dormOnly = typeof location !== 'undefined' && /[?&]map=dorm\b/.test(location.search);
-      this.level = dormOnly ? C.buildDormitory() : C.buildCampus();
+      this.level = dormOnly ? C.buildDormitory()
+        : C.buildCampus({ spawn: C.Loadout.spawn(), tutorial: C.Loadout.tutorialSupported() });
       if (this.level.isCampus) {
         C.placeCampusContainers(this.level);
         C.placeCampusLooseItems(this.level);
@@ -55,7 +78,11 @@
       C.Notebook.reset();
       C.Power.reset(this.level);
       C.Cooking.reset();
-      C.Tutorial.reset(!/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
+      /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
+         教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
+         不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
+      C.Tutorial.reset(C.Loadout.tutorialSupported() &&
+        !/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -137,7 +164,8 @@
         prev(info);
         const src = info.evt && C.ZombieManager.list.find(q => q.id === info.evt.emitterId);
         if (src) C.Notebook.observeZombie(src, '听见', this.time);
-        if (C.Sleep.active && info.margin > C.Config.sleep.interruptMargin) {
+        const wake = C.ModifierPipeline.query('sleep.interrupt_threshold', C.Config.sleep.interruptMargin, 0);
+        if (C.Sleep.active && info.margin > wake) {
           C.Sleep.interrupt(this.time, '被' + (info.evt.label || '声音') + '惊醒');
           this.msg(C.Sleep.wokeReason + '，没能睡好');
         }
@@ -254,7 +282,7 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot')) return;
+        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot, #pick')) return;
         // 面板开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
         if (this._panelOpen()) return;
         if (C.Touch.enabled) {
@@ -321,7 +349,8 @@
 
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
-      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open;
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
+             (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -352,8 +381,9 @@
     _syncStartHint() {
       const hint = document.getElementById('startHint');
       if (!hint) return;
-      const show = !this.started ||
-        (this.lookMode === 'lock' && !this.locked && !this._panelOpen());
+      // 选角色界面开着时，「点击画面开始」不能糊在它上面
+      const show = (!this._pickPending && !(C.LoadoutUI && C.LoadoutUI.open)) &&
+        (!this.started || (this.lookMode === 'lock' && !this.locked && !this._panelOpen()));
       hint.style.display = show ? 'flex' : 'none';
     },
 
@@ -416,6 +446,9 @@
     _frame(now) {
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
+      /* 还在选角色 —— 世界都还没建。**空转，但循环要继续跑**，
+         否则选完之后没有人再叫 requestAnimationFrame，画面永远是黑的。 */
+      if (this._pickPending || !this.renderer) { requestAnimationFrame((t) => this._frame(t)); return; }
 
       // 视角
       if (this.locked || this.lookMode === 'drag') {
@@ -614,6 +647,7 @@
     },
 
     _resize() {
+      if (!this.renderer) return;                 // 选角色阶段还没有渲染器
       // 手机上把渲染分辨率压到 1.25 倍：这套灰盒是四层楼几百个盒子，
       // 中端手机按 3x DPR 渲染会掉到 20fps 以下，潜行手感全毁。
       const vv = root.visualViewport;

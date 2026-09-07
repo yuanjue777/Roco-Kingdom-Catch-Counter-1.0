@@ -98,7 +98,7 @@
 
       this.bagPane.innerHTML = p.bag
         ? `<h5>${p.bag.label}<small>空 ${p.bag.freeCells()}/${p.bag.cellCount()} 格　` +
-          `${p.totalWeight().toFixed(2)}/${C.Config.player.weightLimit}kg</small>` +
+          `${p.totalWeight().toFixed(2)}/${p.weightLimit().toFixed(0)}kg</small>` +
           `<button class="loot-btn" id="lootTidy">整理</button></h5>` +
           this._grid(p.bag, cell, 'bag')
         : `<h5>快取栏<small>你还没有背包</small></h5>${this._hotbar(p, cell)}`;

@@ -65,12 +65,17 @@
       return this;
     },
 
-    /* ── 熟练度（规格 12.2）──────────────────────────── */
+    /* ── 熟练度（规格 12.2）────────────────────────────
+       `baseLevel` 是「N 级起步」类特性给的**等级下限**。
+       **只给等级，不给经验**（角色规格 1.5）—— 后厨师傅 3 级起步，
+       但他的经验条还是 0，接下来的成长速率和常人完全一样。
+       写成「直接送 950 点经验」的话，他会在做完两道新菜之后直接跳到 4 级。 */
+    baseLevel: 0,
     level() {
       const L = C.Config.cookingSkill.levels;
       let lv = 0;
       for (let i = 0; i < L.length; i++) if (this.xp >= L[i].xp) lv = i;
-      return lv;
+      return Math.max(lv, this.baseLevel || 0);
     },
     levelDef() { return C.Config.cookingSkill.levels[this.level()]; },
 
@@ -79,7 +84,8 @@
       const S = C.Config.cookingSkill;
       const n = (this.made[recipeId] || 0);
       this.made[recipeId] = n + 1;
-      const xp = n === 0 ? S.xpFirstTime : (S.xpRepeat[n - 1] !== undefined ? S.xpRepeat[n - 1] : 0);
+      let xp = n === 0 ? S.xpFirstTime : (S.xpRepeat[n - 1] !== undefined ? S.xpRepeat[n - 1] : 0);
+      xp = C.ModifierPipeline.query('skill.cooking.xp_gain', xp, 0);                 // 学得快
       this.xp += xp;
       return xp;
     },
@@ -164,6 +170,7 @@
       let goldenMul = K.goldenWindowRatio;
       const lv = this.levelDef();
       if (lv.goldenWindowMul) goldenMul *= lv.goldenWindowMul;
+      goldenMul = C.ModifierPipeline.query('cooking.golden_window', goldenMul, 0);   // 掌勺 / 厨房杀手
 
       const seasonings = Math.min(opts.seasonings || 0, K.seasoningMaxSlots);
       station.session = new Session(recipe, station, {
@@ -283,6 +290,7 @@
         if (cw.halfBatch) satiety *= 0.5;
       }
       satiety *= 1 + this.levelDef().satiety;
+      satiety = C.ModifierPipeline.query('cooking.satiety', satiety, 0);             // 老饕
 
       let name = recipe.name, odor = recipe.odor;
       if (ss.phase === Phase.Ruined) {
