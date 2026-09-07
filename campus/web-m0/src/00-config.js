@@ -61,6 +61,7 @@
          隔一道关着的门只剩 1.5m，所以它基本只在同一个房间/走廊里起作用。
          关键是：**一只站着不动的丧尸不再是完全静默的**，屏息就能看见它的声纹。 */
       zombieIdleGrowl: 28,
+      doorBang: 70,                // 被锁住的丧尸扑门（主文档响度表）
       zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
                                    // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
@@ -287,6 +288,277 @@
       zombieDistance: 65      // 比 fogFar 略大：正好在雾边缘的那一只别闪没了
     },
 
+    /* ══════════════════════════════════════════════════
+       供电（烹饪与供电规格 第二部分）
+       电与水、食物并列，是第三条生命线。
+       ══════════════════════════════════════════════════ */
+    power: {
+      /* 两个基础设施在三天内相继崩塌，构成第二幕的双重推力。 */
+      waterCutDay: 8,             // 自来水停供（主文档 10.3，不变）
+      gridFailDay: 11,            // **市电永久中断**，第 11 天 00:00
+
+      sources: {
+        grid:     { name: '市电',         watt: 2200, fuel: null,     perHour: 0,    loud: 0,  weight: 0    },
+        genBig:   { name: '柴油发电机',   watt: 3000, fuel: 'diesel', perHour: 0.45, loud: 65, weight: 28   },
+        genSmall: { name: '小型发电机',   watt: 1200, fuel: 'diesel', perHour: 0.20, loud: 52, weight: 14   },
+        battery:  { name: '汽车电瓶',     watt: 1000, fuel: 'charge', perHour: 0,    loud: 5,  weight: 16,
+                    capacityWh: 600, chargeHours: 1 },
+        solar:    { name: '太阳能板',     watt: 0,    fuel: null,     perHour: 0,    loud: 0,  weight: 7 }
+      },
+      /* 太阳能：三块全找到 = 晴天 660W。不够跑电磁炉(2000)，
+         但够跑电炖锅(300) 并给电瓶充电 —— **这就是自持期的全部资本。** */
+      solarOutput: { clearDay: 220, cloudy: 110, rain: 40, night: 0 },
+      solarPanels: 3,
+      dieselTotalLitres: 46,      // 锅炉房 30 / 车棚 8 / 行政楼 5 / 校车 3
+
+      /* 电线。长度累加，**按世界空间距离判定**，不是节点距离。 */
+      cables: {
+        shortWire: { name: '短电线',     metres: 3,  sockets: 1, weight: 0.3 },
+        powerStrip:{ name: '插线板',     metres: 5,  sockets: 4, weight: 0.6 },
+        extension: { name: '工程延长线', metres: 15, sockets: 2, weight: 2.4 },
+        cableReel: { name: '电缆盘',     metres: 30, sockets: 3, weight: 6.0 }
+      },
+
+      // 设备功率表（规格 2.5）
+      devices: {
+        inductionHob: 2000, kettle: 1500, ceramicHob: 1500, microwave: 1200,
+        riceCooker: 800, slowCooker: 300, fridge: 150, deskLamp: 40,
+        charger: 20, beacon: 500
+      },
+
+      breakerLoudness: 25,        // 推闸
+      tripLoudness: 40,           // 跳闸「啪」的一声
+      genSetLoudness: 65,
+      // 回路修复门槛（规格 2.2）
+      repairSkillLevel: 2
+    },
+
+    /* ══════════════════════════════════════════════════
+       食材与腐败（规格 第六部分）
+       spoilHours = freshness 从 100 掉到 0 所需游戏小时。
+       ══════════════════════════════════════════════════ */
+    food: {
+      /* 腐败分级（规格 6.4）。**冷藏（通电小冰箱）速率 ×0.15** ——
+         「为了保住冰箱里的东西而必须维持供电」是很好的压力来源。 */
+      tiers: [
+        { min: 60, label: '新鲜',   satietyMul: 1.0,  sickChance: 0 },
+        { min: 25, label: '不新鲜', satietyMul: 0.75, sickChance: 0 },
+        { min: 1,  label: '变质',   satietyMul: 0.4,  sickChance: 0.5 },
+        { min: 0,  label: '腐烂',   satietyMul: 0,    sickChance: 0, rotten: true }
+      ],
+      fridgeSpoilMul: 0.15,
+      sealedJarSpoilMul: 0.5,
+      rottenOdorThreshold: 2,       // 腐烂食材让所在节点阈值 −2
+
+      /* 分类腐败速率（游戏小时）。不腐的写 Infinity。 */
+      categorySpoilHours: {
+        staple: 720, canned: Infinity, dried: Infinity, pickled: 480,
+        root: 288, leafy: 72, egg: 192, meat: 48, meatChilled: 192,
+        seasoning: Infinity, cooked: 8
+      },
+
+      /* 生食与零食（规格 8.2）。**thirst 为正 = 加渴。**
+         规则一：干的加渴、湿的解渴 —— 早期靠零食活着，水会消耗得特别快。
+         这是一种不需要教程的教学。 */
+      raw: {
+        biscuit:    { name: '饼干',           cat: 'staple',  satiety: 8,  thirst: 4  },
+        bread:      { name: '面包',           cat: 'staple',  satiety: 12, thirst: 2, spoilHours: 96 },
+        sausage:    { name: '火腿肠',         cat: 'pickled', satiety: 10, thirst: 5  },
+        chocolate:  { name: '巧克力',         cat: 'staple',  satiety: 9,  thirst: 3, staminaRegenMul: 1.3, buffMinutes: 5 },
+        noodleDry:  { name: '方便面(干吃)',   cat: 'staple',  satiety: 12, thirst: 9  },
+        canned:     { name: '午餐肉罐头',     cat: 'canned',  satiety: 20, thirst: 7  },
+        cannedFish: { name: '豆豉鲮鱼罐头',   cat: 'canned',  satiety: 16, thirst: 9  },
+        cannedFruit:{ name: '水果罐头',       cat: 'canned',  satiety: 10, thirst: -12 },
+        pickle:     { name: '咸菜',           cat: 'pickled', satiety: 4,  thirst: 10 },
+        eggRaw:     { name: '生鸡蛋',         cat: 'egg',     satiety: 8,  thirst: 1, sickChance: 0.3 },
+        meatRaw:    { name: '生肉',           cat: 'meat',    satiety: 12, thirst: 2, sickChance: 0.7 },
+        fishRaw:    { name: '生鱼',           cat: 'meat',    satiety: 12, thirst: 2, sickChance: 0.7 },
+        ratMeat:    { name: '鼠肉',           cat: 'meat',    satiety: 14, thirst: 2, sickChance: 0.7 }
+      },
+      drinks: {
+        water:      { name: '矿泉水 500ml',   satiety: 0,  thirst: -24 },
+        boiled:     { name: '煮沸净水 500ml', satiety: 0,  thirst: -22 },
+        soda:       { name: '可乐 330ml',     satiety: 6,  thirst: -10 },
+        milk:       { name: '牛奶 250ml',     satiety: 9,  thirst: -11, spoilHours: 72 },
+        dirtyWater: { name: '未处理水 500ml', satiety: 0,  thirst: -24, sickChance: 0.4 }
+      },
+
+      /* 现场获取（规格 6.3）—— **唯一的再生蛋白来源，也是后期的生命线。** */
+      renewable: {
+        koi:     { name: '锦鲤',   at: '中庭水池', perDay: 2, loud: 15, gives: 'fishRaw' },
+        sparrow: { name: '麻雀',   at: '屋顶',     perDay: 1, loud: 5,  gives: 'meatRaw', needsTrap: true },
+        rat:     { name: '老鼠',   at: '食堂',     perDay: 1, loud: 8,  gives: 'ratMeat', needsTrap: true }
+      },
+
+      /* 种植（规格 11.2）。**奖励远见的机制，不是日常任务 —— 不给任何 UI 提醒。**
+         回报周期 8~14 天长于大多数玩家的耐心：第 5 天想到就有饭吃，第 20 天才想起来就来不及。 */
+      crops: {
+        bokchoy: { name: '小白菜', days: 8,  yield: 4, waterPerDay: 0.5, gives: 'cabbage' },
+        radish:  { name: '萝卜',   days: 12, yield: 3, waterPerDay: 0.4, gives: 'radish' },
+        potato:  { name: '土豆',   days: 14, yield: 5, waterPerDay: 0.4, gives: 'potato' }
+      },
+      cropMissDayPenalty: 2, cropDeathAfterMissed: 3, plots: 5
+    },
+
+    /* ══════════════════════════════════════════════════
+       烹饪（烹饪与供电规格 第四~九部分）
+       核心张力：**吃得好 vs 被听见。**
+       ══════════════════════════════════════════════════ */
+    cooking: {
+      /* 加热设备。speedFactor 乘在食谱基准时间上；autoShutoff=false 的需要看火。 */
+      heaters: {
+        inductionHob: { name: '电磁炉', watt: 2000, idle: 18, sauteLoud: 45, needsCookware: true,  speed: 1.0,  autoShutoff: false, done: 0 },
+        ceramicHob:   { name: '电陶炉', watt: 1500, idle: 12, sauteLoud: 45, needsCookware: true,  speed: 1.35, autoShutoff: false, done: 0 },
+        riceCooker:   { name: '电饭煲', watt: 800,  idle: 10, sauteLoud: 0,  needsCookware: false, speed: 1.0,  autoShutoff: true,  done: 22 },
+        kettle:       { name: '电水壶', watt: 1500, idle: 15, sauteLoud: 0,  needsCookware: false, speed: 0.5,  autoShutoff: true,  done: 35 },
+        microwave:    { name: '微波炉', watt: 1200, idle: 30, sauteLoud: 0,  needsCookware: true,  speed: 0.4,  autoShutoff: true,  done: 50 },
+        slowCooker:   { name: '电炖锅', watt: 300,  idle: 8,  sauteLoud: 0,  needsCookware: false, speed: 3.0,  autoShutoff: true,  done: 0 },
+        campStove:    { name: '卡式炉', watt: 0,    idle: 20, sauteLoud: 45, needsCookware: true,  speed: 1.0,  autoShutoff: false, done: 0, fuel: 'butane' }
+      },
+      butaneCans: 5, butaneHoursPerCan: 3,
+
+      /* 锅具。tags 决定能做哪些食谱，satiety/thirst 是百分比加成。 */
+      cookware: {
+        wok:      { name: '铁炒锅',       weight: 2.2, tags: ['fry'],                satiety: 0.15, thirst: 0    },
+        stockpot: { name: '不锈钢汤锅',   weight: 1.4, tags: ['boil', 'soup'],       satiety: 0,    thirst: 0    },
+        clayPot:  { name: '砂锅',         weight: 2.6, tags: ['boil', 'soup'],       satiety: 0.10, thirst: 0.25, fragile: 0.20 },
+        pressure: { name: '高压锅',       weight: 3.1, tags: ['boil', 'pressure'],   satiety: 0,    thirst: 0,    timeMul: 0.4, ventLoud: 55, ventQuietLoud: 20, ventQuietMinutes: 15 },
+        steamer:  { name: '蒸锅',         weight: 1.8, tags: ['steam'],              satiety: 0,    thirst: 0,    buffMul: 1.5 },
+        skillet:  { name: '平底锅',       weight: 1.1, tags: ['fry'],                satiety: 0,    thirst: 0    },
+        milkPot:  { name: '奶锅',         weight: 0.6, tags: ['boil'],               satiety: 0,    thirst: 0,    halfBatch: true, timeMul: 0.6 },
+        glassBox: { name: '玻璃饭盒',     weight: 0.4, tags: ['microwave'],          satiety: 0,    thirst: 0    }
+      },
+      /* **兼容矩阵必须严格实现。** 电磁炉配砂锅是玩家最容易犯的错误 ——
+         开机没反应，提示「锅具不兼容」。这是一个无害但印象深刻的教学时刻。
+         它还有一个漂亮的后果：电磁炉 2000W 在自持期用不了，
+         而砂锅偏偏只能配电陶炉/卡式炉/电炖锅 ——
+         **最好的汤锅，要等到最难的时候才真正登场。** */
+      compat: {
+        inductionHob: ['wok', 'stockpot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        ceramicHob:   ['wok', 'stockpot', 'clayPot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        campStove:    ['wok', 'stockpot', 'clayPot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        microwave:    ['glassBox'],
+        riceCooker:   [], kettle: [], slowCooker: []      // 自带内胆，不接外锅
+      },
+
+      /* 火候（规格 9.1）。黄金窗口内 100%，过火期线性衰减到 40%，再往后报废。 */
+      goldenWindowRatio: 0.20,
+      overcookRatio: 0.60,
+      overcookFloor: 0.40,
+      ruinedSatiety: 5, ruinedOdor: 3,
+      overcookOdorAdd: 1, overcookLoudAdd: 10,
+
+      // 调味料：**乘数不是加数**，每种 +8%，最多 3 种
+      seasoningBonus: 0.08, seasoningMaxSlots: 3,
+
+      // 熟食保质（规格 8.4）：不能囤积成品，做饭必须是每天都要做的事
+      cookedFreshHours: 8, cookedInContainerHours: 20,
+
+      /* 气味（规格 10.2）。不做传播模拟，是一个区域性的临时修正。
+         等级 3 会让相邻节点的丧尸阈值从 10 降到 4，持续两个多小时。 */
+      odorThresholdPerLevel: 2,
+      odorMinutesPerLevel: 45,
+
+      // 净化（规格 7.2）
+      boilKettleHours: 0.15, boilPotHours: 0.4,
+      unboiledDiarrheaChance: 0.4
+    },
+
+    /* ══════════════════════════════════════════════════
+       食谱（规格 第八部分）
+       time = 基准游戏分钟，实际 = 基准 × 设备速度系数 × 锅具系数。
+       loud = 烹饪过程中的持续响度，**不含设备结束提示音**。
+       thirst 为负=解渴、为正=加渴。odor 0~3。
+       ══════════════════════════════════════════════════ */
+    recipes: [
+      /* Lv0 · 初始可用 */
+      { id: 'boilWater', name: '烧水',   lv: 0, need: { water: 1 },                          heater: 'any', pot: ['boil'],            time: 9,  satiety: 0,  thirst: 0,   loud: 15, odor: 0, gives: 'boiled' },
+      { id: 'riceMeal',  name: '白米饭', lv: 0, need: { rice: 1, water: 1 },                  heater: 'any', pot: ['boil'],            time: 45, satiety: 22, thirst: -4,  loud: 10, odor: 1 },
+      { id: 'hotNoodle', name: '泡面',   lv: 0, need: { noodle: 1, boiled: 1 },               heater: 'none',pot: [],                  time: 5,  satiety: 20, thirst: -6,  loud: 5,  odor: 1 },
+      { id: 'boiledEgg', name: '煮鸡蛋', lv: 0, need: { egg: 2, water: 1 },                   heater: 'any', pot: ['boil'],            time: 12, satiety: 16, thirst: -2,  loud: 12, odor: 0 },
+      { id: 'plainNoodle',name:'煮挂面', lv: 0, need: { driedNoodle: 1, water: 1 },           heater: 'any', pot: ['boil'],            time: 15, satiety: 21, thirst: -8,  loud: 12, odor: 1 },
+      { id: 'congee',    name: '白粥',   lv: 0, need: { rice: 1, water: 2 },                  heater: 'any', pot: ['boil', 'soup'],    time: 70, satiety: 18, thirst: -24, loud: 8,  odor: 1 },
+      { id: 'bakedPotato',name:'烤土豆', lv: 0, need: { potato: 2 },                          heater: 'any', pot: ['fry', 'microwave'],time: 20, satiety: 19, thirst: 2,   loud: 15, odor: 1 },
+
+      /* Lv1 */
+      { id: 'eggRice',   name: '蛋炒饭',       lv: 1, need: { riceMeal: 1, egg: 1, oil: 1 },              heater: 'any', pot: ['fry'],          time: 12, satiety: 30, thirst: -3,  loud: 45, odor: 2 },
+      { id: 'tomatoSoup',name: '番茄鸡蛋汤',   lv: 1, need: { tomato: 1, egg: 1, water: 2 },              heater: 'any', pot: ['soup'],         time: 25, satiety: 20, thirst: -30, loud: 14, odor: 2 },
+      { id: 'congeePickle',name:'咸菜配粥',    lv: 1, need: { congee: 1, pickle: 1 },                     heater: 'none',pot: [],               time: 0,  satiety: 23, thirst: -16, loud: 0,  odor: 1 },
+      { id: 'potatoStew',name: '土豆炖萝卜',   lv: 1, need: { potato: 2, radish: 1, water: 1, salt: 1 },  heater: 'any', pot: ['boil'],         time: 55, satiety: 28, thirst: -10, loud: 16, odor: 2 },
+      { id: 'friedEgg',  name: '煎蛋',         lv: 1, need: { egg: 2, oil: 1 },                           heater: 'any', pot: ['fry'],          time: 6,  satiety: 18, thirst: 1,   loud: 38, odor: 2 },
+
+      /* Lv2 */
+      { id: 'friedCabbage',name:'炒白菜',      lv: 2, need: { cabbage: 1, oil: 1, garlic: 1 },            heater: 'any', pot: ['fry'],          time: 8,  satiety: 22, thirst: -6,  loud: 45, odor: 2 },
+      { id: 'mushroomNoodle',name:'香菇鸡蛋面',lv: 2, need: { driedNoodle: 1, mushroom: 1, egg: 1, water: 2 }, heater:'any', pot: ['soup'],     time: 22, satiety: 32, thirst: -26, loud: 14, odor: 2 },
+      { id: 'spamRice',  name: '午餐肉炒饭',   lv: 2, need: { riceMeal: 1, canned: 1, onion: 1, oil: 1 },  heater: 'any', pot: ['fry'],          time: 14, satiety: 36, thirst: -2,  loud: 45, odor: 3 },
+      { id: 'pressureBeef',name:'高压土豆牛肉',lv: 2, need: { potato: 2, meat: 1, water: 1 }, seasoning: 2,heater: 'any', pot: ['pressure'],     time: 24, satiety: 40, thirst: -8,  loud: 20, odor: 3 },
+      { id: 'steamedEgg',name: '蒸鸡蛋羹',     lv: 2, need: { egg: 2, water: 1, salt: 1 },                heater: 'any', pot: ['steam'],        time: 18, satiety: 24, thirst: -14, loud: 12, odor: 1 },
+
+      /* Lv3 */
+      { id: 'beancurdSoup',name:'腐竹木耳汤',  lv: 3, need: { beancurd: 1, fungus: 1, water: 3 }, seasoning: 2, heater: 'any', pot: ['soup'],   time: 50, satiety: 26, thirst: -34, loud: 12, odor: 2 },
+      { id: 'braisedFish', name:'红烧鱼',      lv: 3, need: { fish: 1, oil: 1, soySauce: 1, ginger: 1 },  heater: 'any', pot: ['fry'],          time: 20, satiety: 38, thirst: -4,  loud: 45, odor: 3 },
+      { id: 'friedNoodle', name:'什锦炒面',    lv: 3, need: { driedNoodle: 1, cabbage: 1, sausage: 1, oil: 1 }, seasoning: 1, heater: 'any', pot: ['fry'], time: 16, satiety: 38, thirst: -4, loud: 45, odor: 3 },
+      /* **本作烹饪系统的顶点。** 3 小时、砂锅、电炖锅、噪音只有 8、解渴 42 饱食 34。
+         它需要的一切条件恰好构成了「你终于活明白了」的证明。 */
+      { id: 'slowSoup',    name:'老火靓汤',    lv: 3, need: { meat: 1, root: 2, dried: 1, water: 4 }, seasoning: 2, heater: 'slowOnly', pot: ['soup'], time: 180, satiety: 34, thirst: -42, loud: 8, odor: 3 },
+      /* **玩家第一次真正意义上的「生产」而非「消耗」** —— 把 3 天必烂的叶菜变成 20 天的咸菜 */
+      { id: 'makePickle',  name:'腌菜',        lv: 3, need: { leafy: 3, salt: 2 },                        heater: 'none',pot: [],               time: 60, satiety: 0,  thirst: 0,   loud: 0,  odor: 1, gives: 'pickle', outputCount: 3 },
+
+      /* Lv4 */
+      { id: 'threeFresh',  name:'三鲜锅',      lv: 4, need: { meat: 1, egg: 2, veg: 2, dried: 1, water: 3 }, seasoning: 3, heater: 'any', pot: ['soup'], time: 65, satiety: 44, thirst: -36, loud: 14, odor: 3 },
+      { id: 'handNoodle',  name:'手擀面',      lv: 4, need: { flour: 1, water: 1 },                       heater: 'none',pot: [],               time: 30, satiety: 0,  thirst: 0,   loud: 6,  odor: 0, gives: 'driedNoodle', outputCount: 3 },
+      { id: 'braisedPlate',name:'卤味拼盘',    lv: 4, need: { meat: 1, egg: 3, staranise: 1, water: 2 }, seasoning: 3, heater: 'any', pot: ['boil'],   time: 70, satiety: 46, thirst: -8,  loud: 18, odor: 3 },
+      { id: 'zhajiang',    name:'炸酱面',      lv: 4, need: { driedNoodle: 1, canned: 1, onion: 1, soySauce: 1, oil: 1 }, heater: 'any', pot: ['fry'], time: 25, satiety: 48, thirst: -6, loud: 45, odor: 3 },
+
+      /* Lv5 · **不追求饱食度最高，而是提供状态加成** */
+      { id: 'gingerTea',   name:'热姜汤',      lv: 5, need: { ginger: 2, sugar: 1, water: 2 },            heater: 'any', pot: ['boil'],         time: 20, satiety: 8,  thirst: -26, loud: 12, odor: 1, buff: 'warm' },
+      { id: 'strongTea',   name:'浓茶',        lv: 5, need: { tea: 1, water: 1 },                         heater: 'any', pot: ['boil'],         time: 6,  satiety: 2,  thirst: -18, loud: 15, odor: 0, buff: 'alert' },
+      { id: 'blackCoffee', name:'黑咖啡',      lv: 5, need: { coffee: 1, water: 1 },                      heater: 'any', pot: ['boil'],         time: 6,  satiety: 3,  thirst: -14, loud: 15, odor: 0, buff: 'wired' },
+      /* **全游戏唯一的生命值自然回复来源。** 在此之前受了伤只能靠绷带止血，生命值本身不会长回来。 */
+      { id: 'tonicStew',   name:'高汤炖肉',    lv: 5, need: { meat: 2, dried: 2, water: 4 }, seasoning: 3, heater: 'slowOnly', pot: ['soup'],   time: 200, satiety: 50, thirst: -38, loud: 8, odor: 3, buff: 'tonic' },
+      { id: 'bentoBox',    name:'能量便当',    lv: 5, need: { riceMeal: 1, meat: 1, egg: 1, veg: 1 }, seasoning: 2, heater: 'any', pot: ['fry'], time: 22, satiety: 42, thirst: -6, loud: 45, odor: 3, buff: 'portable' },
+      { id: 'sugarWater',  name:'糖水',        lv: 5, need: { sugar: 2, water: 2 },                       heater: 'any', pot: ['boil'],         time: 8,  satiety: 10, thirst: -22, loud: 10, odor: 0, buff: 'sugarRush' }
+    ],
+
+    /* 食谱材料的显示名。食谱里用的是**类别键**（root/veg/dried 这种），
+       因为「老火靓汤要两样根茎」比「必须是土豆」更符合真实做饭。
+       界面上要把它翻回人话。 */
+    ingredientNames: {
+      water: '水', boiled: '开水', rice: '米', flour: '面粉', driedNoodle: '挂面',
+      noodle: '方便面', egg: '鸡蛋', oil: '油', salt: '盐', sugar: '糖',
+      soySauce: '酱油', ginger: '姜', garlic: '蒜', onion: '洋葱', tomato: '番茄罐头',
+      mushroom: '香菇干', fungus: '木耳', beancurd: '腐竹', staranise: '八角',
+      tea: '茶叶', coffee: '咖啡', potato: '土豆', radish: '萝卜', cabbage: '白菜',
+      canned: '午餐肉', sausage: '火腿肠', pickle: '咸菜', meat: '肉', fish: '鱼',
+      riceMeal: '米饭', congee: '白粥',
+      root: '根茎类', veg: '蔬菜', dried: '干货', leafy: '叶菜'
+    },
+
+    /* Buff 效果（规格 8.3 Lv5）。**浓茶/咖啡的 rebound 是有意的** ——
+       它让熬夜变成一笔明确的借贷，而不是免费的加速。 */
+    foodBuffs: {
+      warm:      { name: '保暖',   hours: 4, nightStaminaMul: 0.75, sickChanceMul: 0.5 },
+      alert:     { name: '提神',   hours: 3, fatigueMul: 0.55, reboundFatigue: 12 },
+      wired:     { name: '强提神', hours: 4, fatigueMul: 0.40, reboundFatigue: 20, shakeHours: 2, meleeWindupMul: 1.2 },
+      tonic:     { name: '滋补',   hours: 8, healthPerHour: 1.5 },
+      portable:  { name: '可携带', hours: 20 },
+      sugarRush: { name: '急救',   hours: 0, instantStamina: 30 }
+    },
+
+    /* 烹饪熟练度（规格 第十二部分）。**只有尝试新东西才涨。** */
+    cookingSkill: {
+      xpFirstTime: 100, xpRepeat: [40, 15, 5, 0],
+      xpGoldenWindow: 15, xpNewCookware: 50, xpNewHeater: 50,
+      levels: [
+        { xp: 0,    satiety: 0,    unlock: 0 },
+        { xp: 150,  satiety: 0.08, unlock: 1 },
+        { xp: 450,  satiety: 0.16, unlock: 2, goldenWindowMul: 1.5 },
+        { xp: 950,  satiety: 0.24, unlock: 3, spoilageMul: 0.8 },
+        { xp: 1700, satiety: 0.32, unlock: 4, timeMul: 0.85 },
+        { xp: 2800, satiety: 0.40, unlock: 5, spoiledNoSickness: true }
+      ]
+    },
+
     /* ── 全校地图（主文档 13.1 / 13.3 / 13.4）─────────────
        M2 的布局表。**这里是全校几何的唯一出处** —— 24-campus.js 只负责把它变成盒子。
        坐标系：x 向东，z 向北，原点在正门广场。宿舍区在最北，离校门最远（13.1）。
@@ -381,8 +653,11 @@
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,
-      thirstFullHours: 30,       // 口渴从 0 涨满 100 需 30 游戏小时
-      hungerFullHours: 96,       // 饥饿 96 小时
+      /* `[实测]` 烹饪规格 0.1 的强制调整。原值下每天只需补 25 点饥饿，
+         而一碗白饭就有 22 —— 食物完全不构成压力，整套烹饪系统失去存在理由。
+         新值：每游戏日 饥饿 48 点 / 口渴 84 点 ≈ 2 顿正餐 + 1~2 次加餐 + 3.5 份饮水。 */
+      thirstFullHours: 28,       // 口渴涨满（原 30）
+      hungerFullHours: 50,       // 饥饿涨满（原 96）
       fatigueRatePerHour: 5,     // 清醒时困乏 +5/小时（20 小时挤满）
       fatigueSleepPerHour: 12,   // 睡眠时 −12/小时
       diarrheaThirstMul: 2, diarrheaHours: 8,
@@ -407,20 +682,20 @@
       bedRange: 1.6              // 离床多近才算「有床」
     },
 
-    /* ── 配方（主文档 10.4 / 10.5）─────────────────────
-       M2 只做「笔记本第三页把它们列出来」这一件事，真正的制作在 M3。
-       unlock 是解锁它的书：课本给基础的，技术手册给需要手艺的（10.2「书籍解锁配方」）。 */
-    recipes: [
-      { id: 'boilWater',  name: '煮水',       need: '水 + 容器',            note: '净化来路不明的水', unlock: 'textbook' },
-      { id: 'riceMeal',   name: '白饭',       need: '米 + 水',              note: '饥饿 −30',        unlock: 'textbook' },
-      { id: 'hotNoodle',  name: '泡面',       need: '方便面 + 热水',        note: '饥饿 −25',        unlock: 'textbook' },
-      { id: 'bandage',    name: '绷带',       need: '布 ×2',                note: '',                unlock: 'textbook' },
-      { id: 'plank',      name: '建材',       need: '木板/课桌 + 工具',      note: '封锁出入口要用',   unlock: 'textbook' },
-      { id: 'rainCatch',  name: '雨水收集器', need: '容器 + 塑料布 + 建材', note: '手艺 1',          unlock: 'manual' },
-      { id: 'clock',      name: '闹钟',       need: '闹钟零件 ×2 + 电池',   note: '手艺 2',          unlock: 'manual' },
-      { id: 'muffle',     name: '消音布',     need: '布 ×3',                note: '手艺 2，静步 −15%', unlock: 'manual' },
-      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具', note: '手艺 3',          unlock: 'manual' },
-      { id: 'repairPart', name: '修理零件',   need: '废零件 ×3 + 工具',     note: '手艺 3',          unlock: 'manual' }
+    /* ── 手艺配方（主文档 10.5）────────────────────────
+       **烹饪配方在上面的 `recipes` 表里，按烹饪熟练度解锁；这里是手艺（craft）的。**
+       两者分开：做饭要炉子和锅，手艺只要工具和材料。 */
+    craftRecipes: [
+      { id: 'bandage',    name: '绷带',         need: '布 ×2',                skill: 0, unlock: 'textbook', note: '' },
+      { id: 'plank',      name: '建材',         need: '木板/课桌 + 工具',      skill: 0, unlock: 'textbook', note: '封锁出入口要用' },
+      { id: 'rainCatch',  name: '雨水收集器',   need: '容器 + 塑料布 + 建材', skill: 1, unlock: 'manual', note: '露天自动接雨' },
+      { id: 'clock',      name: '闹钟',         need: '闹钟零件 ×2 + 电池',   skill: 2, unlock: 'manual', note: '' },
+      { id: 'muffle',     name: '消音布',       need: '布 ×3',                skill: 2, unlock: 'manual', note: '静步 −15%' },
+      { id: 'fixCircuit', name: '修复回路',     need: '电线 ×2 + 工具',       skill: 2, unlock: 'manual', note: '让烧坏的回路重新通电' },
+      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具',   skill: 3, unlock: 'manual', note: '' },
+      { id: 'repairPart', name: '修理零件',     need: '废零件 ×3 + 工具',     skill: 3, unlock: 'manual', note: '' },
+      { id: 'debuzz',     name: '拆掉蜂鸣器',   need: '微波炉 + 工具',        skill: 3, unlock: 'manual', note: '**消掉那声要命的「叮」**' },
+      { id: 'workbench',  name: '自制工作台',   need: '建材 ×3 + 工具',       skill: 1, unlock: 'manual', note: '可放 2 台设备' }
     ],
 
     // ── 调试 ──────────────────────────────────────────

@@ -15,13 +15,20 @@
     this.position = def.position || { x: 0, y: 0, z: 0 };  // 由拥有者每帧更新
     this.nodeId = -1;                                       // 由拥有者每帧更新
     this.active = true;
+    this.smells = !!def.smells;          // 闻不闻得到气味（只有丧尸是 true）
     this.onHeard = def.onHeard || function () {};
   }
 
   // 阈值与精度都不写死，每次使用前向修正管线查询（声音规格 2.4）
+  /* 气味：**只有丧尸闻得到**（玩家不是靠鼻子找饭吃的）。
+     数据挂在声图的节点上，这里只读不写 —— 听觉层不认识烹饪层。 */
   HearingComponent.prototype.finalThreshold = function () {
-    return Math.max(C.Config.hearing.minThreshold,
-      C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId));
+    let t = C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId);
+    // 闻得到味的（丧尸）在有气味的节点里阈值更低 —— 更容易被听见的东西惊动
+    if (this.smells && C.SoundSystem.graph && this.nodeId >= 0) {
+      t -= C.SoundSystem.graph.odorDrop(this.nodeId);
+    }
+    return Math.max(C.Config.hearing.minThreshold, t);
   };
   /** 对某个响度的可听半径（米）。UI 与调试用，规则本身不依赖它。 */
   HearingComponent.prototype.audibleRange = function (loudness, k) {

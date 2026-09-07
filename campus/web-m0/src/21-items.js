@@ -94,6 +94,52 @@
     // 教学楼 / 图书馆
     stationery: { name: '文具盒',       size: [2, 1], weight: 0.20, kind: 'junk' },
     manual:     { name: '技术手册',     size: [2, 3], weight: 0.90, kind: 'junk', rare: true, book: true },
+
+    /* ── 厨房（烹饪与供电规格）──────────────────────
+       加热设备与锅具都是**世界中的实体物件**：能捡、能背、能放到台面上。
+       格子大小按体积给 —— 电磁炉 3×3 会吃掉小书包(5×4) 将近一半。 */
+    /* 两张字条 —— **第一份和第二份环境叙事**。
+       206 那张（「它们看不清，但是听得见」）是整个游戏最重要的教学文本，
+       因为它是别人用命换来的经验，比任何 UI 提示都有分量。 */
+    note406:     { name: '一张字条',   size: [1, 1], weight: 0.01, kind: 'note', note: 'note406' },
+    note206:     { name: '一张字条',   size: [1, 1], weight: 0.01, kind: 'note', note: 'note206', rare: true },
+    deskLamp:    { name: '台灯',       size: [2, 2], weight: 0.8,  kind: 'device', device: 'deskLamp' },
+    kettle:      { name: '电水壶',   size: [2, 3], weight: 1.0, kind: 'heater',   heater: 'kettle' },
+    inductionHob:{ name: '电磁炉',   size: [3, 3], weight: 2.6, kind: 'heater',   heater: 'inductionHob' },
+    ceramicHob:  { name: '电陶炉',   size: [3, 3], weight: 2.8, kind: 'heater',   heater: 'ceramicHob' },
+    riceCooker:  { name: '电饭煲',   size: [3, 3], weight: 2.4, kind: 'heater',   heater: 'riceCooker' },
+    microwave:   { name: '微波炉',   size: [4, 3], weight: 12.0,kind: 'heater',   heater: 'microwave' },
+    slowCooker:  { name: '电炖锅',   size: [3, 3], weight: 2.2, kind: 'heater',   heater: 'slowCooker', rare: true },
+    campStove:   { name: '卡式炉',   size: [3, 2], weight: 2.1, kind: 'heater',   heater: 'campStove' },
+    butane:      { name: '丁烷气罐', size: [1, 2], weight: 0.4, kind: 'fuel',     stack: 3 },
+    wok:         { name: '铁炒锅',   size: [3, 3], weight: 2.2, kind: 'cookware', cookware: 'wok' },
+    stockpot:    { name: '不锈钢汤锅',size:[3, 3], weight: 1.4, kind: 'cookware', cookware: 'stockpot' },
+    clayPot:     { name: '砂锅',     size: [3, 3], weight: 2.6, kind: 'cookware', cookware: 'clayPot', rare: true },
+    pressureCooker:{name:'高压锅',   size: [3, 3], weight: 3.1, kind: 'cookware', cookware: 'pressure', rare: true },
+    steamer:     { name: '蒸锅',     size: [3, 3], weight: 1.8, kind: 'cookware', cookware: 'steamer' },
+    skillet:     { name: '平底锅',   size: [2, 3], weight: 1.1, kind: 'cookware', cookware: 'skillet' },
+    milkPot:     { name: '奶锅',     size: [2, 2], weight: 0.6, kind: 'cookware', cookware: 'milkPot' },
+    glassBox:    { name: '玻璃饭盒', size: [2, 2], weight: 0.4, kind: 'cookware', cookware: 'glassBox' },
+    /* 电线：**世界中的实体物件**，连接时能看见线拖在地上。不要做成菜单里的连线界面。 */
+    shortWire:   { name: '短电线',   size: [1, 2], weight: 0.3, kind: 'cable', cable: 'shortWire' },
+    powerStrip:  { name: '插线板',   size: [2, 2], weight: 0.6, kind: 'cable', cable: 'powerStrip' },
+    extension:   { name: '工程延长线',size:[2, 3], weight: 2.4, kind: 'cable', cable: 'extension' },
+    cableReel:   { name: '电缆盘',   size: [3, 3], weight: 6.0, kind: 'cable', cable: 'cableReel', rare: true },
+    // 食材（够跑通 Lv0~Lv2 的食谱；其余按 Config.food 补）
+    riceBag:     { name: '大米',     size: [2, 3], weight: 2.0, kind: 'food', food: 'rice', stack: 5 },
+    flour:       { name: '面粉',     size: [2, 3], weight: 2.0, kind: 'food', food: 'flour', stack: 5 },
+    driedNoodle: { name: '挂面',     size: [1, 3], weight: 0.5, kind: 'food', food: 'driedNoodle', stack: 5 },
+    egg:         { name: '鸡蛋',     size: [1, 1], weight: 0.06,kind: 'food', food: 'egg', stack: 12 },
+    oil:         { name: '食用油',   size: [2, 3], weight: 1.8, kind: 'food', food: 'oil', stack: 2 },
+    salt:        { name: '盐',       size: [1, 1], weight: 0.3, kind: 'food', food: 'salt', stack: 3, seasoning: true },
+    soySauce:    { name: '酱油',     size: [1, 2], weight: 0.6, kind: 'food', food: 'soySauce', stack: 2, seasoning: true },
+    sugar:       { name: '糖',       size: [1, 1], weight: 0.4, kind: 'food', food: 'sugar', stack: 3, seasoning: true },
+    onion:       { name: '洋葱',     size: [1, 1], weight: 0.2, kind: 'food', food: 'onion', stack: 4 },
+    tomato:      { name: '番茄罐头', size: [1, 2], weight: 0.4, kind: 'food', food: 'tomato', stack: 3 },
+    mushroom:    { name: '香菇干',   size: [1, 2], weight: 0.1, kind: 'food', food: 'mushroom', stack: 4 },
+    tea:         { name: '茶叶',     size: [1, 1], weight: 0.1, kind: 'food', food: 'tea', stack: 3 },
+    coffee:      { name: '咖啡',     size: [1, 1], weight: 0.1, kind: 'food', food: 'coffee', stack: 3 },
+    ginger:      { name: '姜',       size: [1, 1], weight: 0.1, kind: 'food', food: 'ginger', stack: 4 },
     novel:      { name: '小说',         size: [1, 2], weight: 0.35, kind: 'junk' },
 
     // 车棚 / 锅炉房：结局一需要发电机与柴油，两样都大得离谱

@@ -187,7 +187,21 @@
   /* 稀有物资的固定位置。**这张表是玩家跨局知识的全部意义所在** ——
      「抗生素在医务室 102 的药柜里」这句话之所以值钱，就是因为它每一局都成立。
      全校仅 4 支抗生素（10.2），一支放在宿舍楼当教学，三支在该在的地方。 */
+  /* ── 教学关卡的保底布置（教学设计 3.0 / 3.1）──────────
+     **402 柜子里的电水壶是全游戏唯一一件「保底物品」**：
+     它保证玩家从第一分钟起就能烧水净化，不会因为运气问题陷入死局。 */
   const CAMPUS_FIXED = [
+    { room: '男402', kind: 'wardrobe',    items: ['kettle', 'water', 'biscuit', 'shortWire'] },
+    { room: '男403', kind: 'wardrobe',    items: ['schoolBag', 'noodle', 'noodle'] },   // 目标②的答案
+    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit', 'powerStrip'] },
+    { room: '男406', kind: 'desk',        items: ['glassBox', 'shortWire', 'note406'] },
+    { room: '男301', kind: 'desk',        items: ['deskLamp'] },
+    { room: '男303', kind: 'wardrobe',    items: ['riceCooker', 'riceBag', 'riceBag'] },
+    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope', 'toolkit'] },
+    { room: '男306', kind: 'desk',        items: ['battery', 'battery', 'flashlight'] },
+    { room: '男201', kind: 'desk',        items: ['stone', 'stone', 'stone'] },          // 投石的弹药
+    { room: '男203', kind: 'underBed',    items: ['canned', 'bandage', 'bandage'] },
+    { room: '男206', kind: 'desk',        items: ['skillet', 'note206'] },
     { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic'] },
     { room: '实203', kind: 'reagentCab',  items: ['antibiotic'] },
     { room: '男401', kind: 'wardrobe',    items: ['antibiotic'] },

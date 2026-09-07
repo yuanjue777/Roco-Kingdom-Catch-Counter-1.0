@@ -482,6 +482,11 @@ const NC = C.Config.needs;
   n.update(20, false);
   ok(`困乏清醒 ${NC.fatigueRatePerHour}/小时，20 小时挤满体力条`, Math.abs(n.fatigue - 100) < 0.01);
   ok('可用体力上限归零', n.staminaMax() === 0);
+  /* `[实测]` 需求速率调整（烹饪规格 0.1）之后，**20 小时不吃不喝就已经死了** ——
+     口渴 28 小时涨满、饥饿 50 小时涨满，两条挤占加起来在 20 小时就把生命上限压到 0。
+     这正是那次调整想要的压力，但测困乏时得先把人喂活，否则 update 会因为死亡直接返回。 */
+  ok('**新速率下 20 小时不吃不喝就会死**（这是 0.1 调整的目的）', n.dead === true, n.cause);
+  n.dead = false; n.cause = ''; n.hunger = 0; n.thirst = 0;
   n.update(100 / NC.fatigueSleepPerHour, true);
   ok('睡眠把困乏清空', n.fatigue < 0.01);
 }
@@ -903,12 +908,16 @@ section('22. 笔记本（14.3）');
   ok('没进过的楼比例是 0', N.exploredRatio(lv.buildings.find(b => !b.spec.spawn)) === 0);
 
   // 配方：捡到书才解锁
-  ok('开局没有任何配方', N.recipes.size === 0);
+  /* `[实测]` **书解锁的是「手艺」，不是「烹饪」。**
+     烹饪配方走熟练度（烹饪规格 12.2）—— 做饭是练出来的，不是看书看会的。 */
+  ok('开局没有任何手艺配方', N.recipes.size === 0);
   const nTextbook = N.readBook('textbook', time);
-  ok('课本解锁基础配方', nTextbook === 5, nTextbook + ' 条');
+  ok('课本解锁基础手艺', nTextbook === 2, nTextbook + ' 条');
   ok('同一本书不会重复解锁', N.readBook('textbook', time) === 0);
   N.readBook('manual', time);
-  ok('技术手册解锁其余配方', N.recipes.size === C.Config.recipes.length);
+  ok('技术手册解锁其余手艺', N.recipes.size === C.Config.craftRecipes.length);
+  ok('烹饪配方不受书影响（它按熟练度解锁）',
+     C.Config.recipes.every(r => r.unlock === undefined));
 
   // 观察：同一条只出现一次，但次数会累加
   const zz = C.ZombieManager.spawn({ type: 'Wanderer', pos: C.V.copy(lv.spawn) }, new C.World(lv));
@@ -929,7 +938,7 @@ section('22. 笔记本（14.3）');
   N.addPin(5, 5, 'danger');
   const round = C.Notebook.deserialize(JSON.parse(JSON.stringify(N.serialize())));
   ok('笔记本存档往返不丢东西',
-     round.nodes.size === 2 && round.recipes.size === C.Config.recipes.length &&
+     round.nodes.size === 2 && round.recipes.size === C.Config.craftRecipes.length &&
      round.pins.length === 1 && round.obs.get('Wanderer:看见').count === 2);
 }
 

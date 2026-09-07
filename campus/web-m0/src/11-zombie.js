@@ -47,11 +47,16 @@
     this.lastPos = V.copy(def.pos);
     // 布置时标了「第 12 天变成奔行者」的那 5%（7.2）。在那之前它就是一只普通游荡者。
     this.becomesRunner = !!def.becomesRunner;
+    /* 教学关卡 205 里那只：**永远出不来，不受任何事件影响**（教学设计 3.3）。
+       它是整个教学最重要的设计 —— 玩家可以在它门口把每一条声音规则亲手验证一遍，
+       而且不会死。这比任何文字提示都有效。 */
+    this.lockedIn = !!def.lockedIn;
     this.simplified = false;      // 分区加载：不在加载范围内时走简化模拟
     this._simAcc = 0;
 
     this.hearing = new C.HearingComponent({
       ownerId: this.id, baseThreshold: T.threshold,
+      smells: true,                 // 丧尸闻得到饭味（烹饪规格 10.2）
       onHeard: (info) => this._onHeard(info)
     });
     C.SoundSystem.registerListener(this.hearing);
@@ -158,6 +163,21 @@
 
     // 简化模拟里不做视觉：看不见玩家的丧尸不会进入追击，而玩家不在附近时它本来也看不见
     if (this.state !== State.Prone && !simplified) this._updateVision(dt, player, time);
+
+    /* 被锁住的：状态照常变（听得见、会警觉），但**永远不寻路、不离开本节点**。
+       警觉/追击时改成扑门 —— 撞得很响，正是玩家要观察的现象。 */
+    if (this.lockedIn) {
+      this._bangCooldown = Math.max(0, (this._bangCooldown || 0) - dt);
+      if (this.state === State.Alert || this.state === State.Investigate ||
+          this.state === State.Chase || this.state === State.Search) {
+        if (this.faceDir) this._turnTo(Math.atan2(this.faceDir.x, this.faceDir.z), dt, 3.0);
+        this._bangDoor();
+      } else {
+        this._wander(dt, 0.5);              // 在屋里来回走
+      }
+      this.lastPos = V.copy(this.pos);
+      return;
+    }
 
     switch (this.state) {
       case State.Prone: break;
@@ -291,6 +311,17 @@
     if (V.distXZ(this.pos, player.pos) < R.catchDistance && Math.abs(this.pos.y - player.pos.y) < 1.6) {
       player.die('被' + this.def.name + '抓住');
     }
+  };
+
+  /** 撞门：被锁住的那只听见动静时会扑向门 —— 玩家听得见，这就是它的教学价值 */
+  Zombie.prototype._bangDoor = function () {
+    if (this._bangCooldown > 0) return;
+    this._bangCooldown = 2.5;
+    C.SoundSystem.emit({
+      worldPosition: this.pos, loudness: C.Config.loudness.doorBang || 70,
+      category: C.SoundCategory.Impact, emitterId: this.id,
+      nodeIdHint: this.nodeId, label: '撞门'
+    });
   };
 
   Zombie.prototype._wander = function (dt, speedMul) {

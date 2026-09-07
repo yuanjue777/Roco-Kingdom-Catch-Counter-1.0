@@ -129,8 +129,35 @@
   function placeZombies(built, cfg, rng) {
     const spawns = [];
 
+    /* ── 出生的宿舍楼走教学关卡的危险分层（教学设计 0.2）──
+       **宿舍楼不能一只丧尸都没有**，但也不能按 26 只的密度放。
+       四楼三楼 0 只（绝对安全，学移动/搜刮/电力）；
+       二楼 1 只**锁死在 205 里，永远出不来**（零风险的声音教室）；
+       一楼 1 只在走廊巡逻（第一次真正的考试）。
+       省下来的名额挪到室外，全校总数仍然是 320。 */
+    let surplus = 0;
+    for (const b of built) {
+      if (!b.spec.spawn) continue;
+      surplus = b.spec.zombies - 2;
+      const L = C.Config.level;
+      // 205：走廊中段那间，门被家具从里面顶死
+      const m2 = b.floorsMeta[1];
+      const room205 = m2.rooms[Math.floor(m2.rooms.length / 2)];
+      const rb = room205.bounds;
+      spawns.push({ type: 'Wanderer', buildingId: b.spec.id, spotKind: 'room', lockedIn: true,
+                    tutorialRole: 'classroom205',
+                    pos: V.make((rb.min.x + rb.max.x) / 2, m2.y0 + 0.02, (rb.min.z + rb.max.z) / 2) });
+      // 一楼走廊里那只巡逻的
+      const m1 = b.floorsMeta[0];
+      const cb1 = m1.corridor.bounds;
+      spawns.push({ type: 'Wanderer', buildingId: b.spec.id, spotKind: 'corridor',
+                    tutorialRole: 'patrol1F',
+                    pos: V.make((cb1.min.x + cb1.max.x) / 2, m1.y0 + 0.02, (cb1.min.z + cb1.max.z) / 2) });
+    }
+
     // 楼内：每栋楼把名额摊到「房间门前的空地」和「走廊」上
     for (const b of built) {
+      if (b.spec.spawn) continue;                 // 出生楼上面已经单独摆过
       const spots = [];
       for (const meta of b.floorsMeta) {
         for (const room of meta.rooms) {
@@ -158,10 +185,19 @@
       }
     }
 
-    // 室外：在分区里撒点，避开楼的占地
-    for (const spec of cfg.outdoorZombies) {
+    /* 室外：在分区里撒点，避开楼的占地。
+       出生楼省下来的名额按比例摊到各室外分区 —— **全校总数必须还是 320**。 */
+    const outTotal = cfg.outdoorZombies.reduce((n, s2) => n + s2.count, 0);
+    let given = 0;
+    for (let oi = 0; oi < cfg.outdoorZombies.length; oi++) {
+      const spec = cfg.outdoorZombies[oi];
+      const extra = oi === cfg.outdoorZombies.length - 1
+        ? surplus - given                                   // 最后一个补齐余数
+        : Math.round(surplus * spec.count / outTotal);
+      given += extra;
+      const count = spec.count + extra;
       const z = cfg.zones.find(q => q.id === spec.zone);
-      for (let i = 0; i < spec.count; i++) {
+      for (let i = 0; i < count; i++) {
         let x = 0, zz = 0;
         for (let tries = 0; tries < 30; tries++) {
           x = rng.range(Math.max(z.x0, cfg.wall.x0 + 2), Math.min(z.x1, cfg.wall.x1 - 2));
@@ -302,9 +338,26 @@
     for (const b of built) for (const m of b.floorsMeta) floorsMeta.push(m);
     const maxFloors = built.reduce((n, b) => Math.max(n, b.spec.floors), 1);
 
+    /* ── 配电回路（烹饪与供电规格 2.2）──────────────────
+       每栋楼一条回路，配电箱在一层走廊的西端。
+       **出生的 402 所在回路开关是断开的** —— 开局第一个真正的目标是
+       「从四楼下到一楼，推上闸，再回来」，全程有丧尸。
+       这是一个完美的教学关卡，而且它把「探索这栋楼」变成了具体的、有回报的目标。 */
+    const circuits = built.map((b) => {
+      const m0 = b.floorsMeta[0];
+      const cb = m0.corridor.bounds;
+      return {
+        id: 'circuit-' + b.spec.id,
+        name: b.name + ' 照明插座',
+        buildingId: b.buildingId,
+        breakerOn: !b.spec.spawn,               // 出生楼的闸是断的
+        panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
+      };
+    });
+
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,

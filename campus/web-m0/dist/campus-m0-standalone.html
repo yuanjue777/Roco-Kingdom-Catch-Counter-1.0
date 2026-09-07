@@ -215,6 +215,68 @@
   @media (max-height: 520px) { #loot { gap: 7px; padding: 8px; } .loot-row { gap: 12px; }
                               .loot-panel { padding: 6px 8px 8px; } }
 
+  /* ── 厨房面板（烹饪规格 13.5）──────────────────────
+     **功率余量必须一眼可见** —— 跳闸永远应该是玩家的失误，不是意外。 */
+  #kitchen { position: fixed; inset: 0; z-index: 8; display: none;
+             pointer-events: none; align-items: center; justify-content: center; padding: 16px; }
+  #kitchen.open { display: flex; }
+  .kit-panel { pointer-events: auto; width: min(560px, 94vw); max-height: 86vh; overflow: auto;
+               background: rgba(12,16,22,0.94); border: 1px solid var(--line); border-radius: 6px;
+               padding: 12px 14px 14px; box-shadow: 0 10px 34px rgba(0,0,0,0.5); }
+  .kit-panel h5 { margin: 0 0 10px; font-size: 13px; display: flex; align-items: baseline; gap: 8px; }
+  .kit-panel h5 .loot-btn { margin-left: auto; }
+  .kit-panel h6 { margin: 12px 0 6px; font-size: 12px; color: var(--ink); }
+  .kit-panel h6 small { color: var(--dim); font-family: var(--mono); font-weight: 400; }
+  .kit-row { display: flex; justify-content: space-between; align-items: baseline;
+             font-size: 12.5px; padding: 3px 0; }
+  .kit-watt { font-family: var(--mono); color: var(--signal, #6FD3E8); }
+  .kit-watt.bad { color: var(--accent); }
+  .kit-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
+  .kit-bar i { display: block; height: 100%; }
+  .kit-dev { display: flex; gap: 10px; font-size: 11.5px; color: var(--dim); padding: 1px 0; }
+  .kit-dev span:first-child { flex: 1; }
+  .kit-dev em { font-style: normal; min-width: 44px; text-align: right; }
+  .kit-fuel { margin: 4px 0; font-size: 11.5px; color: var(--dim); font-family: var(--mono); }
+  .kit-trip { margin: 6px 0; font-size: 12px; color: var(--accent); }
+  .kit-none { font-size: 12px; color: var(--dim); margin: 4px 0; }
+  .kit-list { max-height: 42vh; overflow: auto; }
+  .kit-recipe { display: flex; gap: 8px; align-items: baseline; font-size: 12px;
+                padding: 5px 2px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .kit-recipe.no { color: var(--dim); }
+  .kit-recipe b { min-width: 84px; }
+  .kit-mat { flex: 1; font-size: 11px; color: var(--dim); }
+  .kit-eff { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+  .kit-why { font-style: normal; font-size: 11px; color: var(--accent); opacity: 0.75; }
+  .kit-panel button { font-family: var(--cjk); font-size: 11.5px; padding: 3px 10px; cursor: pointer;
+                      background: rgba(30,38,48,0.9); color: var(--ink);
+                      border: 1px solid var(--line); border-radius: 3px; }
+  .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── 教学提示（教学设计 4.1）────────────────────────
+     **四种全部不暂停游戏。** 这个游戏从第一秒起就不给人喘息。 */
+  #tut { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
+  #tutObj { position: absolute; left: 22px; top: 18px; font-size: 13px; color: rgba(220,227,235,0.9);
+            text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .5s; }
+  #tutObj.on { opacity: 1; }
+  #tutMono { position: absolute; left: 0; right: 0; bottom: 21%; text-align: center;
+             font-style: italic; font-size: 14px; color: rgba(220,227,235,0.82);
+             text-shadow: 0 1px 5px #000; opacity: 0; transition: opacity .6s; }
+  #tutMono.on { opacity: 1; }
+  #tutKey { position: absolute; left: 0; right: 0; bottom: 13%; text-align: center;
+            font-size: 12.5px; color: var(--ink); opacity: 0; transition: opacity .3s; }
+  #tutKey.on { opacity: 1; }
+  #tutKey kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px;
+                padding: 2px 7px; margin-right: 7px; background: rgba(12,16,22,0.85); }
+  #tutKey span { background: rgba(12,16,22,0.72); padding: 3px 9px; border-radius: 3px; }
+  #tutPanel { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+              pointer-events: auto; }
+  #tutPanel.on { display: flex; }
+  .tut-card { width: min(420px, 88vw); background: rgba(12,16,22,0.93); border: 1px solid var(--line);
+              border-radius: 6px; padding: 14px 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .tut-card h6 { margin: 0 0 8px; font-size: 13px; }
+  .tut-card p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.65; color: rgba(220,227,235,0.86); }
+  .tut-card em { font-style: normal; font-size: 11px; color: var(--dim); }
+
   #inv {
     position: fixed; inset: 0; z-index: 8; display: none;
     background: rgba(6,8,13,0.9); overflow: auto; padding: 26px 18px 70px;
@@ -270,7 +332,8 @@
      只在触屏层上写是堵不住的 */
   body.touch #view, body.touch #hud, body.touch #dbg { touch-action: none; }
   /* 会滚的面板反过来要把纵向滚动还给自己，并且不把滚动传给页面 */
-  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note, body.touch #loot {
+  body.touch #inv, body.touch #tuner, body.touch #startHint, body.touch #note, body.touch #loot,
+  body.touch #kitchen {
     touch-action: pan-y; overscroll-behavior: contain;
   }
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
@@ -370,6 +433,8 @@
 <div id="inv"></div>
 <div id="note"></div>
 <div id="loot"></div>
+<div id="kitchen"></div>
+<div id="tut"></div>
 <button id="btnBag" type="button" title="背包 (B)">背包</button>
 <div id="touch" hidden>
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -611,6 +676,7 @@
          隔一道关着的门只剩 1.5m，所以它基本只在同一个房间/走廊里起作用。
          关键是：**一只站着不动的丧尸不再是完全静默的**，屏息就能看见它的声纹。 */
       zombieIdleGrowl: 28,
+      doorBang: 70,                // 被锁住的丧尸扑门（主文档响度表）
       zombieShuffle: 48,           // 丧尸未发现玩家时的拖行脚步声。
                                    // 这一条回答了主文档 13.1 待定问题 4：玩家能听见丧尸的常态动静。
                                    // 48 是按「初始可听 20m」反推的：(48−8)/2 = 20。
@@ -837,6 +903,277 @@
       zombieDistance: 65      // 比 fogFar 略大：正好在雾边缘的那一只别闪没了
     },
 
+    /* ══════════════════════════════════════════════════
+       供电（烹饪与供电规格 第二部分）
+       电与水、食物并列，是第三条生命线。
+       ══════════════════════════════════════════════════ */
+    power: {
+      /* 两个基础设施在三天内相继崩塌，构成第二幕的双重推力。 */
+      waterCutDay: 8,             // 自来水停供（主文档 10.3，不变）
+      gridFailDay: 11,            // **市电永久中断**，第 11 天 00:00
+
+      sources: {
+        grid:     { name: '市电',         watt: 2200, fuel: null,     perHour: 0,    loud: 0,  weight: 0    },
+        genBig:   { name: '柴油发电机',   watt: 3000, fuel: 'diesel', perHour: 0.45, loud: 65, weight: 28   },
+        genSmall: { name: '小型发电机',   watt: 1200, fuel: 'diesel', perHour: 0.20, loud: 52, weight: 14   },
+        battery:  { name: '汽车电瓶',     watt: 1000, fuel: 'charge', perHour: 0,    loud: 5,  weight: 16,
+                    capacityWh: 600, chargeHours: 1 },
+        solar:    { name: '太阳能板',     watt: 0,    fuel: null,     perHour: 0,    loud: 0,  weight: 7 }
+      },
+      /* 太阳能：三块全找到 = 晴天 660W。不够跑电磁炉(2000)，
+         但够跑电炖锅(300) 并给电瓶充电 —— **这就是自持期的全部资本。** */
+      solarOutput: { clearDay: 220, cloudy: 110, rain: 40, night: 0 },
+      solarPanels: 3,
+      dieselTotalLitres: 46,      // 锅炉房 30 / 车棚 8 / 行政楼 5 / 校车 3
+
+      /* 电线。长度累加，**按世界空间距离判定**，不是节点距离。 */
+      cables: {
+        shortWire: { name: '短电线',     metres: 3,  sockets: 1, weight: 0.3 },
+        powerStrip:{ name: '插线板',     metres: 5,  sockets: 4, weight: 0.6 },
+        extension: { name: '工程延长线', metres: 15, sockets: 2, weight: 2.4 },
+        cableReel: { name: '电缆盘',     metres: 30, sockets: 3, weight: 6.0 }
+      },
+
+      // 设备功率表（规格 2.5）
+      devices: {
+        inductionHob: 2000, kettle: 1500, ceramicHob: 1500, microwave: 1200,
+        riceCooker: 800, slowCooker: 300, fridge: 150, deskLamp: 40,
+        charger: 20, beacon: 500
+      },
+
+      breakerLoudness: 25,        // 推闸
+      tripLoudness: 40,           // 跳闸「啪」的一声
+      genSetLoudness: 65,
+      // 回路修复门槛（规格 2.2）
+      repairSkillLevel: 2
+    },
+
+    /* ══════════════════════════════════════════════════
+       食材与腐败（规格 第六部分）
+       spoilHours = freshness 从 100 掉到 0 所需游戏小时。
+       ══════════════════════════════════════════════════ */
+    food: {
+      /* 腐败分级（规格 6.4）。**冷藏（通电小冰箱）速率 ×0.15** ——
+         「为了保住冰箱里的东西而必须维持供电」是很好的压力来源。 */
+      tiers: [
+        { min: 60, label: '新鲜',   satietyMul: 1.0,  sickChance: 0 },
+        { min: 25, label: '不新鲜', satietyMul: 0.75, sickChance: 0 },
+        { min: 1,  label: '变质',   satietyMul: 0.4,  sickChance: 0.5 },
+        { min: 0,  label: '腐烂',   satietyMul: 0,    sickChance: 0, rotten: true }
+      ],
+      fridgeSpoilMul: 0.15,
+      sealedJarSpoilMul: 0.5,
+      rottenOdorThreshold: 2,       // 腐烂食材让所在节点阈值 −2
+
+      /* 分类腐败速率（游戏小时）。不腐的写 Infinity。 */
+      categorySpoilHours: {
+        staple: 720, canned: Infinity, dried: Infinity, pickled: 480,
+        root: 288, leafy: 72, egg: 192, meat: 48, meatChilled: 192,
+        seasoning: Infinity, cooked: 8
+      },
+
+      /* 生食与零食（规格 8.2）。**thirst 为正 = 加渴。**
+         规则一：干的加渴、湿的解渴 —— 早期靠零食活着，水会消耗得特别快。
+         这是一种不需要教程的教学。 */
+      raw: {
+        biscuit:    { name: '饼干',           cat: 'staple',  satiety: 8,  thirst: 4  },
+        bread:      { name: '面包',           cat: 'staple',  satiety: 12, thirst: 2, spoilHours: 96 },
+        sausage:    { name: '火腿肠',         cat: 'pickled', satiety: 10, thirst: 5  },
+        chocolate:  { name: '巧克力',         cat: 'staple',  satiety: 9,  thirst: 3, staminaRegenMul: 1.3, buffMinutes: 5 },
+        noodleDry:  { name: '方便面(干吃)',   cat: 'staple',  satiety: 12, thirst: 9  },
+        canned:     { name: '午餐肉罐头',     cat: 'canned',  satiety: 20, thirst: 7  },
+        cannedFish: { name: '豆豉鲮鱼罐头',   cat: 'canned',  satiety: 16, thirst: 9  },
+        cannedFruit:{ name: '水果罐头',       cat: 'canned',  satiety: 10, thirst: -12 },
+        pickle:     { name: '咸菜',           cat: 'pickled', satiety: 4,  thirst: 10 },
+        eggRaw:     { name: '生鸡蛋',         cat: 'egg',     satiety: 8,  thirst: 1, sickChance: 0.3 },
+        meatRaw:    { name: '生肉',           cat: 'meat',    satiety: 12, thirst: 2, sickChance: 0.7 },
+        fishRaw:    { name: '生鱼',           cat: 'meat',    satiety: 12, thirst: 2, sickChance: 0.7 },
+        ratMeat:    { name: '鼠肉',           cat: 'meat',    satiety: 14, thirst: 2, sickChance: 0.7 }
+      },
+      drinks: {
+        water:      { name: '矿泉水 500ml',   satiety: 0,  thirst: -24 },
+        boiled:     { name: '煮沸净水 500ml', satiety: 0,  thirst: -22 },
+        soda:       { name: '可乐 330ml',     satiety: 6,  thirst: -10 },
+        milk:       { name: '牛奶 250ml',     satiety: 9,  thirst: -11, spoilHours: 72 },
+        dirtyWater: { name: '未处理水 500ml', satiety: 0,  thirst: -24, sickChance: 0.4 }
+      },
+
+      /* 现场获取（规格 6.3）—— **唯一的再生蛋白来源，也是后期的生命线。** */
+      renewable: {
+        koi:     { name: '锦鲤',   at: '中庭水池', perDay: 2, loud: 15, gives: 'fishRaw' },
+        sparrow: { name: '麻雀',   at: '屋顶',     perDay: 1, loud: 5,  gives: 'meatRaw', needsTrap: true },
+        rat:     { name: '老鼠',   at: '食堂',     perDay: 1, loud: 8,  gives: 'ratMeat', needsTrap: true }
+      },
+
+      /* 种植（规格 11.2）。**奖励远见的机制，不是日常任务 —— 不给任何 UI 提醒。**
+         回报周期 8~14 天长于大多数玩家的耐心：第 5 天想到就有饭吃，第 20 天才想起来就来不及。 */
+      crops: {
+        bokchoy: { name: '小白菜', days: 8,  yield: 4, waterPerDay: 0.5, gives: 'cabbage' },
+        radish:  { name: '萝卜',   days: 12, yield: 3, waterPerDay: 0.4, gives: 'radish' },
+        potato:  { name: '土豆',   days: 14, yield: 5, waterPerDay: 0.4, gives: 'potato' }
+      },
+      cropMissDayPenalty: 2, cropDeathAfterMissed: 3, plots: 5
+    },
+
+    /* ══════════════════════════════════════════════════
+       烹饪（烹饪与供电规格 第四~九部分）
+       核心张力：**吃得好 vs 被听见。**
+       ══════════════════════════════════════════════════ */
+    cooking: {
+      /* 加热设备。speedFactor 乘在食谱基准时间上；autoShutoff=false 的需要看火。 */
+      heaters: {
+        inductionHob: { name: '电磁炉', watt: 2000, idle: 18, sauteLoud: 45, needsCookware: true,  speed: 1.0,  autoShutoff: false, done: 0 },
+        ceramicHob:   { name: '电陶炉', watt: 1500, idle: 12, sauteLoud: 45, needsCookware: true,  speed: 1.35, autoShutoff: false, done: 0 },
+        riceCooker:   { name: '电饭煲', watt: 800,  idle: 10, sauteLoud: 0,  needsCookware: false, speed: 1.0,  autoShutoff: true,  done: 22 },
+        kettle:       { name: '电水壶', watt: 1500, idle: 15, sauteLoud: 0,  needsCookware: false, speed: 0.5,  autoShutoff: true,  done: 35 },
+        microwave:    { name: '微波炉', watt: 1200, idle: 30, sauteLoud: 0,  needsCookware: true,  speed: 0.4,  autoShutoff: true,  done: 50 },
+        slowCooker:   { name: '电炖锅', watt: 300,  idle: 8,  sauteLoud: 0,  needsCookware: false, speed: 3.0,  autoShutoff: true,  done: 0 },
+        campStove:    { name: '卡式炉', watt: 0,    idle: 20, sauteLoud: 45, needsCookware: true,  speed: 1.0,  autoShutoff: false, done: 0, fuel: 'butane' }
+      },
+      butaneCans: 5, butaneHoursPerCan: 3,
+
+      /* 锅具。tags 决定能做哪些食谱，satiety/thirst 是百分比加成。 */
+      cookware: {
+        wok:      { name: '铁炒锅',       weight: 2.2, tags: ['fry'],                satiety: 0.15, thirst: 0    },
+        stockpot: { name: '不锈钢汤锅',   weight: 1.4, tags: ['boil', 'soup'],       satiety: 0,    thirst: 0    },
+        clayPot:  { name: '砂锅',         weight: 2.6, tags: ['boil', 'soup'],       satiety: 0.10, thirst: 0.25, fragile: 0.20 },
+        pressure: { name: '高压锅',       weight: 3.1, tags: ['boil', 'pressure'],   satiety: 0,    thirst: 0,    timeMul: 0.4, ventLoud: 55, ventQuietLoud: 20, ventQuietMinutes: 15 },
+        steamer:  { name: '蒸锅',         weight: 1.8, tags: ['steam'],              satiety: 0,    thirst: 0,    buffMul: 1.5 },
+        skillet:  { name: '平底锅',       weight: 1.1, tags: ['fry'],                satiety: 0,    thirst: 0    },
+        milkPot:  { name: '奶锅',         weight: 0.6, tags: ['boil'],               satiety: 0,    thirst: 0,    halfBatch: true, timeMul: 0.6 },
+        glassBox: { name: '玻璃饭盒',     weight: 0.4, tags: ['microwave'],          satiety: 0,    thirst: 0    }
+      },
+      /* **兼容矩阵必须严格实现。** 电磁炉配砂锅是玩家最容易犯的错误 ——
+         开机没反应，提示「锅具不兼容」。这是一个无害但印象深刻的教学时刻。
+         它还有一个漂亮的后果：电磁炉 2000W 在自持期用不了，
+         而砂锅偏偏只能配电陶炉/卡式炉/电炖锅 ——
+         **最好的汤锅，要等到最难的时候才真正登场。** */
+      compat: {
+        inductionHob: ['wok', 'stockpot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        ceramicHob:   ['wok', 'stockpot', 'clayPot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        campStove:    ['wok', 'stockpot', 'clayPot', 'pressure', 'steamer', 'skillet', 'milkPot'],
+        microwave:    ['glassBox'],
+        riceCooker:   [], kettle: [], slowCooker: []      // 自带内胆，不接外锅
+      },
+
+      /* 火候（规格 9.1）。黄金窗口内 100%，过火期线性衰减到 40%，再往后报废。 */
+      goldenWindowRatio: 0.20,
+      overcookRatio: 0.60,
+      overcookFloor: 0.40,
+      ruinedSatiety: 5, ruinedOdor: 3,
+      overcookOdorAdd: 1, overcookLoudAdd: 10,
+
+      // 调味料：**乘数不是加数**，每种 +8%，最多 3 种
+      seasoningBonus: 0.08, seasoningMaxSlots: 3,
+
+      // 熟食保质（规格 8.4）：不能囤积成品，做饭必须是每天都要做的事
+      cookedFreshHours: 8, cookedInContainerHours: 20,
+
+      /* 气味（规格 10.2）。不做传播模拟，是一个区域性的临时修正。
+         等级 3 会让相邻节点的丧尸阈值从 10 降到 4，持续两个多小时。 */
+      odorThresholdPerLevel: 2,
+      odorMinutesPerLevel: 45,
+
+      // 净化（规格 7.2）
+      boilKettleHours: 0.15, boilPotHours: 0.4,
+      unboiledDiarrheaChance: 0.4
+    },
+
+    /* ══════════════════════════════════════════════════
+       食谱（规格 第八部分）
+       time = 基准游戏分钟，实际 = 基准 × 设备速度系数 × 锅具系数。
+       loud = 烹饪过程中的持续响度，**不含设备结束提示音**。
+       thirst 为负=解渴、为正=加渴。odor 0~3。
+       ══════════════════════════════════════════════════ */
+    recipes: [
+      /* Lv0 · 初始可用 */
+      { id: 'boilWater', name: '烧水',   lv: 0, need: { water: 1 },                          heater: 'any', pot: ['boil'],            time: 9,  satiety: 0,  thirst: 0,   loud: 15, odor: 0, gives: 'boiled' },
+      { id: 'riceMeal',  name: '白米饭', lv: 0, need: { rice: 1, water: 1 },                  heater: 'any', pot: ['boil'],            time: 45, satiety: 22, thirst: -4,  loud: 10, odor: 1 },
+      { id: 'hotNoodle', name: '泡面',   lv: 0, need: { noodle: 1, boiled: 1 },               heater: 'none',pot: [],                  time: 5,  satiety: 20, thirst: -6,  loud: 5,  odor: 1 },
+      { id: 'boiledEgg', name: '煮鸡蛋', lv: 0, need: { egg: 2, water: 1 },                   heater: 'any', pot: ['boil'],            time: 12, satiety: 16, thirst: -2,  loud: 12, odor: 0 },
+      { id: 'plainNoodle',name:'煮挂面', lv: 0, need: { driedNoodle: 1, water: 1 },           heater: 'any', pot: ['boil'],            time: 15, satiety: 21, thirst: -8,  loud: 12, odor: 1 },
+      { id: 'congee',    name: '白粥',   lv: 0, need: { rice: 1, water: 2 },                  heater: 'any', pot: ['boil', 'soup'],    time: 70, satiety: 18, thirst: -24, loud: 8,  odor: 1 },
+      { id: 'bakedPotato',name:'烤土豆', lv: 0, need: { potato: 2 },                          heater: 'any', pot: ['fry', 'microwave'],time: 20, satiety: 19, thirst: 2,   loud: 15, odor: 1 },
+
+      /* Lv1 */
+      { id: 'eggRice',   name: '蛋炒饭',       lv: 1, need: { riceMeal: 1, egg: 1, oil: 1 },              heater: 'any', pot: ['fry'],          time: 12, satiety: 30, thirst: -3,  loud: 45, odor: 2 },
+      { id: 'tomatoSoup',name: '番茄鸡蛋汤',   lv: 1, need: { tomato: 1, egg: 1, water: 2 },              heater: 'any', pot: ['soup'],         time: 25, satiety: 20, thirst: -30, loud: 14, odor: 2 },
+      { id: 'congeePickle',name:'咸菜配粥',    lv: 1, need: { congee: 1, pickle: 1 },                     heater: 'none',pot: [],               time: 0,  satiety: 23, thirst: -16, loud: 0,  odor: 1 },
+      { id: 'potatoStew',name: '土豆炖萝卜',   lv: 1, need: { potato: 2, radish: 1, water: 1, salt: 1 },  heater: 'any', pot: ['boil'],         time: 55, satiety: 28, thirst: -10, loud: 16, odor: 2 },
+      { id: 'friedEgg',  name: '煎蛋',         lv: 1, need: { egg: 2, oil: 1 },                           heater: 'any', pot: ['fry'],          time: 6,  satiety: 18, thirst: 1,   loud: 38, odor: 2 },
+
+      /* Lv2 */
+      { id: 'friedCabbage',name:'炒白菜',      lv: 2, need: { cabbage: 1, oil: 1, garlic: 1 },            heater: 'any', pot: ['fry'],          time: 8,  satiety: 22, thirst: -6,  loud: 45, odor: 2 },
+      { id: 'mushroomNoodle',name:'香菇鸡蛋面',lv: 2, need: { driedNoodle: 1, mushroom: 1, egg: 1, water: 2 }, heater:'any', pot: ['soup'],     time: 22, satiety: 32, thirst: -26, loud: 14, odor: 2 },
+      { id: 'spamRice',  name: '午餐肉炒饭',   lv: 2, need: { riceMeal: 1, canned: 1, onion: 1, oil: 1 },  heater: 'any', pot: ['fry'],          time: 14, satiety: 36, thirst: -2,  loud: 45, odor: 3 },
+      { id: 'pressureBeef',name:'高压土豆牛肉',lv: 2, need: { potato: 2, meat: 1, water: 1 }, seasoning: 2,heater: 'any', pot: ['pressure'],     time: 24, satiety: 40, thirst: -8,  loud: 20, odor: 3 },
+      { id: 'steamedEgg',name: '蒸鸡蛋羹',     lv: 2, need: { egg: 2, water: 1, salt: 1 },                heater: 'any', pot: ['steam'],        time: 18, satiety: 24, thirst: -14, loud: 12, odor: 1 },
+
+      /* Lv3 */
+      { id: 'beancurdSoup',name:'腐竹木耳汤',  lv: 3, need: { beancurd: 1, fungus: 1, water: 3 }, seasoning: 2, heater: 'any', pot: ['soup'],   time: 50, satiety: 26, thirst: -34, loud: 12, odor: 2 },
+      { id: 'braisedFish', name:'红烧鱼',      lv: 3, need: { fish: 1, oil: 1, soySauce: 1, ginger: 1 },  heater: 'any', pot: ['fry'],          time: 20, satiety: 38, thirst: -4,  loud: 45, odor: 3 },
+      { id: 'friedNoodle', name:'什锦炒面',    lv: 3, need: { driedNoodle: 1, cabbage: 1, sausage: 1, oil: 1 }, seasoning: 1, heater: 'any', pot: ['fry'], time: 16, satiety: 38, thirst: -4, loud: 45, odor: 3 },
+      /* **本作烹饪系统的顶点。** 3 小时、砂锅、电炖锅、噪音只有 8、解渴 42 饱食 34。
+         它需要的一切条件恰好构成了「你终于活明白了」的证明。 */
+      { id: 'slowSoup',    name:'老火靓汤',    lv: 3, need: { meat: 1, root: 2, dried: 1, water: 4 }, seasoning: 2, heater: 'slowOnly', pot: ['soup'], time: 180, satiety: 34, thirst: -42, loud: 8, odor: 3 },
+      /* **玩家第一次真正意义上的「生产」而非「消耗」** —— 把 3 天必烂的叶菜变成 20 天的咸菜 */
+      { id: 'makePickle',  name:'腌菜',        lv: 3, need: { leafy: 3, salt: 2 },                        heater: 'none',pot: [],               time: 60, satiety: 0,  thirst: 0,   loud: 0,  odor: 1, gives: 'pickle', outputCount: 3 },
+
+      /* Lv4 */
+      { id: 'threeFresh',  name:'三鲜锅',      lv: 4, need: { meat: 1, egg: 2, veg: 2, dried: 1, water: 3 }, seasoning: 3, heater: 'any', pot: ['soup'], time: 65, satiety: 44, thirst: -36, loud: 14, odor: 3 },
+      { id: 'handNoodle',  name:'手擀面',      lv: 4, need: { flour: 1, water: 1 },                       heater: 'none',pot: [],               time: 30, satiety: 0,  thirst: 0,   loud: 6,  odor: 0, gives: 'driedNoodle', outputCount: 3 },
+      { id: 'braisedPlate',name:'卤味拼盘',    lv: 4, need: { meat: 1, egg: 3, staranise: 1, water: 2 }, seasoning: 3, heater: 'any', pot: ['boil'],   time: 70, satiety: 46, thirst: -8,  loud: 18, odor: 3 },
+      { id: 'zhajiang',    name:'炸酱面',      lv: 4, need: { driedNoodle: 1, canned: 1, onion: 1, soySauce: 1, oil: 1 }, heater: 'any', pot: ['fry'], time: 25, satiety: 48, thirst: -6, loud: 45, odor: 3 },
+
+      /* Lv5 · **不追求饱食度最高，而是提供状态加成** */
+      { id: 'gingerTea',   name:'热姜汤',      lv: 5, need: { ginger: 2, sugar: 1, water: 2 },            heater: 'any', pot: ['boil'],         time: 20, satiety: 8,  thirst: -26, loud: 12, odor: 1, buff: 'warm' },
+      { id: 'strongTea',   name:'浓茶',        lv: 5, need: { tea: 1, water: 1 },                         heater: 'any', pot: ['boil'],         time: 6,  satiety: 2,  thirst: -18, loud: 15, odor: 0, buff: 'alert' },
+      { id: 'blackCoffee', name:'黑咖啡',      lv: 5, need: { coffee: 1, water: 1 },                      heater: 'any', pot: ['boil'],         time: 6,  satiety: 3,  thirst: -14, loud: 15, odor: 0, buff: 'wired' },
+      /* **全游戏唯一的生命值自然回复来源。** 在此之前受了伤只能靠绷带止血，生命值本身不会长回来。 */
+      { id: 'tonicStew',   name:'高汤炖肉',    lv: 5, need: { meat: 2, dried: 2, water: 4 }, seasoning: 3, heater: 'slowOnly', pot: ['soup'],   time: 200, satiety: 50, thirst: -38, loud: 8, odor: 3, buff: 'tonic' },
+      { id: 'bentoBox',    name:'能量便当',    lv: 5, need: { riceMeal: 1, meat: 1, egg: 1, veg: 1 }, seasoning: 2, heater: 'any', pot: ['fry'], time: 22, satiety: 42, thirst: -6, loud: 45, odor: 3, buff: 'portable' },
+      { id: 'sugarWater',  name:'糖水',        lv: 5, need: { sugar: 2, water: 2 },                       heater: 'any', pot: ['boil'],         time: 8,  satiety: 10, thirst: -22, loud: 10, odor: 0, buff: 'sugarRush' }
+    ],
+
+    /* 食谱材料的显示名。食谱里用的是**类别键**（root/veg/dried 这种），
+       因为「老火靓汤要两样根茎」比「必须是土豆」更符合真实做饭。
+       界面上要把它翻回人话。 */
+    ingredientNames: {
+      water: '水', boiled: '开水', rice: '米', flour: '面粉', driedNoodle: '挂面',
+      noodle: '方便面', egg: '鸡蛋', oil: '油', salt: '盐', sugar: '糖',
+      soySauce: '酱油', ginger: '姜', garlic: '蒜', onion: '洋葱', tomato: '番茄罐头',
+      mushroom: '香菇干', fungus: '木耳', beancurd: '腐竹', staranise: '八角',
+      tea: '茶叶', coffee: '咖啡', potato: '土豆', radish: '萝卜', cabbage: '白菜',
+      canned: '午餐肉', sausage: '火腿肠', pickle: '咸菜', meat: '肉', fish: '鱼',
+      riceMeal: '米饭', congee: '白粥',
+      root: '根茎类', veg: '蔬菜', dried: '干货', leafy: '叶菜'
+    },
+
+    /* Buff 效果（规格 8.3 Lv5）。**浓茶/咖啡的 rebound 是有意的** ——
+       它让熬夜变成一笔明确的借贷，而不是免费的加速。 */
+    foodBuffs: {
+      warm:      { name: '保暖',   hours: 4, nightStaminaMul: 0.75, sickChanceMul: 0.5 },
+      alert:     { name: '提神',   hours: 3, fatigueMul: 0.55, reboundFatigue: 12 },
+      wired:     { name: '强提神', hours: 4, fatigueMul: 0.40, reboundFatigue: 20, shakeHours: 2, meleeWindupMul: 1.2 },
+      tonic:     { name: '滋补',   hours: 8, healthPerHour: 1.5 },
+      portable:  { name: '可携带', hours: 20 },
+      sugarRush: { name: '急救',   hours: 0, instantStamina: 30 }
+    },
+
+    /* 烹饪熟练度（规格 第十二部分）。**只有尝试新东西才涨。** */
+    cookingSkill: {
+      xpFirstTime: 100, xpRepeat: [40, 15, 5, 0],
+      xpGoldenWindow: 15, xpNewCookware: 50, xpNewHeater: 50,
+      levels: [
+        { xp: 0,    satiety: 0,    unlock: 0 },
+        { xp: 150,  satiety: 0.08, unlock: 1 },
+        { xp: 450,  satiety: 0.16, unlock: 2, goldenWindowMul: 1.5 },
+        { xp: 950,  satiety: 0.24, unlock: 3, spoilageMul: 0.8 },
+        { xp: 1700, satiety: 0.32, unlock: 4, timeMul: 0.85 },
+        { xp: 2800, satiety: 0.40, unlock: 5, spoiledNoSickness: true }
+      ]
+    },
+
     /* ── 全校地图（主文档 13.1 / 13.3 / 13.4）─────────────
        M2 的布局表。**这里是全校几何的唯一出处** —— 24-campus.js 只负责把它变成盒子。
        坐标系：x 向东，z 向北，原点在正门广场。宿舍区在最北，离校门最远（13.1）。
@@ -931,8 +1268,11 @@
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,
-      thirstFullHours: 30,       // 口渴从 0 涨满 100 需 30 游戏小时
-      hungerFullHours: 96,       // 饥饿 96 小时
+      /* `[实测]` 烹饪规格 0.1 的强制调整。原值下每天只需补 25 点饥饿，
+         而一碗白饭就有 22 —— 食物完全不构成压力，整套烹饪系统失去存在理由。
+         新值：每游戏日 饥饿 48 点 / 口渴 84 点 ≈ 2 顿正餐 + 1~2 次加餐 + 3.5 份饮水。 */
+      thirstFullHours: 28,       // 口渴涨满（原 30）
+      hungerFullHours: 50,       // 饥饿涨满（原 96）
       fatigueRatePerHour: 5,     // 清醒时困乏 +5/小时（20 小时挤满）
       fatigueSleepPerHour: 12,   // 睡眠时 −12/小时
       diarrheaThirstMul: 2, diarrheaHours: 8,
@@ -957,20 +1297,20 @@
       bedRange: 1.6              // 离床多近才算「有床」
     },
 
-    /* ── 配方（主文档 10.4 / 10.5）─────────────────────
-       M2 只做「笔记本第三页把它们列出来」这一件事，真正的制作在 M3。
-       unlock 是解锁它的书：课本给基础的，技术手册给需要手艺的（10.2「书籍解锁配方」）。 */
-    recipes: [
-      { id: 'boilWater',  name: '煮水',       need: '水 + 容器',            note: '净化来路不明的水', unlock: 'textbook' },
-      { id: 'riceMeal',   name: '白饭',       need: '米 + 水',              note: '饥饿 −30',        unlock: 'textbook' },
-      { id: 'hotNoodle',  name: '泡面',       need: '方便面 + 热水',        note: '饥饿 −25',        unlock: 'textbook' },
-      { id: 'bandage',    name: '绷带',       need: '布 ×2',                note: '',                unlock: 'textbook' },
-      { id: 'plank',      name: '建材',       need: '木板/课桌 + 工具',      note: '封锁出入口要用',   unlock: 'textbook' },
-      { id: 'rainCatch',  name: '雨水收集器', need: '容器 + 塑料布 + 建材', note: '手艺 1',          unlock: 'manual' },
-      { id: 'clock',      name: '闹钟',       need: '闹钟零件 ×2 + 电池',   note: '手艺 2',          unlock: 'manual' },
-      { id: 'muffle',     name: '消音布',     need: '布 ×3',                note: '手艺 2，静步 −15%', unlock: 'manual' },
-      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具', note: '手艺 3',          unlock: 'manual' },
-      { id: 'repairPart', name: '修理零件',   need: '废零件 ×3 + 工具',     note: '手艺 3',          unlock: 'manual' }
+    /* ── 手艺配方（主文档 10.5）────────────────────────
+       **烹饪配方在上面的 `recipes` 表里，按烹饪熟练度解锁；这里是手艺（craft）的。**
+       两者分开：做饭要炉子和锅，手艺只要工具和材料。 */
+    craftRecipes: [
+      { id: 'bandage',    name: '绷带',         need: '布 ×2',                skill: 0, unlock: 'textbook', note: '' },
+      { id: 'plank',      name: '建材',         need: '木板/课桌 + 工具',      skill: 0, unlock: 'textbook', note: '封锁出入口要用' },
+      { id: 'rainCatch',  name: '雨水收集器',   need: '容器 + 塑料布 + 建材', skill: 1, unlock: 'manual', note: '露天自动接雨' },
+      { id: 'clock',      name: '闹钟',         need: '闹钟零件 ×2 + 电池',   skill: 2, unlock: 'manual', note: '' },
+      { id: 'muffle',     name: '消音布',       need: '布 ×3',                skill: 2, unlock: 'manual', note: '静步 −15%' },
+      { id: 'fixCircuit', name: '修复回路',     need: '电线 ×2 + 工具',       skill: 2, unlock: 'manual', note: '让烧坏的回路重新通电' },
+      { id: 'reinforce',  name: '长柄武器加固', need: '武器 + 建材 + 工具',   skill: 3, unlock: 'manual', note: '' },
+      { id: 'repairPart', name: '修理零件',     need: '废零件 ×3 + 工具',     skill: 3, unlock: 'manual', note: '' },
+      { id: 'debuzz',     name: '拆掉蜂鸣器',   need: '微波炉 + 工具',        skill: 3, unlock: 'manual', note: '**消掉那声要命的「叮」**' },
+      { id: 'workbench',  name: '自制工作台',   need: '建材 ×3 + 工具',       skill: 1, unlock: 'manual', note: '可放 2 台设备' }
     ],
 
     // ── 调试 ──────────────────────────────────────────
@@ -1204,6 +1544,30 @@
     this._nodeById.get(def.nodeB).portals.push(p.id);
     return p;
   };
+
+  /* ── 气味（烹饪规格 10.2）────────────────────────────
+     气味不做传播模拟，是**挂在节点上的一个临时修正**：
+     让该节点里的丧尸听觉阈值降低，持续一段时间。
+     它是第 1 层的数据：烹饪（第 4 层）往下写，听觉（第 2 层）往下读，
+     两边都不认识对方。 */
+  SoundGraph.prototype.addOdor = function (nodeIds, drop, untilHours) {
+    this._odors = this._odors || [];
+    for (const id of nodeIds) this._odors.push({ nodeId: id, drop, until: untilHours });
+  };
+  /** 该节点当前的阈值降低量（多份气味取最大，不叠加 —— 免得做两顿饭就把阈值打到 0） */
+  SoundGraph.prototype.odorDrop = function (nodeId) {
+    if (!this._odors || !this._odors.length) return 0;
+    let d = 0;
+    for (const o of this._odors) if (o.nodeId === nodeId && o.drop > d) d = o.drop;
+    return d;
+  };
+  SoundGraph.prototype.expireOdors = function (nowHours) {
+    if (!this._odors) return;
+    for (let i = this._odors.length - 1; i >= 0; i--) {
+      if (this._odors[i].until <= nowHours) this._odors.splice(i, 1);
+    }
+  };
+  SoundGraph.prototype.clearOdors = function () { this._odors = []; };
 
   SoundGraph.prototype.getNode = function (id) { return this._nodeById.get(id); };
   SoundGraph.prototype.getPortal = function (id) { return this._portalById.get(id); };
@@ -1555,13 +1919,20 @@
     this.position = def.position || { x: 0, y: 0, z: 0 };  // 由拥有者每帧更新
     this.nodeId = -1;                                       // 由拥有者每帧更新
     this.active = true;
+    this.smells = !!def.smells;          // 闻不闻得到气味（只有丧尸是 true）
     this.onHeard = def.onHeard || function () {};
   }
 
   // 阈值与精度都不写死，每次使用前向修正管线查询（声音规格 2.4）
+  /* 气味：**只有丧尸闻得到**（玩家不是靠鼻子找饭吃的）。
+     数据挂在声图的节点上，这里只读不写 —— 听觉层不认识烹饪层。 */
   HearingComponent.prototype.finalThreshold = function () {
-    return Math.max(C.Config.hearing.minThreshold,
-      C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId));
+    let t = C.ModifierPipeline.query('hearing.threshold', this.baseThreshold, this.ownerId);
+    // 闻得到味的（丧尸）在有气味的节点里阈值更低 —— 更容易被听见的东西惊动
+    if (this.smells && C.SoundSystem.graph && this.nodeId >= 0) {
+      t -= C.SoundSystem.graph.odorDrop(this.nodeId);
+    }
+    return Math.max(C.Config.hearing.minThreshold, t);
   };
   /** 对某个响度的可听半径（米）。UI 与调试用，规则本身不依赖它。 */
   HearingComponent.prototype.audibleRange = function (loudness, k) {
@@ -2317,6 +2688,52 @@
     // 教学楼 / 图书馆
     stationery: { name: '文具盒',       size: [2, 1], weight: 0.20, kind: 'junk' },
     manual:     { name: '技术手册',     size: [2, 3], weight: 0.90, kind: 'junk', rare: true, book: true },
+
+    /* ── 厨房（烹饪与供电规格）──────────────────────
+       加热设备与锅具都是**世界中的实体物件**：能捡、能背、能放到台面上。
+       格子大小按体积给 —— 电磁炉 3×3 会吃掉小书包(5×4) 将近一半。 */
+    /* 两张字条 —— **第一份和第二份环境叙事**。
+       206 那张（「它们看不清，但是听得见」）是整个游戏最重要的教学文本，
+       因为它是别人用命换来的经验，比任何 UI 提示都有分量。 */
+    note406:     { name: '一张字条',   size: [1, 1], weight: 0.01, kind: 'note', note: 'note406' },
+    note206:     { name: '一张字条',   size: [1, 1], weight: 0.01, kind: 'note', note: 'note206', rare: true },
+    deskLamp:    { name: '台灯',       size: [2, 2], weight: 0.8,  kind: 'device', device: 'deskLamp' },
+    kettle:      { name: '电水壶',   size: [2, 3], weight: 1.0, kind: 'heater',   heater: 'kettle' },
+    inductionHob:{ name: '电磁炉',   size: [3, 3], weight: 2.6, kind: 'heater',   heater: 'inductionHob' },
+    ceramicHob:  { name: '电陶炉',   size: [3, 3], weight: 2.8, kind: 'heater',   heater: 'ceramicHob' },
+    riceCooker:  { name: '电饭煲',   size: [3, 3], weight: 2.4, kind: 'heater',   heater: 'riceCooker' },
+    microwave:   { name: '微波炉',   size: [4, 3], weight: 12.0,kind: 'heater',   heater: 'microwave' },
+    slowCooker:  { name: '电炖锅',   size: [3, 3], weight: 2.2, kind: 'heater',   heater: 'slowCooker', rare: true },
+    campStove:   { name: '卡式炉',   size: [3, 2], weight: 2.1, kind: 'heater',   heater: 'campStove' },
+    butane:      { name: '丁烷气罐', size: [1, 2], weight: 0.4, kind: 'fuel',     stack: 3 },
+    wok:         { name: '铁炒锅',   size: [3, 3], weight: 2.2, kind: 'cookware', cookware: 'wok' },
+    stockpot:    { name: '不锈钢汤锅',size:[3, 3], weight: 1.4, kind: 'cookware', cookware: 'stockpot' },
+    clayPot:     { name: '砂锅',     size: [3, 3], weight: 2.6, kind: 'cookware', cookware: 'clayPot', rare: true },
+    pressureCooker:{name:'高压锅',   size: [3, 3], weight: 3.1, kind: 'cookware', cookware: 'pressure', rare: true },
+    steamer:     { name: '蒸锅',     size: [3, 3], weight: 1.8, kind: 'cookware', cookware: 'steamer' },
+    skillet:     { name: '平底锅',   size: [2, 3], weight: 1.1, kind: 'cookware', cookware: 'skillet' },
+    milkPot:     { name: '奶锅',     size: [2, 2], weight: 0.6, kind: 'cookware', cookware: 'milkPot' },
+    glassBox:    { name: '玻璃饭盒', size: [2, 2], weight: 0.4, kind: 'cookware', cookware: 'glassBox' },
+    /* 电线：**世界中的实体物件**，连接时能看见线拖在地上。不要做成菜单里的连线界面。 */
+    shortWire:   { name: '短电线',   size: [1, 2], weight: 0.3, kind: 'cable', cable: 'shortWire' },
+    powerStrip:  { name: '插线板',   size: [2, 2], weight: 0.6, kind: 'cable', cable: 'powerStrip' },
+    extension:   { name: '工程延长线',size:[2, 3], weight: 2.4, kind: 'cable', cable: 'extension' },
+    cableReel:   { name: '电缆盘',   size: [3, 3], weight: 6.0, kind: 'cable', cable: 'cableReel', rare: true },
+    // 食材（够跑通 Lv0~Lv2 的食谱；其余按 Config.food 补）
+    riceBag:     { name: '大米',     size: [2, 3], weight: 2.0, kind: 'food', food: 'rice', stack: 5 },
+    flour:       { name: '面粉',     size: [2, 3], weight: 2.0, kind: 'food', food: 'flour', stack: 5 },
+    driedNoodle: { name: '挂面',     size: [1, 3], weight: 0.5, kind: 'food', food: 'driedNoodle', stack: 5 },
+    egg:         { name: '鸡蛋',     size: [1, 1], weight: 0.06,kind: 'food', food: 'egg', stack: 12 },
+    oil:         { name: '食用油',   size: [2, 3], weight: 1.8, kind: 'food', food: 'oil', stack: 2 },
+    salt:        { name: '盐',       size: [1, 1], weight: 0.3, kind: 'food', food: 'salt', stack: 3, seasoning: true },
+    soySauce:    { name: '酱油',     size: [1, 2], weight: 0.6, kind: 'food', food: 'soySauce', stack: 2, seasoning: true },
+    sugar:       { name: '糖',       size: [1, 1], weight: 0.4, kind: 'food', food: 'sugar', stack: 3, seasoning: true },
+    onion:       { name: '洋葱',     size: [1, 1], weight: 0.2, kind: 'food', food: 'onion', stack: 4 },
+    tomato:      { name: '番茄罐头', size: [1, 2], weight: 0.4, kind: 'food', food: 'tomato', stack: 3 },
+    mushroom:    { name: '香菇干',   size: [1, 2], weight: 0.1, kind: 'food', food: 'mushroom', stack: 4 },
+    tea:         { name: '茶叶',     size: [1, 1], weight: 0.1, kind: 'food', food: 'tea', stack: 3 },
+    coffee:      { name: '咖啡',     size: [1, 1], weight: 0.1, kind: 'food', food: 'coffee', stack: 3 },
+    ginger:      { name: '姜',       size: [1, 1], weight: 0.1, kind: 'food', food: 'ginger', stack: 4 },
     novel:      { name: '小说',         size: [1, 2], weight: 0.35, kind: 'junk' },
 
     // 车棚 / 锅炉房：结局一需要发电机与柴油，两样都大得离谱
@@ -2662,7 +3079,21 @@
   /* 稀有物资的固定位置。**这张表是玩家跨局知识的全部意义所在** ——
      「抗生素在医务室 102 的药柜里」这句话之所以值钱，就是因为它每一局都成立。
      全校仅 4 支抗生素（10.2），一支放在宿舍楼当教学，三支在该在的地方。 */
+  /* ── 教学关卡的保底布置（教学设计 3.0 / 3.1）──────────
+     **402 柜子里的电水壶是全游戏唯一一件「保底物品」**：
+     它保证玩家从第一分钟起就能烧水净化，不会因为运气问题陷入死局。 */
   const CAMPUS_FIXED = [
+    { room: '男402', kind: 'wardrobe',    items: ['kettle', 'water', 'biscuit', 'shortWire'] },
+    { room: '男403', kind: 'wardrobe',    items: ['schoolBag', 'noodle', 'noodle'] },   // 目标②的答案
+    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit', 'powerStrip'] },
+    { room: '男406', kind: 'desk',        items: ['glassBox', 'shortWire', 'note406'] },
+    { room: '男301', kind: 'desk',        items: ['deskLamp'] },
+    { room: '男303', kind: 'wardrobe',    items: ['riceCooker', 'riceBag', 'riceBag'] },
+    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope', 'toolkit'] },
+    { room: '男306', kind: 'desk',        items: ['battery', 'battery', 'flashlight'] },
+    { room: '男201', kind: 'desk',        items: ['stone', 'stone', 'stone'] },          // 投石的弹药
+    { room: '男203', kind: 'underBed',    items: ['canned', 'bandage', 'bandage'] },
+    { room: '男206', kind: 'desk',        items: ['skillet', 'note206'] },
     { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic'] },
     { room: '实203', kind: 'reagentCab',  items: ['antibiotic'] },
     { room: '男401', kind: 'wardrobe',    items: ['antibiotic'] },
@@ -3733,11 +4164,16 @@
     this.lastPos = V.copy(def.pos);
     // 布置时标了「第 12 天变成奔行者」的那 5%（7.2）。在那之前它就是一只普通游荡者。
     this.becomesRunner = !!def.becomesRunner;
+    /* 教学关卡 205 里那只：**永远出不来，不受任何事件影响**（教学设计 3.3）。
+       它是整个教学最重要的设计 —— 玩家可以在它门口把每一条声音规则亲手验证一遍，
+       而且不会死。这比任何文字提示都有效。 */
+    this.lockedIn = !!def.lockedIn;
     this.simplified = false;      // 分区加载：不在加载范围内时走简化模拟
     this._simAcc = 0;
 
     this.hearing = new C.HearingComponent({
       ownerId: this.id, baseThreshold: T.threshold,
+      smells: true,                 // 丧尸闻得到饭味（烹饪规格 10.2）
       onHeard: (info) => this._onHeard(info)
     });
     C.SoundSystem.registerListener(this.hearing);
@@ -3844,6 +4280,21 @@
 
     // 简化模拟里不做视觉：看不见玩家的丧尸不会进入追击，而玩家不在附近时它本来也看不见
     if (this.state !== State.Prone && !simplified) this._updateVision(dt, player, time);
+
+    /* 被锁住的：状态照常变（听得见、会警觉），但**永远不寻路、不离开本节点**。
+       警觉/追击时改成扑门 —— 撞得很响，正是玩家要观察的现象。 */
+    if (this.lockedIn) {
+      this._bangCooldown = Math.max(0, (this._bangCooldown || 0) - dt);
+      if (this.state === State.Alert || this.state === State.Investigate ||
+          this.state === State.Chase || this.state === State.Search) {
+        if (this.faceDir) this._turnTo(Math.atan2(this.faceDir.x, this.faceDir.z), dt, 3.0);
+        this._bangDoor();
+      } else {
+        this._wander(dt, 0.5);              // 在屋里来回走
+      }
+      this.lastPos = V.copy(this.pos);
+      return;
+    }
 
     switch (this.state) {
       case State.Prone: break;
@@ -3977,6 +4428,17 @@
     if (V.distXZ(this.pos, player.pos) < R.catchDistance && Math.abs(this.pos.y - player.pos.y) < 1.6) {
       player.die('被' + this.def.name + '抓住');
     }
+  };
+
+  /** 撞门：被锁住的那只听见动静时会扑向门 —— 玩家听得见，这就是它的教学价值 */
+  Zombie.prototype._bangDoor = function () {
+    if (this._bangCooldown > 0) return;
+    this._bangCooldown = 2.5;
+    C.SoundSystem.emit({
+      worldPosition: this.pos, loudness: C.Config.loudness.doorBang || 70,
+      category: C.SoundCategory.Impact, emitterId: this.id,
+      nodeIdHint: this.nodeId, label: '撞门'
+    });
   };
 
   Zombie.prototype._wander = function (dt, speedMul) {
@@ -5538,8 +6000,35 @@
   function placeZombies(built, cfg, rng) {
     const spawns = [];
 
+    /* ── 出生的宿舍楼走教学关卡的危险分层（教学设计 0.2）──
+       **宿舍楼不能一只丧尸都没有**，但也不能按 26 只的密度放。
+       四楼三楼 0 只（绝对安全，学移动/搜刮/电力）；
+       二楼 1 只**锁死在 205 里，永远出不来**（零风险的声音教室）；
+       一楼 1 只在走廊巡逻（第一次真正的考试）。
+       省下来的名额挪到室外，全校总数仍然是 320。 */
+    let surplus = 0;
+    for (const b of built) {
+      if (!b.spec.spawn) continue;
+      surplus = b.spec.zombies - 2;
+      const L = C.Config.level;
+      // 205：走廊中段那间，门被家具从里面顶死
+      const m2 = b.floorsMeta[1];
+      const room205 = m2.rooms[Math.floor(m2.rooms.length / 2)];
+      const rb = room205.bounds;
+      spawns.push({ type: 'Wanderer', buildingId: b.spec.id, spotKind: 'room', lockedIn: true,
+                    tutorialRole: 'classroom205',
+                    pos: V.make((rb.min.x + rb.max.x) / 2, m2.y0 + 0.02, (rb.min.z + rb.max.z) / 2) });
+      // 一楼走廊里那只巡逻的
+      const m1 = b.floorsMeta[0];
+      const cb1 = m1.corridor.bounds;
+      spawns.push({ type: 'Wanderer', buildingId: b.spec.id, spotKind: 'corridor',
+                    tutorialRole: 'patrol1F',
+                    pos: V.make((cb1.min.x + cb1.max.x) / 2, m1.y0 + 0.02, (cb1.min.z + cb1.max.z) / 2) });
+    }
+
     // 楼内：每栋楼把名额摊到「房间门前的空地」和「走廊」上
     for (const b of built) {
+      if (b.spec.spawn) continue;                 // 出生楼上面已经单独摆过
       const spots = [];
       for (const meta of b.floorsMeta) {
         for (const room of meta.rooms) {
@@ -5567,10 +6056,19 @@
       }
     }
 
-    // 室外：在分区里撒点，避开楼的占地
-    for (const spec of cfg.outdoorZombies) {
+    /* 室外：在分区里撒点，避开楼的占地。
+       出生楼省下来的名额按比例摊到各室外分区 —— **全校总数必须还是 320**。 */
+    const outTotal = cfg.outdoorZombies.reduce((n, s2) => n + s2.count, 0);
+    let given = 0;
+    for (let oi = 0; oi < cfg.outdoorZombies.length; oi++) {
+      const spec = cfg.outdoorZombies[oi];
+      const extra = oi === cfg.outdoorZombies.length - 1
+        ? surplus - given                                   // 最后一个补齐余数
+        : Math.round(surplus * spec.count / outTotal);
+      given += extra;
+      const count = spec.count + extra;
       const z = cfg.zones.find(q => q.id === spec.zone);
-      for (let i = 0; i < spec.count; i++) {
+      for (let i = 0; i < count; i++) {
         let x = 0, zz = 0;
         for (let tries = 0; tries < 30; tries++) {
           x = rng.range(Math.max(z.x0, cfg.wall.x0 + 2), Math.min(z.x1, cfg.wall.x1 - 2));
@@ -5711,9 +6209,26 @@
     for (const b of built) for (const m of b.floorsMeta) floorsMeta.push(m);
     const maxFloors = built.reduce((n, b) => Math.max(n, b.spec.floors), 1);
 
+    /* ── 配电回路（烹饪与供电规格 2.2）──────────────────
+       每栋楼一条回路，配电箱在一层走廊的西端。
+       **出生的 402 所在回路开关是断开的** —— 开局第一个真正的目标是
+       「从四楼下到一楼，推上闸，再回来」，全程有丧尸。
+       这是一个完美的教学关卡，而且它把「探索这栋楼」变成了具体的、有回报的目标。 */
+    const circuits = built.map((b) => {
+      const m0 = b.floorsMeta[0];
+      const cb = m0.corridor.bounds;
+      return {
+        id: 'circuit-' + b.spec.id,
+        name: b.name + ' 照明插座',
+        buildingId: b.buildingId,
+        breakerOn: !b.spec.spawn,               // 出生楼的闸是断的
+        panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
+      };
+    });
+
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,
@@ -5916,10 +6431,14 @@
 
     /* ── 配方页 ─────────────────────────────────────── */
 
-    /** 捡到书就解锁对应的一批配方（10.2「书籍解锁配方」） */
+    /**
+     * 捡到书就解锁对应的一批**手艺**配方（10.2「书籍解锁配方」）。
+     * `[实测]` **烹饪配方不走书**，走烹饪熟练度（烹饪规格 12.2）——
+     * 做饭是练出来的，不是看书看会的。两张表因此是分开的。
+     */
     readBook(itemId, time) {
       let n = 0;
-      for (const r of C.Config.recipes) {
+      for (const r of C.Config.craftRecipes) {
         if (r.unlock !== itemId || this.recipes.has(r.id)) continue;
         this.recipes.add(r.id); n++;
       }
@@ -6385,12 +6904,30 @@
           `<li><span class="note-when">第 ${c.day} 天 ${c.hhmm}</span>${c.text}</li>`).join('') + '</ul>';
       }
       if (this.page === 'recipe') {
-        return '<ul class="note-list">' + C.Config.recipes.map(r => {
+        /* 两张表：**烹饪按熟练度解锁，手艺按书解锁。**
+           没解锁的也全列出来 —— 知道「有这么一条自己还够不着」本身就是驱动力。 */
+        const lv = C.Cooking ? C.Cooking.level() : 0;
+        const cook = C.Config.recipes.map(r => {
+          const on = r.lv <= lv;
+          const mat = Object.keys(r.need).map(k =>
+            (C.Config.ingredientNames[k] || k) + (r.need[k] > 1 ? '×' + r.need[k] : '')).join(' + ');
+          const eff = [r.satiety ? '饱食 ' + r.satiety : '', r.thirst ? '渴 ' + r.thirst : '',
+                       '噪音 ' + r.loud].filter(Boolean).join('　');
+          return `<li class="${on ? '' : 'note-locked'}"><b>${on ? r.name : '？？'}</b>` +
+                 `<span class="note-need">${on ? mat : '烹饪 ' + r.lv + ' 级'}</span>` +
+                 `<span class="note-when">${on ? eff : ''}</span></li>`;
+        }).join('');
+        const craft = C.Config.craftRecipes.map(r => {
           const on = N.recipes.has(r.id);
           return `<li class="${on ? '' : 'note-locked'}"><b>${on ? r.name : '？？'}</b>` +
                  `<span class="note-need">${on ? r.need : '需要先找到' + (r.unlock === 'manual' ? '技术手册' : '课本')}</span>` +
                  `<span class="note-when">${on ? r.note : ''}</span></li>`;
-        }).join('') + '</ul>';
+        }).join('');
+        return `<h6 class="note-sub">烹饪 · 当前熟练度 ${lv} 级` +
+               `${C.Cooking ? '（' + C.Cooking.xp + ' 经验）' : ''}</h6>` +
+               '<ul class="note-list">' + cook + '</ul>' +
+               '<h6 class="note-sub">手艺 · 靠书解锁</h6>' +
+               '<ul class="note-list">' + craft + '</ul>';
       }
       if (!N.obs.size) return '<p class="note-empty">还没有观察到什么。屏息听听。</p>';
       const rows = Array.from(N.obs.values()).sort((a, b) => b.count - a.count);
@@ -6694,6 +7231,1217 @@
   C.LootUI = UI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/29-power.js ===== */
+/*
+ * 29-power.js —— 供电（烹饪与供电规格 第二部分）
+ *
+ * **第 2 层（规则层）。它不知道厨房的存在**，只回答两个问题：
+ *   ① 这条链路现在能不能供电？
+ *   ② 当前用了多少瓦、还剩多少？
+ * 烹饪系统可以向下查询它，反过来不行（规格 13.4）。
+ *
+ * 设计要点：**跳闸不是随机的，是玩家算错了。**
+ * 所以界面必须始终能拿到「已用/上限」，而这个模块必须让它随时可查。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* ── 回路 ────────────────────────────────────────────
+     每栋楼的电被分成若干回路。玩家在宿舍找到的第一个插座很可能是死的，
+     他必须去找配电间 —— 这就把「探索这栋楼」变成一个具体的、有回报的目标。 */
+  const CircuitState = { Live: 'live', BreakerOff: 'off', Damaged: 'damaged', Dead: 'dead' };
+
+  function Circuit(id, name, opts) {
+    opts = opts || {};
+    this.id = id;
+    this.name = name;
+    this.breakerOn = opts.breakerOn !== false;
+    this.wiringDamaged = !!opts.damaged;
+    this.permanentlyDead = !!opts.dead;
+    this.maxWatt = opts.maxWatt || C.Config.power.sources.grid.watt;
+    this.panelAt = opts.panelAt || null;      // 配电箱在哪（世界坐标）
+  }
+  Circuit.prototype.state = function () {
+    if (this.permanentlyDead) return CircuitState.Dead;
+    if (this.wiringDamaged) return CircuitState.Damaged;
+    if (!this.breakerOn) return CircuitState.BreakerOff;
+    return CircuitState.Live;
+  };
+  Circuit.prototype.canDeliver = function (gridUp) {
+    return gridUp && this.state() === CircuitState.Live;
+  };
+
+  /* ── 电源实例 ───────────────────────────────────────
+     grid 是全局的（第 11 天 00:00 永久中断）；其余是玩家搬来的物件。 */
+  function Source(kind, opts) {
+    opts = opts || {};
+    const def = C.Config.power.sources[kind];
+    this.kind = kind;
+    this.name = def.name;
+    this.maxWatt = def.watt;
+    this.fuelType = def.fuel;
+    this.perHour = def.perHour;
+    this.loud = def.loud;
+    this.on = kind === 'grid';
+    this.fuel = opts.fuel !== undefined ? opts.fuel : 0;   // 柴油升 / 电瓶 Wh
+    this.pos = opts.pos || null;
+    this.circuitId = opts.circuitId || null;               // grid 专用
+    this.solarPanels = opts.solarPanels || 0;
+  }
+
+  /** 这个电源此刻实际能输出多少瓦（0 = 供不上） */
+  Source.prototype.available = function (env) {
+    if (this.kind === 'grid') {
+      const c = env.circuits.get(this.circuitId);
+      return (c && c.canDeliver(env.gridUp)) ? Math.min(this.maxWatt, c.maxWatt) : 0;
+    }
+    if (!this.on) return 0;
+    if (this.kind === 'solar') return this.solarPanels * solarWatt(env);
+    if (this.fuelType === 'diesel') return this.fuel > 0 ? this.maxWatt : 0;
+    if (this.fuelType === 'charge') return this.fuel > 0 ? this.maxWatt : 0;
+    return this.maxWatt;
+  };
+
+  /** 太阳能单块输出：**夜里是 0，这一点不能忘** */
+  function solarWatt(env) {
+    const S = C.Config.power.solarOutput;
+    if (env.night) return S.night;
+    if (env.weather === 'rain') return S.rain;
+    if (env.weather === 'cloudy') return S.cloudy;
+    return S.clearDay;
+  }
+
+  /* ── 链路 ────────────────────────────────────────────
+     一条链路 = 电源 → (电线/插线板)×N → 设备。
+     长度累加，**按世界空间距离判定**；插孔数是硬限制。 */
+  function Link(id, source) {
+    this.id = id;
+    this.source = source;
+    this.cables = [];          // cable kind 的数组，有序
+    this.devices = [];         // { id, watt, on, label }
+    this.tripped = false;
+  }
+  Link.prototype.metres = function () {
+    let m = 0;
+    for (const k of this.cables) m += C.Config.power.cables[k].metres;
+    return m;
+  };
+  Link.prototype.sockets = function () {
+    // 插线板可以串联，插孔数累加；但每接一段线要占掉上一段的一个孔
+    let n = 0;
+    for (let i = 0; i < this.cables.length; i++) {
+      n += C.Config.power.cables[this.cables[i]].sockets;
+      if (i > 0) n -= 1;
+    }
+    return n;
+  };
+  Link.prototype.watt = function () {
+    let w = 0;
+    for (const d of this.devices) if (d.on) w += d.watt;
+    return w;
+  };
+  Link.prototype.reachable = function (from, to) {
+    return C.V.dist(from, to) <= this.metres();
+  };
+
+  /* ── 系统 ──────────────────────────────────────────── */
+  const Power = {
+    circuits: new Map(),
+    sources: [],
+    links: [],
+    gridUp: true,
+    weather: 'clear',
+    night: false,
+    _nextLink: 1,
+
+    reset(level) {
+      this.circuits = new Map();
+      this.sources = [];
+      this.links = [];
+      this.gridUp = true;
+      this._nextLink = 1;
+      if (level && level.circuits) {
+        for (const r of level.circuits) {
+          const c = this.addCircuit(r.id, r.name, { breakerOn: r.breakerOn, panelAt: r.panelAt });
+          c.buildingId = r.buildingId;
+        }
+      }
+      return this;
+    },
+
+    env() { return { circuits: this.circuits, gridUp: this.gridUp, weather: this.weather, night: this.night }; },
+
+    addCircuit(id, name, opts) {
+      const c = new Circuit(id, name, opts);
+      this.circuits.set(id, c);
+      return c;
+    },
+    addSource(kind, opts) {
+      const s = new Source(kind, opts);
+      this.sources.push(s);
+      return s;
+    },
+    createLink(source) {
+      const l = new Link(this._nextLink++, source);
+      this.links.push(l);
+      return l;
+    },
+
+    /**
+     * 推闸 / 拉闸。**产生响度 25 的 Impact** ——
+     * 教学关卡里「先关上配电间的门再推闸」是二楼那堂关门课的考试。
+     */
+    setBreaker(circuitId, on, atPos, byId) {
+      const c = this.circuits.get(circuitId);
+      if (!c) return { ok: false, msg: '没有这个回路' };
+      if (c.permanentlyDead) return { ok: false, msg: '主干线断了，这条回路救不回来' };
+      c.breakerOn = !!on;
+      if (atPos) {
+        C.SoundSystem.emit({
+          worldPosition: atPos, loudness: C.Config.power.breakerLoudness,
+          category: C.SoundCategory.Impact, emitterId: byId === undefined ? -1 : byId,
+          label: on ? '推上电闸' : '拉下电闸'
+        });
+      }
+      C.EventBus.publish('BreakerChangedEvent', { circuitId, on: c.breakerOn });
+      return { ok: true, msg: (on ? '推上了' : '拉下了') + c.name + '的闸' };
+    },
+
+    /** 修回路：需要 电线 ×2 + 工具，手艺 ≥ 2（规格 2.2） */
+    repairCircuit(circuitId, craftLevel, hasParts) {
+      const c = this.circuits.get(circuitId);
+      if (!c) return { ok: false, msg: '没有这个回路' };
+      if (c.permanentlyDead) return { ok: false, msg: '主干线断了，修不了' };
+      if (!c.wiringDamaged) return { ok: false, msg: '这条回路没坏' };
+      if (craftLevel < C.Config.power.repairSkillLevel) return { ok: false, msg: '手艺不够（需要 2 级）' };
+      if (!hasParts) return { ok: false, msg: '需要 电线 ×2 和工具' };
+      c.wiringDamaged = false;
+      return { ok: true, msg: '接好了线' };
+    },
+
+    /**
+     * 设备开关。**超载立即跳闸**，不是随机的 —— 玩家算错了。
+     * @returns {ok, msg, tripped}
+     */
+    setDevice(link, deviceId, on) {
+      const d = link.devices.find(x => x.id === deviceId);
+      if (!d) return { ok: false, msg: '这条链路上没有这台设备' };
+      if (on && link.tripped) return { ok: false, msg: '跳闸了，先复位' };
+      const avail = link.source.available(this.env());
+      if (on && avail <= 0) return { ok: false, msg: '这个插座没电' };
+      d.on = !!on;
+      if (on && link.watt() > avail) {
+        this.trip(link, avail);
+        return { ok: false, msg: '超载跳闸', tripped: true };
+      }
+      return { ok: true, msg: (on ? '打开了' : '关掉了') + (d.label || '设备') };
+    },
+
+    /** 跳闸：断电、发一次响度 40 的「啪」、广播出去让上层报废正在做的东西 */
+    trip(link, avail) {
+      link.tripped = true;
+      for (const d of link.devices) d.on = false;
+      const pos = link.source.pos;
+      if (pos) {
+        C.SoundSystem.emit({
+          worldPosition: pos, loudness: C.Config.power.tripLoudness,
+          category: C.SoundCategory.Impact, emitterId: -1, label: '跳闸'
+        });
+      }
+      C.EventBus.publish('CircuitOverloadedEvent', { linkId: link.id, limit: avail });
+    },
+
+    resetBreakerOf(link) { link.tripped = false; return { ok: true, msg: '复位了' }; },
+
+    /**
+     * 每游戏小时推进：烧柴油、耗电瓶、到日子断市电。
+     * @param dtHours 经过的游戏小时
+     * @param day 当前天数
+     */
+    update(dtHours, day, night, weather) {
+      this.night = !!night;
+      if (weather) this.weather = weather;
+
+      // **第 11 天 00:00 市电永久中断。** 前十天养成的习惯全部作废。
+      if (this.gridUp && day >= C.Config.power.gridFailDay) {
+        this.gridUp = false;
+        for (const l of this.links) {
+          if (l.source.kind !== 'grid') continue;
+          for (const d of l.devices) d.on = false;
+        }
+        C.EventBus.publish('PowerLostEvent', { reason: 'gridFail', day });
+      }
+      if (dtHours <= 0) return;
+
+      for (const l of this.links) {
+        const w = l.watt();
+        if (w <= 0) continue;
+        const s = l.source;
+        if (s.fuelType === 'diesel') {
+          s.fuel = Math.max(0, s.fuel - s.perHour * dtHours);
+          if (s.fuel <= 0) {
+            for (const d of l.devices) d.on = false;
+            s.on = false;
+            C.EventBus.publish('PowerLostEvent', { reason: 'noFuel', linkId: l.id });
+          }
+        } else if (s.fuelType === 'charge') {
+          // 电瓶按实际功率放电（Wh）
+          s.fuel = Math.max(0, s.fuel - w * dtHours);
+          if (s.fuel <= 0) {
+            for (const d of l.devices) d.on = false;
+            C.EventBus.publish('PowerLostEvent', { reason: 'batteryFlat', linkId: l.id });
+          }
+        }
+      }
+      // 发电机在运行时持续发出噪音（规格 10.1：**全游戏最持久的噪音源**）
+      for (const s of this.sources) {
+        if (!s.on || !s.pos || !s.loud) continue;
+        if (s.fuelType === 'diesel' && s.fuel <= 0) continue;
+        this._genNoise = (this._genNoise || 0) + dtHours;
+      }
+    },
+
+    /** 发电机噪音由装配层按真实秒数驱动（每 2 秒一次，和设备运行噪音一致） */
+    emitRunningNoise(dtSeconds) {
+      this._noiseAcc = (this._noiseAcc || 0) + dtSeconds;
+      if (this._noiseAcc < 2) return;
+      this._noiseAcc = 0;
+      for (const s of this.sources) {
+        if (!s.on || !s.pos || !s.loud) continue;
+        if (s.fuelType === 'diesel' && s.fuel <= 0) continue;
+        const busy = this.links.some(l => l.source === s && l.watt() > 0);
+        if (!busy && s.kind !== 'genBig' && s.kind !== 'genSmall') continue;
+        C.SoundSystem.emit({
+          worldPosition: s.pos, loudness: s.loud,
+          category: C.SoundCategory.Ambient, emitterId: -1, label: s.name + '运行'
+        });
+      }
+    },
+
+    /** 界面要的那一块：已用 / 上限 / 剩余燃料 */
+    readout(link) {
+      const avail = link.source.available(this.env());
+      const s = link.source;
+      return {
+        sourceName: s.name,
+        used: link.watt(),
+        limit: avail,
+        tripped: link.tripped,
+        metres: link.metres(),
+        sockets: link.sockets(),
+        fuel: s.fuelType === 'diesel' ? s.fuel : null,
+        fuelHours: s.fuelType === 'diesel' && s.perHour > 0 ? s.fuel / s.perHour : null,
+        devices: link.devices.map(d => ({ label: d.label, watt: d.watt, on: d.on }))
+      };
+    },
+
+    serialize() {
+      return {
+        gridUp: this.gridUp,
+        circuits: Array.from(this.circuits.values()).map(c => ({
+          id: c.id, breakerOn: c.breakerOn, damaged: c.wiringDamaged, dead: c.permanentlyDead
+        })),
+        sources: this.sources.map(s => ({ kind: s.kind, on: s.on, fuel: s.fuel, panels: s.solarPanels,
+                                          pos: s.pos ? C.V.copy(s.pos) : null, circuitId: s.circuitId })),
+        links: this.links.map(l => ({ id: l.id, srcIndex: this.sources.indexOf(l.source),
+                                      cables: l.cables.slice(), tripped: l.tripped,
+                                      devices: l.devices.map(d => ({ id: d.id, watt: d.watt, on: d.on, label: d.label })) }))
+      };
+    },
+    deserialize(d) {
+      if (!d) return this;
+      this.gridUp = d.gridUp !== false;
+      for (const r of d.circuits || []) {
+        const c = this.circuits.get(r.id);
+        if (c) { c.breakerOn = r.breakerOn; c.wiringDamaged = r.damaged; c.permanentlyDead = r.dead; }
+      }
+      this.sources = (d.sources || []).map(r => {
+        const s = new Source(r.kind, { fuel: r.fuel, pos: r.pos, circuitId: r.circuitId, solarPanels: r.panels });
+        s.on = r.on; return s;
+      });
+      this.links = (d.links || []).map(r => {
+        const l = new Link(r.id, this.sources[r.srcIndex]);
+        l.cables = r.cables || []; l.tripped = r.tripped; l.devices = r.devices || [];
+        return l;
+      });
+      this._nextLink = this.links.reduce((n, l) => Math.max(n, l.id + 1), 1);
+      return this;
+    }
+  };
+
+  C.CircuitState = CircuitState;
+  C.Circuit = Circuit;
+  C.PowerSource = Source;
+  C.PowerLink = Link;
+  C.Power = Power;
+  C.solarWatt = solarWatt;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/30-cooking.js ===== */
+/*
+ * 30-cooking.js —— 烹饪（烹饪与供电规格 第三~九、十二部分）
+ *
+ * **第 4 层（交互层）。可以向下查询电力系统，反过来不行。**
+ *
+ * 核心张力：**吃得好 vs 被听见。**
+ *   爆炒最香、饱食度最高，但油锅滋啦声 45
+ *   砂锅慢炖最省电最安静，但要 2 小时，而且你得守着
+ *   高压锅最快，但泄压哨声 55，全楼都听得见
+ *   微波炉最省事，但结束那声「叮」是 50
+ * **做饭这件事本身，永远在暴露你的位置。**
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const { M } = C;
+
+  const Phase = { Cooking: '烹饪中', Golden: '黄金窗口', Overcooked: '过火', Ruined: '报废' };
+
+  /* ── 一套厨房 ────────────────────────────────────────
+     四层结构（规格 3.1）：台面 ← 加热设备 ← 锅具 ← 食材+水，
+     电源通过电线连到加热设备。**每一步都是世界中的物理操作，不是菜单选项。** */
+  function Station(id, opts) {
+    opts = opts || {};
+    this.id = id;
+    this.pos = opts.pos || null;
+    this.surface = opts.surface || 'desk';   // 台面类型
+    this.slots = opts.slots || 1;            // 这个台面能放几台设备
+    this.heater = opts.heater || null;       // heater kind
+    this.cookware = opts.cookware || null;   // cookware kind
+    this.link = opts.link || null;           // PowerLink
+    this.deviceId = opts.deviceId || null;   // 它在链路上的设备 id
+    this.session = null;
+  }
+
+  /* ── 一次烹饪 ─────────────────────────────────────── */
+  function Session(recipe, station, opts) {
+    opts = opts || {};
+    this.recipeId = recipe.id;
+    this.stationId = station.id;
+    this.seasonings = opts.seasonings || 0;
+    this.startAt = opts.now;
+    this.totalMinutes = opts.minutes;
+    this.doneAt = opts.now + opts.minutes / 60;               // 游戏小时
+    this.goldenEnd = this.doneAt + opts.goldenMinutes / 60;
+    this.ruinAt = this.goldenEnd + opts.overcookMinutes / 60;
+    this.phase = Phase.Cooking;
+    this.venting = 0;                                          // 高压锅泄压剩余分钟
+  }
+
+  const Cooking = {
+    stations: [],
+    xp: 0,
+    made: {},                 // recipeId -> 次数
+    usedCookware: {},
+    usedHeaters: {},
+    odors: [],                // { nodeId, level, until }  —— 气味是区域性的临时修正
+    _nextStation: 1,
+    _modKeys: [],
+
+    reset() {
+      this.stations = [];
+      this.xp = 0; this.made = {}; this.usedCookware = {}; this.usedHeaters = {};
+      this.clearOdors();
+      this._nextStation = 1;
+      return this;
+    },
+
+    /* ── 熟练度（规格 12.2）──────────────────────────── */
+    level() {
+      const L = C.Config.cookingSkill.levels;
+      let lv = 0;
+      for (let i = 0; i < L.length; i++) if (this.xp >= L[i].xp) lv = i;
+      return lv;
+    },
+    levelDef() { return C.Config.cookingSkill.levels[this.level()]; },
+
+    /** **只有尝试新东西才涨熟练度。** 反复做蛋炒饭不会让你变成大厨。 */
+    _gainMakeXp(recipeId) {
+      const S = C.Config.cookingSkill;
+      const n = (this.made[recipeId] || 0);
+      this.made[recipeId] = n + 1;
+      const xp = n === 0 ? S.xpFirstTime : (S.xpRepeat[n - 1] !== undefined ? S.xpRepeat[n - 1] : 0);
+      this.xp += xp;
+      return xp;
+    },
+
+    /* ── 可做什么 ─────────────────────────────────────
+       返回 {ok} 或 {ok:false, why} —— why 要能直接显示给玩家。 */
+    canCook(recipe, station, have) {
+      if (recipe.lv > this.level()) return { ok: false, why: '还不会做（需要烹饪 ' + recipe.lv + ' 级）' };
+
+      // 不需要加热的（泡面、咸菜配粥、腌菜、手擀面）
+      if (recipe.heater !== 'none') {
+        if (!station.heater) return { ok: false, why: '没有加热设备' };
+        const H = C.Config.cooking.heaters[station.heater];
+        // 老火靓汤/高汤炖肉：**只能用不需要看火的低功率设备**
+        if (recipe.heater === 'slowOnly' && !H.autoShutoff) {
+          return { ok: false, why: '这道菜要炖几个小时，得用不用看火的设备' };
+        }
+        if (H.needsCookware) {
+          if (!station.cookware) return { ok: false, why: '这台设备要配一口锅' };
+          const list = C.Config.cooking.compat[station.heater] || [];
+          if (list.indexOf(station.cookware) < 0) {
+            // **电磁炉配砂锅是玩家最容易犯的错误。** 无害但印象深刻。
+            return { ok: false, why: '锅具不兼容：' +
+              C.Config.cooking.cookware[station.cookware].name + '不能上' + H.name };
+          }
+        }
+        if (recipe.pot && recipe.pot.length) {
+          const tags = station.cookware ? C.Config.cooking.cookware[station.cookware].tags
+                     : (H.needsCookware ? [] : ['boil']);           // 自带内胆的按「煮」算
+          if (!recipe.pot.some(t => tags.indexOf(t) >= 0)) {
+            return { ok: false, why: '这口锅做不了这道菜' };
+          }
+        }
+        // 电：接了链路就得供得上
+        if (H.watt > 0) {
+          if (!station.link) return { ok: false, why: '没接电' };
+          const r = C.Power.readout(station.link);
+          if (r.tripped) return { ok: false, why: '跳闸了，先复位' };
+          if (r.limit <= 0) return { ok: false, why: '这个插座没电' };
+          /* **别把自己算两遍**：这台设备可能已经开着（上一锅还没关火）。
+             算余量时要先把它自己的功率从「已用」里刨掉，
+             否则第二次开火会被自己挡住，报一个看不懂的「功率不够」。 */
+          const self = station.link.devices.find(d => d.id === station.deviceId);
+          const usedByOthers = r.used - (self && self.on ? self.watt : 0);
+          if (usedByOthers + H.watt > r.limit) {
+            return { ok: false, why: '功率不够：还要 ' + H.watt + 'W，只剩 ' +
+                     (r.limit - usedByOthers) + 'W' };
+          }
+        }
+      }
+      if (have) {
+        for (const k in recipe.need) {
+          if ((have[k] || 0) < recipe.need[k]) return { ok: false, why: '缺' + k };
+        }
+      }
+      return { ok: true };
+    },
+
+    /** 实际时长 = 基准 × 设备系数 × 锅具系数 × 熟练度系数 */
+    minutesFor(recipe, station) {
+      let m = recipe.time;
+      if (station.heater) m *= C.Config.cooking.heaters[station.heater].speed;
+      if (station.cookware) {
+        const cw = C.Config.cooking.cookware[station.cookware];
+        if (cw.timeMul) m *= cw.timeMul;
+      }
+      const lv = this.levelDef();
+      if (lv.timeMul) m *= lv.timeMul;
+      return m;
+    },
+
+    /* ── 开火 ─────────────────────────────────────────── */
+    start(recipeId, station, nowHours, opts) {
+      opts = opts || {};
+      const recipe = C.Config.recipes.find(r => r.id === recipeId);
+      if (!recipe) return { ok: false, msg: '没有这个食谱' };
+      const chk = this.canCook(recipe, station, opts.have);
+      if (!chk.ok) return { ok: false, msg: chk.why };
+
+      const minutes = this.minutesFor(recipe, station);
+      const K = C.Config.cooking;
+      let goldenMul = K.goldenWindowRatio;
+      const lv = this.levelDef();
+      if (lv.goldenWindowMul) goldenMul *= lv.goldenWindowMul;
+
+      const seasonings = Math.min(opts.seasonings || 0, K.seasoningMaxSlots);
+      station.session = new Session(recipe, station, {
+        now: nowHours, minutes,
+        goldenMinutes: minutes * goldenMul,
+        overcookMinutes: minutes * K.overcookRatio,
+        seasonings
+      });
+      // 自动断电的设备不进过火期（规格 9.2）
+      const H = station.heater ? K.heaters[station.heater] : null;
+      station.session.autoShutoff = !H || H.autoShutoff;
+
+      if (H && H.watt > 0 && station.link) {
+        C.Power.setDevice(station.link, station.deviceId, true);
+      }
+      C.EventBus.publish('CookingStartedEvent', { recipeId, stationId: station.id });
+      return { ok: true, msg: '开始做' + recipe.name + '（约 ' + minutes.toFixed(0) + ' 分钟）',
+               minutes, session: station.session };
+    },
+
+    /* ── 每游戏小时推进 ─────────────────────────────── */
+    update(nowHours, dtHours, level) {
+      for (const st of this.stations) {
+        const ss = st.session;
+        if (!ss || ss.phase === Phase.Ruined) continue;
+        const recipe = C.Config.recipes.find(r => r.id === ss.recipeId);
+
+        /* 阶段推进要能**一次跨过好几段**。
+           `[实测]` 原来写成 if/else-if，玩家出门一趟回来（一次 update 跨了两小时）
+           只会从「烹饪中」走到「黄金窗口」，永远不会糊 —— 过火和报废形同虚设。
+           用循环走到该停的地方为止。 */
+        let guard = 4;
+        while (guard-- > 0) {
+          if (ss.phase === Phase.Cooking && nowHours >= ss.doneAt) {
+            ss.phase = Phase.Golden;
+            this._onDone(st, recipe, nowHours);
+            continue;
+          }
+          // 自动断电的设备不进过火期（规格 9.2）：炖着汤出门是安全的
+          if (ss.phase === Phase.Golden && nowHours >= ss.goldenEnd && !ss.autoShutoff) {
+            ss.phase = Phase.Overcooked;
+            continue;
+          }
+          if (ss.phase === Phase.Overcooked && nowHours >= ss.ruinAt) {
+            ss.phase = Phase.Ruined;
+            C.EventBus.publish('CookingRuinedEvent', { stationId: st.id, recipeId: ss.recipeId });
+            continue;
+          }
+          break;
+        }
+      }
+      // 气味到期：声图那边和这边各清各的（那边是权威，这边只是给界面看的镜像）
+      if (C.SoundSystem.graph) C.SoundSystem.graph.expireOdors(nowHours);
+      for (let i = this.odors.length - 1; i >= 0; i--) {
+        if (this.odors[i].until <= nowHours) this.odors.splice(i, 1);
+      }
+    },
+
+    _onDone(st, recipe, nowHours) {
+      const K = C.Config.cooking;
+      const H = st.heater ? K.heaters[st.heater] : null;
+      // 结束提示音：**微波炉那声「叮」是全游戏最尴尬的死法之一。这是有意的。**
+      if (H && H.done > 0 && !st.debuzzed) {
+        C.SoundSystem.emit({
+          worldPosition: st.pos, loudness: H.done, category: C.SoundCategory.Impact,
+          emitterId: -1, label: H.name + '提示音'
+        });
+      }
+      if (H && H.autoShutoff && H.watt > 0 && st.link) {
+        C.Power.setDevice(st.link, st.deviceId, false);
+      }
+      // 高压锅：完成后必须泄压
+      if (st.cookware === 'pressure') st.session.venting = K.cookware.pressure.ventQuietMinutes;
+      this._applyOdor(st, recipe, nowHours);
+      C.EventBus.publish('CookingCompletedEvent', { stationId: st.id, recipeId: recipe.id });
+    },
+
+    /* ── 高压锅泄压（规格 9.3）────────────────────────
+       被追击时那 15 分钟的等待会变得非常煎熬。 */
+    vent(st, force) {
+      const ss = st.session;
+      if (!ss || ss.venting <= 0) return { ok: false, msg: '不需要泄压' };
+      const cw = C.Config.cooking.cookware.pressure;
+      ss.venting = 0;
+      C.SoundSystem.emit({
+        worldPosition: st.pos, loudness: force ? cw.ventLoud : cw.ventQuietLoud,
+        category: C.SoundCategory.Impact, emitterId: -1,
+        label: force ? '高压锅强制泄压' : '高压锅泄压'
+      });
+      return { ok: true, msg: force ? '嗤——（全楼都听见了）' : '泄压完毕' };
+    },
+
+    /* ── 取出成品 ─────────────────────────────────────
+       返回一份「食物」：饱食/解渴按阶段、调味、熟练度、锅具加成一起算出来。 */
+    take(st, nowHours) {
+      const ss = st.session;
+      if (!ss) return { ok: false, msg: '锅里没东西' };
+      const recipe = C.Config.recipes.find(r => r.id === ss.recipeId);
+      const K = C.Config.cooking;
+      if (nowHours < ss.doneAt) return { ok: false, msg: '还没好' };
+
+      let mul = 1;
+      if (ss.phase === Phase.Ruined) mul = 0;
+      else if (ss.phase === Phase.Overcooked) {
+        // 过火期线性衰减到 40%
+        const t = M.clamp((nowHours - ss.goldenEnd) / (ss.ruinAt - ss.goldenEnd), 0, 1);
+        mul = M.lerp(1, K.overcookFloor, t);
+      }
+
+      // 调味料是**乘数不是加数**
+      let satiety = recipe.satiety * (1 + ss.seasonings * K.seasoningBonus);
+      let thirst = recipe.thirst;
+      if (st.cookware) {
+        const cw = K.cookware[st.cookware];
+        satiety *= 1 + (cw.satiety || 0);
+        if (thirst < 0) thirst *= 1 + (cw.thirst || 0);     // 解渴的才吃锅具加成
+        if (cw.halfBatch) satiety *= 0.5;
+      }
+      satiety *= 1 + this.levelDef().satiety;
+
+      let name = recipe.name, odor = recipe.odor;
+      if (ss.phase === Phase.Ruined) {
+        name = '糊掉的' + recipe.name;
+        satiety = K.ruinedSatiety; thirst = 0; odor = K.ruinedOdor;
+      } else {
+        satiety *= mul;
+        if (thirst < 0) thirst *= mul;
+      }
+
+      // 黄金窗口内取出（需要看火的设备）额外给经验
+      let xp = this._gainMakeXp(recipe.id);
+      if (ss.phase === Phase.Golden && !ss.autoShutoff) {
+        this.xp += C.Config.cookingSkill.xpGoldenWindow;
+        xp += C.Config.cookingSkill.xpGoldenWindow;
+      }
+      if (st.cookware && !this.usedCookware[st.cookware]) {
+        this.usedCookware[st.cookware] = 1; this.xp += C.Config.cookingSkill.xpNewCookware;
+      }
+      if (st.heater && !this.usedHeaters[st.heater]) {
+        this.usedHeaters[st.heater] = 1; this.xp += C.Config.cookingSkill.xpNewHeater;
+      }
+
+      // 取走成品 = 端锅下灶：把设备关掉，免得白烧电（要看火的设备尤其）
+      const H2 = st.heater ? K.heaters[st.heater] : null;
+      if (H2 && H2.watt > 0 && st.link) C.Power.setDevice(st.link, st.deviceId, false);
+      st.session = null;
+      return {
+        ok: true,
+        food: {
+          recipeId: recipe.id, name,
+          satiety: Math.round(satiety * 10) / 10,
+          thirst: Math.round(thirst * 10) / 10,
+          odor,
+          buff: ss.phase === Phase.Ruined ? null : (recipe.buff || null),
+          gives: recipe.gives || null,
+          count: recipe.outputCount || 1,
+          madeAt: nowHours,
+          freshHours: K.cookedFreshHours
+        },
+        xp, phase: ss.phase,
+        msg: (ss.phase === Phase.Ruined ? '糊了：' : '做好了：') + name
+      };
+    },
+
+    /* ── 中断（规格 9.4）────────────────────────────── */
+    ruinAllOn(link, why) {
+      let n = 0;
+      for (const st of this.stations) {
+        if (st.link !== link || !st.session) continue;
+        if (st.session.phase === Phase.Cooking) { st.session.phase = Phase.Ruined; n++; }
+      }
+      if (n) C.EventBus.publish('CookingRuinedEvent', { count: n, why });
+      return n;
+    },
+    /** 玩家手动关火：**保留进度，可重新开始** */
+    stop(st) {
+      if (!st.session) return { ok: false, msg: '没在做饭' };
+      const H = st.heater ? C.Config.cooking.heaters[st.heater] : null;
+      if (H && H.watt > 0 && st.link) C.Power.setDevice(st.link, st.deviceId, false);
+      st.session = null;
+      return { ok: true, msg: '关火了' };
+    },
+
+    /* ── 气味（规格 10.2）─────────────────────────────
+       不做传播模拟，简化为区域性的临时修正：所在节点 + 所有直接相邻节点，
+       丧尸听觉阈值 −(等级 × 2)，持续 等级 × 45 游戏分钟。
+       **关门可以阻断气味** —— 再次强化「关门」这个核心动词。 */
+    _applyOdor(st, recipe, nowHours) {
+      if (!recipe.odor || !C.SoundSystem.graph || !st.pos) return;
+      const g = C.SoundSystem.graph;
+      const node = g.getNodeAt(st.pos);
+      if (!node) return;
+      const K = C.Config.cooking;
+      const drop = recipe.odor * K.odorThresholdPerLevel;
+      const until = nowHours + (recipe.odor * K.odorMinutesPerLevel) / 60;
+      const nodes = [node.id];
+      for (const pid of node.portals) {
+        const p = g.getPortal(pid);
+        if (!g.isPassable(p)) continue;               // 关着的门挡住气味
+        nodes.push(g.other(p, node.id));
+      }
+      g.addOdor(nodes, drop, until);
+      for (const nid of nodes) this.odors.push({ nodeId: nid, level: recipe.odor, until });
+      C.EventBus.publish('OdorEvent', { nodeIds: nodes, level: recipe.odor, until });
+    },
+    clearOdors() { if (C.SoundSystem.graph) C.SoundSystem.graph.clearOdors(); this.odors = []; },
+
+    /** 某个节点当前的气味等级（界面/丧尸阈值查询用） */
+    odorAt(nodeId) {
+      let lv = 0;
+      for (const o of this.odors) if (o.nodeId === nodeId) lv = Math.max(lv, o.level);
+      return lv;
+    },
+
+    /* ── 持续噪音（规格 10.1）：由装配层按真实秒驱动 ── */
+    emitProcessNoise(dtSeconds) {
+      this._acc = (this._acc || 0) + dtSeconds;
+      if (this._acc < 2) return;
+      this._acc = 0;
+      for (const st of this.stations) {
+        const ss = st.session;
+        if (!ss || ss.phase === Phase.Ruined || !st.pos) continue;
+        const recipe = C.Config.recipes.find(r => r.id === ss.recipeId);
+        if (!recipe) continue;
+        let loud = recipe.loud;
+        if (ss.phase === Phase.Cooking || ss.phase === Phase.Golden) {
+          const H = st.heater ? C.Config.cooking.heaters[st.heater] : null;
+          if (H) loud = Math.max(loud, H.idle);
+        }
+        if (ss.phase === Phase.Overcooked) loud += C.Config.cooking.overcookLoudAdd;
+        if (loud <= 0) continue;
+        C.SoundSystem.emit({
+          worldPosition: st.pos, loudness: loud, category: C.SoundCategory.Ambient,
+          emitterId: -1, label: recipe.name + '（' + ss.phase + '）'
+        });
+      }
+    },
+
+    addStation(opts) {
+      const st = new Station(this._nextStation++, opts);
+      this.stations.push(st);
+      return st;
+    },
+
+    serialize() {
+      return {
+        xp: this.xp, made: this.made,
+        usedCookware: this.usedCookware, usedHeaters: this.usedHeaters,
+        stations: this.stations.map(st => ({
+          id: st.id, pos: st.pos ? C.V.copy(st.pos) : null, surface: st.surface, slots: st.slots,
+          heater: st.heater, cookware: st.cookware, deviceId: st.deviceId, debuzzed: !!st.debuzzed,
+          linkId: st.link ? st.link.id : null,
+          session: st.session ? {
+            recipeId: st.session.recipeId, startAt: st.session.startAt,
+            totalMinutes: st.session.totalMinutes, doneAt: st.session.doneAt,
+            goldenEnd: st.session.goldenEnd, ruinAt: st.session.ruinAt,
+            phase: st.session.phase, seasonings: st.session.seasonings,
+            autoShutoff: st.session.autoShutoff, venting: st.session.venting
+          } : null
+        }))
+      };
+    },
+    deserialize(d) {
+      this.reset();
+      if (!d) return this;
+      this.xp = d.xp || 0;
+      this.made = d.made || {};
+      this.usedCookware = d.usedCookware || {};
+      this.usedHeaters = d.usedHeaters || {};
+      for (const r of d.stations || []) {
+        const st = this.addStation({ pos: r.pos, surface: r.surface, slots: r.slots,
+                                     heater: r.heater, cookware: r.cookware, deviceId: r.deviceId });
+        st.id = r.id; st.debuzzed = r.debuzzed;
+        st.link = C.Power.links.find(l => l.id === r.linkId) || null;
+        if (r.session) st.session = Object.assign(Object.create(Session.prototype), r.session);
+      }
+      this._nextStation = this.stations.reduce((n, s) => Math.max(n, s.id + 1), 1);
+      return this;
+    }
+  };
+
+  C.CookPhase = Phase;
+  C.KitchenStation = Station;
+  C.Cooking = Cooking;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/31-tutorial.js ===== */
+/*
+ * 31-tutorial.js —— 新手教学（新手教学关卡设计 v1）
+ *
+ * **核心判断：宿舍楼不能一只丧尸都没有。**
+ * 如果整栋楼完全空置，玩家会花二十多分钟熟练掌握一个「没有威胁的游戏」，
+ * 然后在推开大门的那一刻被迫在三十秒内同时理解声音传播、潜行姿态、投石引怪、屏息侦查。
+ * **教学教会了错误的游戏，而真正的考试在门外。**
+ *
+ * 正确的做法：把危险分级引入 ——
+ * 每一个机制都在零风险的环境下被教会，然后才拿到有风险的环境里考。
+ *
+ * 本文件是第 4 层：读状态、发提示，**不改规则**。
+ * 关卡布置（谁在哪、哪扇门锁着）在 08-level / 24-campus，因为那是几何。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /* ── 危险分层（设计 0.2）────────────────────────────
+     玩家在见到第一只可能伤害自己的丧尸之前，有约 15 分钟的完全安全时间。
+     「安心入手」完全满足，而且教学没有骗人。 */
+  const FLOOR_DANGER = [
+    { floor: 3, zombies: 0, note: '出生层。绝对安全：移动、搜刮、背包、需求' },
+    { floor: 2, zombies: 0, note: '绝对安全：电力、水、手电' },
+    { floor: 1, zombies: 1, locked: true,  note: '安全但有临场感。**在这里教完全部声音机制**' },
+    { floor: 0, zombies: 1, locked: false, note: '第一次真正的考试' }
+  ];
+
+  /* ── 七个目标（设计 第二部分）────────────────────────
+     **全部用主角的第一人称内心独白语气**，不用系统指令语气：
+       ✗「前往一楼配电间推上电闸」
+       ✓「水壶插上了没反应。配电间应该在一楼。」 */
+  const OBJECTIVES = [
+    { id: 'drink',   text: '嗓子干得厉害，先找点喝的。',   teaches: '移动、交互、搜刮、需求条' },
+    { id: 'bag',     text: '东西拿不下了，得找个包。',     teaches: '背包、格子、重量' },
+    { id: 'boil',    text: '有水壶，烧点开水吧。',         teaches: '插座、电线、回路是死的' },
+    { id: 'sound',   text: '楼下有声音。',                 teaches: '**全部声音机制**' },
+    { id: 'sleep',   text: '天黑了。今晚就在这儿吧。',     teaches: '封锁、睡眠、安全睡点' },
+    { id: 'breaker', text: '配电间在一楼。',               teaches: '潜行实战、推闸' },
+    { id: 'leave',   text: '不能一直待在这栋楼里。',       teaches: '投石过开阔地' }
+  ];
+
+  /* ── 提示（设计 4.2 触发表）──────────────────────────
+     规矩：**按键提示只在该操作第一次在情境中变得必要时出现，出现一次，之后永不再现。** */
+  const Kind = { Key: 'key', Panel: 'panel', Monologue: 'mono' };
+  const HINTS = {
+    T01: { kind: Kind.Key,   text: '交互',            key: 'F' },
+    T02: { kind: Kind.Panel, title: '需求',           text: '饥饿和口渴从右边挤占生命上限。吃喝解除挤占，但**不会回血** —— 受过的伤要单独治。' },
+    T03: { kind: Kind.Key,   text: '打开背包',        key: 'B' },
+    T04: { kind: Kind.Panel, title: '背包',           text: '格子越大越占地方，能转 90°。重量超了跑不动。口袋里的六格是快取位，1–6 直接用。' },
+    T05: { kind: Kind.Key,   text: '手电',            key: 'L' },
+    T06: { kind: Kind.Monologue, text: '灯光在黑暗里能传很远。' },
+    T07: { kind: Kind.Panel, title: '该插座无电',     text: '插上了，没反应。' },
+    T08: { kind: Kind.Monologue, text: '跳闸了？配电间……在一楼吧。' },
+    /* **全表最重要的一条。** 如果玩家错过它，整个二楼的教学都会失效。
+       所以它的触发条件最宽松，而且是**全表唯一允许重复一次**的提示。 */
+    T09: { kind: Kind.Key,   text: '屏息',            key: 'Z', repeatAfter: 8 },
+    T10: { kind: Kind.Key,   text: '拾取',            key: 'F' },
+    T11: { kind: Kind.Key,   text: '蓄力投掷',        key: 'G' },
+    T12: { kind: Kind.Key,   text: '关门 / 按住缓慢', key: 'F' },
+    T13: { kind: Kind.Key,   text: '贴墙',            key: 'V' },
+    T14: { kind: Kind.Key,   text: '探头',            key: 'Q / E' },
+    T15: { kind: Kind.Key,   text: '蹲行',            key: 'Ctrl' },
+    T16: { kind: Kind.Monologue, text: '天黑了。' },
+    T17: { kind: Kind.Panel, title: '睡不着',         text: '门开着，挡不住什么。' },
+    T18: { kind: Kind.Key,   text: '封锁',            key: 'F' },
+    T19: { kind: Kind.Panel, title: '睡眠',           text: '22:00 前入睡且睡满 6 小时会得到「精力充沛」。睡眠会被声音吵醒。' },
+    T20: { kind: Kind.Panel, title: '通电了',         text: '每条链路有功率上限，超了会跳闸，**跳闸会毁掉正在做的东西**。' },
+    T21: { kind: Kind.Panel, title: '跳闸',           text: '同时开的设备加起来超过了上限。去配电箱复位。' },
+    T22: { kind: Kind.Panel, title: '净化',           text: '烧开的水可以放心喝。第 8 天之前自来水是安全的。' }
+  };
+
+  /* ── 环境叙事（设计 3.1 / 3.3）──────────────────────
+     **这三句话是整个游戏最重要的教学文本。**
+     它比任何 UI 提示都有分量，因为它是别人用命换来的经验。 */
+  const NOTES = {
+    note406: '三楼水龙头没水了，四楼还有。别下楼。\n——不知道谁',
+    note206: '它们看不清，但是听得见。\n走慢一点。别跑。\n我在图书馆。'
+  };
+
+  const Tutorial = {
+    enabled: true,
+    finished: false,
+    objective: null,          // 当前目标 id
+    done: {},                 // 已完成的目标
+    shown: {},                // 已出现过的提示
+    pending: [],              // 待显示的提示队列（界面层消费）
+    _repeat: {},              // T09 专用：允许重复一次
+
+    reset(enabled) {
+      this.enabled = enabled !== false;
+      this.finished = false;
+      this.objective = null;
+      this.done = {}; this.shown = {}; this.pending = []; this._repeat = {};
+      if (this.enabled) this.setObjective('drink');
+      return this;
+    },
+
+    /** 跳过教学：**关卡布置不变**，只是没人说话（设计 4.3）*/
+    skip() {
+      this.enabled = false;
+      this.finished = true;
+      this.objective = null;
+      this.pending = [];
+    },
+
+    objectiveText() {
+      const o = OBJECTIVES.find(x => x.id === this.objective);
+      return o ? o.text : '';
+    },
+    setObjective(id) {
+      if (!this.enabled || this.finished) return false;
+      if (this.done[id] || this.objective === id) return false;
+      this.objective = id;
+      this.pending.push({ kind: 'objective', id, text: this.objectiveText() });
+      C.EventBus.publish('TutorialObjectiveEvent', { id, text: this.objectiveText() });
+      return true;
+    },
+    completeObjective(id) {
+      if (!this.enabled || this.done[id]) return false;
+      this.done[id] = true;
+      if (this.objective === id) this.objective = null;
+      return true;
+    },
+
+    /**
+     * 触发一条提示。**出现一次，之后永不再现** ——
+     * 唯一的例外是 T09（屏息），它允许在 8 秒后再提示一次。
+     */
+    hint(id, nowSeconds) {
+      if (!this.enabled || this.finished) return false;
+      const h = HINTS[id];
+      if (!h) return false;
+      /* `[实测]` 这里必须用 `!== undefined` 判断「出现过没有」。
+         写成 `if (this.shown[id])` 的话，游戏第 0 秒触发的提示存进去是 0，
+         下一次判断时 0 是假值 —— 提示会被重复播一遍。 */
+      if (this.shown[id] !== undefined) {
+        if (!h.repeatAfter || this._repeat[id]) return false;
+        if (nowSeconds - this.shown[id] < h.repeatAfter) return false;
+        this._repeat[id] = true;                 // 只准重复这一次
+      } else {
+        this.shown[id] = nowSeconds || 0;
+      }
+      this.pending.push(Object.assign({ id }, h));
+      return true;
+    },
+    /** 玩家做出了这个动作 → 提示可以收了 */
+    satisfied(id) { this._repeat[id] = true; },
+
+    take() { const p = this.pending; this.pending = []; return p; },
+
+    /**
+     * **教学结束后，目标 UI 永久消失，整局游戏再也不出现。**
+     * 这个消失本身是一句话：从现在起没人告诉你该干什么了。
+     * 没有庆祝、没有「教学完成」字样、没有音乐变化。
+     */
+    finish(notebook, time) {
+      if (this.finished) return false;
+      this.finished = true;
+      this.enabled = false;
+      this.objective = null;
+      this.pending = [];
+      if (notebook) notebook.addClue('离开宿舍楼', time);
+      C.EventBus.publish('TutorialFinishedEvent', {});
+      return true;
+    },
+
+    serialize() {
+      return { enabled: this.enabled, finished: this.finished, objective: this.objective,
+               done: this.done, shown: this.shown, repeat: this._repeat };
+    },
+    deserialize(d) {
+      if (!d) return this;
+      this.enabled = d.enabled !== false;
+      this.finished = !!d.finished;
+      this.objective = d.objective || null;
+      this.done = d.done || {}; this.shown = d.shown || {}; this._repeat = d.repeat || {};
+      this.pending = [];
+      return this;
+    }
+  };
+
+  C.TutorialFloors = FLOOR_DANGER;
+  C.TutorialObjectives = OBJECTIVES;
+  C.TutorialHints = HINTS;
+  C.TutorialHintKind = Kind;
+  C.TutorialNotes = NOTES;
+  C.Tutorial = Tutorial;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/32-kitchen-ui.js ===== */
+/*
+ * 32-kitchen-ui.js —— 厨房与教学的界面层
+ *
+ * 两块内容，都只读下层状态、不反向写：
+ *   ① 厨房面板（K）：**功率余量必须一眼可见** —— 跳闸永远应该是玩家的失误，不是意外
+ *   ② 教学提示：目标一行小字 5 秒淡出、按键提示、一次性说明、独白
+ *      **四种全部不暂停游戏。** 这个游戏从第一秒起就不给人喘息。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const KitchenUI = {
+    open: false, game: null, station: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('kitchen');
+      this.el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (b) this._act(b.dataset.act, b.dataset.arg);
+      });
+    },
+
+    toggle() {
+      if (this.open) { this.close(); return; }
+      this.station = this._nearest();
+      if (!this.station) { this.game.msg('附近没有厨房。把台面和加热设备放下来才能做饭'); return; }
+      this.open = true;
+      this.el.classList.add('open');
+      this.game.releaseMouseForPanel();
+      this.render();
+    },
+    close() {
+      if (!this.open) return;
+      this.open = false; this.station = null;
+      this.el.classList.remove('open');
+      this.game.restoreMouseAfterPanel();
+    },
+
+    _nearest() {
+      const p = this.game.player;
+      let best = null, bd = C.Config.interact.range + 1.5;
+      for (const st of C.Cooking.stations) {
+        if (!st.pos) continue;
+        const d = C.V.dist(p.pos, st.pos);
+        if (d < bd) { bd = d; best = st; }
+      }
+      return best;
+    },
+
+    /** 走远了自动关，和搜刮界面一个道理 */
+    update(player) {
+      if (!this.open || !this.station) return;
+      if (C.V.dist(player.pos, this.station.pos) > C.Config.interact.range + 2.0) this.close();
+      else if (this._t === undefined || (this._t += 1) % 20 === 0) this.render();
+    },
+
+    render() {
+      if (!this.open || !this.station) return;
+      const st = this.station, K = C.Config.cooking;
+      const H = st.heater ? K.heaters[st.heater] : null;
+      const cw = st.cookware ? K.cookware[st.cookware] : null;
+      const now = this.game.time.totalGameSeconds / 3600;
+
+      /* ── 电力：已用 / 上限 一定要在最上面 ────────────
+         **跳闸不是随机的，是玩家算错了。** 所以余量必须一眼可见。 */
+      let power = '<p class="kit-none">这台设备没接电</p>';
+      if (st.link) {
+        const r = C.Power.readout(st.link);
+        // 上限是 0（闸没推 / 停电）时进度条要是**空的**，不是满的 —— 满的会读成「用满了」
+        const pct = r.limit > 0 ? Math.min(100, r.used / r.limit * 100) : 0;
+        const over = r.limit > 0 && r.used > r.limit;
+        power =
+          `<div class="kit-row"><b>${r.sourceName}</b>` +
+          `<span class="kit-watt ${over || r.limit <= 0 ? 'bad' : ''}">` +
+          (r.limit > 0 ? `已用 ${r.used} / ${r.limit} W` : '这条回路没电') + '</span></div>' +
+          `<div class="kit-bar"><i style="width:${pct}%;background:${over ? 'var(--accent)' : 'var(--signal)'}"></i></div>` +
+          r.devices.map(d => `<div class="kit-dev"><span>${d.label}</span>` +
+            `<span>${d.watt} W</span><em>${d.on ? '运行中' : '关'}</em></div>`).join('') +
+          (r.fuel !== null ? `<p class="kit-fuel">剩余柴油 ${r.fuel.toFixed(1)} L` +
+            `（约 ${r.fuelHours.toFixed(0)} 小时）</p>` : '') +
+          (r.tripped ? '<p class="kit-trip">已跳闸 —— <button data-act="reset">复位</button></p>' : '');
+      }
+
+      // ── 设备与锅具
+      const gear = `<div class="kit-row"><span>${H ? H.name : '（没有加热设备）'}</span>` +
+        `<span>${cw ? cw.name : (H && H.needsCookware ? '**缺一口锅**' : '自带内胆')}</span></div>`;
+
+      // ── 正在做的
+      let doing = '';
+      const ss = st.session;
+      if (ss) {
+        const r = C.Config.recipes.find(x => x.id === ss.recipeId);
+        const total = ss.ruinAt - ss.startAt;
+        const p = Math.min(1, (now - ss.startAt) / Math.max(1e-6, ss.doneAt - ss.startAt));
+        doing =
+          `<h6>${r.name}　<small>${ss.phase}</small></h6>` +
+          `<div class="kit-bar"><i style="width:${(p * 100).toFixed(0)}%;background:var(--warn,#E5B45C)"></i></div>` +
+          (ss.phase === C.CookPhase.Cooking
+            ? `<p class="kit-fuel">完成于 ${this._clock(ss.doneAt)}</p>`
+            : `<p class="kit-fuel">${ss.phase === C.CookPhase.Ruined ? '糊了' :
+                 '黄金窗口到 ' + this._clock(ss.goldenEnd)}</p>`) +
+          (ss.venting > 0 ? '<p class="kit-trip">高压锅要泄压：' +
+            '<button data-act="ventSlow">等 15 分钟（20）</button> ' +
+            '<button data-act="ventFast">立刻放（**55**）</button></p>' : '') +
+          `<p><button data-act="take">取出</button> <button data-act="stop">关火</button></p>`;
+      } else {
+        /* 能做什么：**不能做的也列出来，并写清楚为什么** ——
+           「锅具不兼容」「功率不够：还要 2000W，只剩 400W」这种话本身就是教学。 */
+        const lv = C.Cooking.level();
+        const rows = C.Config.recipes.map(r => {
+          const chk = C.Cooking.canCook(r, st);
+          const mat = Object.keys(r.need).map(k =>
+            (C.Config.ingredientNames[k] || k) + (r.need[k] > 1 ? '×' + r.need[k] : '')).join(' + ');
+          const mins = C.Cooking.minutesFor(r, st);
+          return `<div class="kit-recipe ${chk.ok ? '' : 'no'}">` +
+            `<b>${r.name}</b><span class="kit-mat">${mat}</span>` +
+            `<span class="kit-eff">${mins.toFixed(0)}分　噪音 ${r.loud}　气味 ${r.odor}</span>` +
+            (chk.ok ? `<button data-act="cook" data-arg="${r.id}">做</button>`
+                    : `<em class="kit-why">${chk.why}</em>`) + '</div>';
+        }).join('');
+        doing = `<h6>能做什么　<small>烹饪 ${lv} 级 · ${C.Cooking.xp} 经验</small></h6>` +
+                `<div class="kit-list">${rows}</div>`;
+      }
+
+      this.el.innerHTML =
+        '<div class="kit-panel">' +
+          '<h5>厨房<button class="loot-btn" data-act="close">关闭</button></h5>' +
+          power + gear + doing +
+        '</div>';
+    },
+
+    _clock(h) {
+      const t = ((h % 24) + 24) % 24;
+      return String(Math.floor(t)).padStart(2, '0') + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0');
+    },
+
+    _act(act, arg) {
+      const st = this.station, now = this.game.time.totalGameSeconds / 3600;
+      if (act === 'close') return this.close();
+      if (act === 'reset') { C.Power.resetBreakerOf(st.link); return this.render(); }
+      if (act === 'ventSlow' || act === 'ventFast') {
+        this.game.msg(C.Cooking.vent(st, act === 'ventFast').msg); return this.render();
+      }
+      if (act === 'stop') { this.game.msg(C.Cooking.stop(st).msg); return this.render(); }
+      if (act === 'take') {
+        const r = C.Cooking.take(st, now);
+        this.game.msg(r.msg || '还没好');
+        if (r.ok) C.EventBus.publish('FoodCookedEvent', { food: r.food });
+        return this.render();
+      }
+      if (act === 'cook') {
+        const r = C.Cooking.start(arg, st, now, { seasonings: 0 });
+        this.game.msg(r.msg);
+        return this.render();
+      }
+    }
+  };
+
+  /* ── 教学提示 ────────────────────────────────────────
+     **不做任务列表面板。** 目标是左上角一行小字，5 秒后淡出。 */
+  const TutorialUI = {
+    game: null, objective: '', objTimer: 0, key: null, keyTimer: 0,
+    mono: '', monoTimer: 0, panel: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('tut');
+      this.el.innerHTML =
+        '<div id="tutObj"></div><div id="tutMono"></div>' +
+        '<div id="tutKey"></div><div id="tutPanel"></div>';
+      this.objEl = document.getElementById('tutObj');
+      this.monoEl = document.getElementById('tutMono');
+      this.keyEl = document.getElementById('tutKey');
+      this.panelEl = document.getElementById('tutPanel');
+      this.panelEl.addEventListener('click', () => this._closePanel());
+    },
+
+    update(dt) {
+      for (const p of C.Tutorial.take()) this._show(p);
+      // 目标 5 秒后淡出；长按 Tab 可以重新调出（装配层把 Tab 转过来）
+      if (this.objTimer > 0) { this.objTimer -= dt; if (this.objTimer <= 0) this.objEl.classList.remove('on'); }
+      if (this.monoTimer > 0) { this.monoTimer -= dt; if (this.monoTimer <= 0) this.monoEl.classList.remove('on'); }
+      if (this.keyTimer > 0) { this.keyTimer -= dt; if (this.keyTimer <= 0) this.keyEl.classList.remove('on'); }
+      if (C.Tutorial.finished && this.el.style.display !== 'none') {
+        // **教学结束后，目标 UI 永久移除，本局游戏不再出现**
+        this.el.style.display = 'none';
+      }
+    },
+
+    /** 长按 Tab 重新调出当前目标 */
+    recall() {
+      if (!C.Tutorial.enabled || !C.Tutorial.objective) return;
+      this.objEl.textContent = C.Tutorial.objectiveText();
+      this.objEl.classList.add('on');
+      this.objTimer = 5;
+    },
+
+    _show(p) {
+      if (p.kind === 'objective') {
+        this.objEl.textContent = p.text; this.objEl.classList.add('on'); this.objTimer = 5;
+      } else if (p.kind === C.TutorialHintKind.Monologue) {
+        this.monoEl.textContent = p.text; this.monoEl.classList.add('on'); this.monoTimer = 4;
+      } else if (p.kind === C.TutorialHintKind.Key) {
+        this.keyEl.innerHTML = `<kbd>${p.key}</kbd><span>${p.text}</span>`;
+        this.keyEl.classList.add('on'); this.keyTimer = 8;
+      } else {
+        this.panelEl.innerHTML = `<div class="tut-card"><h6>${p.title}</h6>` +
+          `<p>${p.text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>` +
+          '<em>按任意键继续</em></div>';
+        this.panelEl.classList.add('on');
+      }
+    },
+    _closePanel() { this.panelEl.classList.remove('on'); },
+    anyKey() { if (this.panelEl.classList.contains('on')) this._closePanel(); }
+  };
+
+  C.KitchenUI = KitchenUI;
+  C.TutorialUI = TutorialUI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -6923,7 +8671,7 @@
        所以再挂一个**非被动**的 touchmove，把不是发生在可滚动面板里的手势直接吃掉。
        可滚动面板（背包、笔记本、调参、开场层）要放行，否则它们就滚不动了。 */
     _lockPageScroll() {
-      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note, #loot');
+      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note, #loot, #kitchen');
       document.addEventListener('touchmove', (e) => {
         if (scrollable(e.target)) return;
         if (e.cancelable) e.preventDefault();
@@ -7098,6 +8846,9 @@
       }
       C.Streaming.reset(this.level);
       C.Notebook.reset();
+      C.Power.reset(this.level);
+      C.Cooking.reset();
+      C.Tutorial.reset(!/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -7115,7 +8866,14 @@
       C.Streaming.onChange = (loaded) => this.renderer.setLoadedBuildings(loaded);
       C.Streaming.update(this.player.pos);
       this.renderer.setLoadedBuildings(C.Streaming.loaded);
-      if (!this._noteReady) { C.NotebookUI.init(this); C.LootUI.init(this); this._noteReady = true; }
+      if (!this._noteReady) {
+        C.NotebookUI.init(this); C.LootUI.init(this);
+        C.KitchenUI.init(this); C.TutorialUI.init(this);
+        this._noteReady = true;
+      }
+      C.KitchenUI.game = this; C.KitchenUI.close();
+      C.TutorialUI.game = this;
+      document.getElementById('tut').style.display = '';
       C.LootUI.game = this;
       C.LootUI.close();
       C.NotebookUI.game = this;
@@ -7132,6 +8890,29 @@
          翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
       C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
+      /* 跳闸/停电会**报废正在做的东西** —— 电力层只管断电，
+         报废是烹饪层的事，在这里把两层接起来（谁也不认识谁）。 */
+      C.EventBus.subscribe('CircuitOverloadedEvent', (e) => {
+        const link = C.Power.links.find(l => l.id === e.linkId);
+        const n = link ? C.Cooking.ruinAllOn(link, 'trip') : 0;
+        this.msg('跳闸了' + (n ? '，锅里的东西废了' : ''));
+        C.Tutorial.hint('T21', this.time.totalGameSeconds);
+      });
+      C.EventBus.subscribe('PowerLostEvent', (e) => {
+        for (const l of C.Power.links) C.Cooking.ruinAllOn(l, e.reason);
+        if (e.reason === 'gridFail') this.msg('第 ' + e.day + ' 天 00:00 —— 市电断了。这次不会再来了。');
+        else if (e.reason === 'noFuel') this.msg('发电机没油了');
+        else if (e.reason === 'batteryFlat') this.msg('电瓶空了');
+      });
+      C.EventBus.subscribe('CookingCompletedEvent', () => C.KitchenUI.render());
+      C.EventBus.subscribe('FoodCookedEvent', (e) => {
+        const f = e.food;
+        this.player.needs.hunger = M.clamp(this.player.needs.hunger - f.satiety, 0, C.Config.needs.barLength);
+        this.player.needs.thirst = M.clamp(this.player.needs.thirst + f.thirst, 0, C.Config.needs.barLength);
+        this.msg('吃了' + f.name + '　饿 −' + f.satiety.toFixed(0) +
+                 (f.thirst < 0 ? '　渴 ' + f.thirst.toFixed(0) : ''));
+        if (f.recipeId === 'boilWater') C.Tutorial.hint('T22', this.time.totalGameSeconds);
+      });
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
       C.EventBus.subscribe('BagGrabbedEvent', (e) => {
         C.Notebook.lootContainer(e.box, this.time);
@@ -7196,6 +8977,8 @@
         // 记一笔「本帧内按下过」：快速点击可能整个发生在两帧之间，
         // 只看 keys 会让贴墙、跳跃这类边沿触发的键被吃掉
         this.tapped[e.code] = true;
+        C.TutorialUI.anyKey();                 // 一次性说明：按任意键关掉
+        if (e.code === 'Tab') C.TutorialUI.recall();   // 长按 Tab 调回当前目标
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
@@ -7208,6 +8991,7 @@
           // 探索用开关（正式版要砍掉）：无敌 / 隐身
           case 'KeyO': this.toggleCheat('godMode', '无敌'); break;
           case 'KeyI': this.toggleCheat('ghost', '隐身'); break;
+          case 'KeyK': C.KitchenUI.toggle(); break;
           case 'KeyJ': C.NotebookUI.toggle(); break;
           case 'KeyR':
             // 拖动中按 R 转 90°；没在拖就是原来的重开
@@ -7224,7 +9008,7 @@
             this.time.timeScale = this.timeScales[this.timeScaleIndex];
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
-          case 'KeyK': this._toggleSleep(); break;
+          case 'KeyU': this._toggleSleep(); break;   // 睡觉（K 让给厨房）
           case 'KeyB': C.InventoryUI.toggle(); break;
           case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
@@ -7330,7 +9114,7 @@
 
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
-      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open;
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open;
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -7477,9 +9261,89 @@
       C.Touch.sync(this.player);
       C.LootUI.tickSearch(dt);
       C.LootUI.update(this.player);
+      C.KitchenUI.update(this.player);
+      C.TutorialUI.update(dt);
+      this._tickKitchen(dt, dtHours);
+      this._tickTutorial(dt);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));
+    },
+
+    /* 厨房与供电每帧推进。规则层只认游戏小时，噪音按真实秒发。 */
+    _tickKitchen(dt, dtHours) {
+      const day = this.time.day;
+      C.Power.update(dtHours, day, this.time.isNight(), this.weather || 'clear');
+      C.Cooking.update(this.time.totalGameSeconds / 3600, dtHours, this.level);
+      C.Power.emitRunningNoise(dt);
+      C.Cooking.emitProcessNoise(dt);
+    },
+
+    /* 教学触发（教学设计 4.2 触发表）。
+       **按键提示只在该操作第一次在情境中变得必要时出现。**
+       所以这里判断的是「情境」，不是「时间到了」。 */
+    _tickTutorial(dt) {
+      const T = C.Tutorial;
+      if (!T.enabled || T.finished) return;
+      const p = this.player, now = this.time.totalGameSeconds;
+      const H = C.Config.level.floorHeight;
+      const floor = Math.round(p.pos.y / H);
+      const home = this.level.buildings && this.level.buildings.find(b => b.spec.spawn);
+      const inHome = home && C.Streaming.buildingAt(p.pos) === home;
+
+      // T01 视线落在可交互物上
+      if (p.target || p.interactTarget) T.hint('T01', now);
+      // T03 口袋满了还想捡
+      if (!p.bag && p.hotbar.every(x => x)) T.hint('T03', now);
+      // T05 暗处停留（夜里或没开灯的房间）
+      if (this.time.isNight() && !p.flashlight) T.hint('T05', now);
+      if (p.flashlight) { T.satisfied('T05'); T.hint('T06', now); }
+
+      /* T09（屏息）**全表最重要的一条**：踏上二楼楼梯平台即触发。
+         错过它，整个二楼的教学都会失效 —— 所以触发条件最宽松，且允许重复一次。 */
+      if (inHome && floor <= 1 && !T.done.sound) {
+        T.setObjective('sound');
+        T.hint('T09', now);
+      }
+      if (p.holdBreath) { T.satisfied('T09'); T.completeObjective('sound'); }
+
+      // T10/T11 有石头且在走廊里
+      if (p.stoneCount() > 0 && p.target && p.target.type === 'loose') T.hint('T10', now);
+      if (p.charge > 0) T.hint('T11', now);
+      // T12 靠近开着的门
+      if (p.interactTarget) T.hint('T12', now);
+      // T13/T14 贴墙与探头
+      if (p.wallHug) { T.hint('T13', now); T.hint('T14', now); }
+      // T15 蹲行
+      if (inHome && floor <= 1) T.hint('T15', now);
+      // T16 天黑
+      if (this.time.hour >= 19 && this.time.day === 1) { T.hint('T16', now); T.setObjective('sleep'); }
+
+      // 目标推进：喝到水 → 找包 → 烧水 → …
+      if (!T.done.drink && p.needs.thirst < 20) { T.completeObjective('drink'); T.setObjective('bag'); }
+      if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
+      // 插座没电 → 目标变成「配电间在一楼」
+      if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
+        const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
+        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); }
+      }
+      // 推上闸 → 目标完成
+      const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
+      if (c2 && c2.breakerOn && !T.done.breaker) {
+        T.completeObjective('breaker'); T.completeObjective('boil');
+        T.hint('T20', now);
+        T.setObjective('leave');
+      } else if (T.done.sleep && !T.done.breaker) {
+        T.setObjective('breaker');
+      }
+
+      /* 走出宿舍楼、越过草坪 → **教学结束，UI 永久消失。**
+         没有庆祝、没有「教学完成」字样。只是没有人再告诉你该干什么了。 */
+      if (home && !inHome) {
+        const f = home.footprint;
+        const away = C.rectDist(f, p.pos.x, p.pos.z);
+        if (away > 26) T.finish(C.Notebook, this.time);
+      }
     },
 
     /* 笔记本的被动记录（14.3）。每帧都跑，所以贵的那部分要节流。

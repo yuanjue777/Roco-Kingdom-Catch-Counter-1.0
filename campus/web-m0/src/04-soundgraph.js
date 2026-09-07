@@ -55,6 +55,30 @@
     return p;
   };
 
+  /* ── 气味（烹饪规格 10.2）────────────────────────────
+     气味不做传播模拟，是**挂在节点上的一个临时修正**：
+     让该节点里的丧尸听觉阈值降低，持续一段时间。
+     它是第 1 层的数据：烹饪（第 4 层）往下写，听觉（第 2 层）往下读，
+     两边都不认识对方。 */
+  SoundGraph.prototype.addOdor = function (nodeIds, drop, untilHours) {
+    this._odors = this._odors || [];
+    for (const id of nodeIds) this._odors.push({ nodeId: id, drop, until: untilHours });
+  };
+  /** 该节点当前的阈值降低量（多份气味取最大，不叠加 —— 免得做两顿饭就把阈值打到 0） */
+  SoundGraph.prototype.odorDrop = function (nodeId) {
+    if (!this._odors || !this._odors.length) return 0;
+    let d = 0;
+    for (const o of this._odors) if (o.nodeId === nodeId && o.drop > d) d = o.drop;
+    return d;
+  };
+  SoundGraph.prototype.expireOdors = function (nowHours) {
+    if (!this._odors) return;
+    for (let i = this._odors.length - 1; i >= 0; i--) {
+      if (this._odors[i].until <= nowHours) this._odors.splice(i, 1);
+    }
+  };
+  SoundGraph.prototype.clearOdors = function () { this._odors = []; };
+
   SoundGraph.prototype.getNode = function (id) { return this._nodeById.get(id); };
   SoundGraph.prototype.getPortal = function (id) { return this._portalById.get(id); };
 

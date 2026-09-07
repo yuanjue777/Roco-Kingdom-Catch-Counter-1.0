@@ -89,10 +89,14 @@
 
     /* ── 配方页 ─────────────────────────────────────── */
 
-    /** 捡到书就解锁对应的一批配方（10.2「书籍解锁配方」） */
+    /**
+     * 捡到书就解锁对应的一批**手艺**配方（10.2「书籍解锁配方」）。
+     * `[实测]` **烹饪配方不走书**，走烹饪熟练度（烹饪规格 12.2）——
+     * 做饭是练出来的，不是看书看会的。两张表因此是分开的。
+     */
     readBook(itemId, time) {
       let n = 0;
-      for (const r of C.Config.recipes) {
+      for (const r of C.Config.craftRecipes) {
         if (r.unlock !== itemId || this.recipes.has(r.id)) continue;
         this.recipes.add(r.id); n++;
       }

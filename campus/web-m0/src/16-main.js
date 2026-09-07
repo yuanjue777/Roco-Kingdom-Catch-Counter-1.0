@@ -53,6 +53,9 @@
       }
       C.Streaming.reset(this.level);
       C.Notebook.reset();
+      C.Power.reset(this.level);
+      C.Cooking.reset();
+      C.Tutorial.reset(!/[?&]skiptut\b/.test(typeof location !== 'undefined' ? location.search : ''));
       this.world = new C.World(this.level);
       this.time = new C.TimeSystem();
       // 室外遮挡用碰撞世界的射线检测；声音系统只拿到一个纯函数，不认识 World
@@ -70,7 +73,14 @@
       C.Streaming.onChange = (loaded) => this.renderer.setLoadedBuildings(loaded);
       C.Streaming.update(this.player.pos);
       this.renderer.setLoadedBuildings(C.Streaming.loaded);
-      if (!this._noteReady) { C.NotebookUI.init(this); C.LootUI.init(this); this._noteReady = true; }
+      if (!this._noteReady) {
+        C.NotebookUI.init(this); C.LootUI.init(this);
+        C.KitchenUI.init(this); C.TutorialUI.init(this);
+        this._noteReady = true;
+      }
+      C.KitchenUI.game = this; C.KitchenUI.close();
+      C.TutorialUI.game = this;
+      document.getElementById('tut').style.display = '';
       C.LootUI.game = this;
       C.LootUI.close();
       C.NotebookUI.game = this;
@@ -87,6 +97,29 @@
          翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
       C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
+      /* 跳闸/停电会**报废正在做的东西** —— 电力层只管断电，
+         报废是烹饪层的事，在这里把两层接起来（谁也不认识谁）。 */
+      C.EventBus.subscribe('CircuitOverloadedEvent', (e) => {
+        const link = C.Power.links.find(l => l.id === e.linkId);
+        const n = link ? C.Cooking.ruinAllOn(link, 'trip') : 0;
+        this.msg('跳闸了' + (n ? '，锅里的东西废了' : ''));
+        C.Tutorial.hint('T21', this.time.totalGameSeconds);
+      });
+      C.EventBus.subscribe('PowerLostEvent', (e) => {
+        for (const l of C.Power.links) C.Cooking.ruinAllOn(l, e.reason);
+        if (e.reason === 'gridFail') this.msg('第 ' + e.day + ' 天 00:00 —— 市电断了。这次不会再来了。');
+        else if (e.reason === 'noFuel') this.msg('发电机没油了');
+        else if (e.reason === 'batteryFlat') this.msg('电瓶空了');
+      });
+      C.EventBus.subscribe('CookingCompletedEvent', () => C.KitchenUI.render());
+      C.EventBus.subscribe('FoodCookedEvent', (e) => {
+        const f = e.food;
+        this.player.needs.hunger = M.clamp(this.player.needs.hunger - f.satiety, 0, C.Config.needs.barLength);
+        this.player.needs.thirst = M.clamp(this.player.needs.thirst + f.thirst, 0, C.Config.needs.barLength);
+        this.msg('吃了' + f.name + '　饿 −' + f.satiety.toFixed(0) +
+                 (f.thirst < 0 ? '　渴 ' + f.thirst.toFixed(0) : ''));
+        if (f.recipeId === 'boilWater') C.Tutorial.hint('T22', this.time.totalGameSeconds);
+      });
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.Notebook.lootContainer(e.box, this.time));
       C.EventBus.subscribe('BagGrabbedEvent', (e) => {
         C.Notebook.lootContainer(e.box, this.time);
@@ -151,6 +184,8 @@
         // 记一笔「本帧内按下过」：快速点击可能整个发生在两帧之间，
         // 只看 keys 会让贴墙、跳跃这类边沿触发的键被吃掉
         this.tapped[e.code] = true;
+        C.TutorialUI.anyKey();                 // 一次性说明：按任意键关掉
+        if (e.code === 'Tab') C.TutorialUI.recall();   // 长按 Tab 调回当前目标
         switch (e.code) {
           case 'Tab': this.debug.visible = !this.debug.visible; break;
           case 'KeyP': this.tuner.classList.toggle('open'); break;
@@ -163,6 +198,7 @@
           // 探索用开关（正式版要砍掉）：无敌 / 隐身
           case 'KeyO': this.toggleCheat('godMode', '无敌'); break;
           case 'KeyI': this.toggleCheat('ghost', '隐身'); break;
+          case 'KeyK': C.KitchenUI.toggle(); break;
           case 'KeyJ': C.NotebookUI.toggle(); break;
           case 'KeyR':
             // 拖动中按 R 转 90°；没在拖就是原来的重开
@@ -179,7 +215,7 @@
             this.time.timeScale = this.timeScales[this.timeScaleIndex];
             this.msg('时间流速 ×' + this.time.timeScale);
             break;
-          case 'KeyK': this._toggleSleep(); break;
+          case 'KeyU': this._toggleSleep(); break;   // 睡觉（K 让给厨房）
           case 'KeyB': C.InventoryUI.toggle(); break;
           case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
@@ -285,7 +321,7 @@
 
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
-      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open;
+      return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open;
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -432,9 +468,89 @@
       C.Touch.sync(this.player);
       C.LootUI.tickSearch(dt);
       C.LootUI.update(this.player);
+      C.KitchenUI.update(this.player);
+      C.TutorialUI.update(dt);
+      this._tickKitchen(dt, dtHours);
+      this._tickTutorial(dt);
       this.tapped = {};
 
       requestAnimationFrame((t) => this._frame(t));
+    },
+
+    /* 厨房与供电每帧推进。规则层只认游戏小时，噪音按真实秒发。 */
+    _tickKitchen(dt, dtHours) {
+      const day = this.time.day;
+      C.Power.update(dtHours, day, this.time.isNight(), this.weather || 'clear');
+      C.Cooking.update(this.time.totalGameSeconds / 3600, dtHours, this.level);
+      C.Power.emitRunningNoise(dt);
+      C.Cooking.emitProcessNoise(dt);
+    },
+
+    /* 教学触发（教学设计 4.2 触发表）。
+       **按键提示只在该操作第一次在情境中变得必要时出现。**
+       所以这里判断的是「情境」，不是「时间到了」。 */
+    _tickTutorial(dt) {
+      const T = C.Tutorial;
+      if (!T.enabled || T.finished) return;
+      const p = this.player, now = this.time.totalGameSeconds;
+      const H = C.Config.level.floorHeight;
+      const floor = Math.round(p.pos.y / H);
+      const home = this.level.buildings && this.level.buildings.find(b => b.spec.spawn);
+      const inHome = home && C.Streaming.buildingAt(p.pos) === home;
+
+      // T01 视线落在可交互物上
+      if (p.target || p.interactTarget) T.hint('T01', now);
+      // T03 口袋满了还想捡
+      if (!p.bag && p.hotbar.every(x => x)) T.hint('T03', now);
+      // T05 暗处停留（夜里或没开灯的房间）
+      if (this.time.isNight() && !p.flashlight) T.hint('T05', now);
+      if (p.flashlight) { T.satisfied('T05'); T.hint('T06', now); }
+
+      /* T09（屏息）**全表最重要的一条**：踏上二楼楼梯平台即触发。
+         错过它，整个二楼的教学都会失效 —— 所以触发条件最宽松，且允许重复一次。 */
+      if (inHome && floor <= 1 && !T.done.sound) {
+        T.setObjective('sound');
+        T.hint('T09', now);
+      }
+      if (p.holdBreath) { T.satisfied('T09'); T.completeObjective('sound'); }
+
+      // T10/T11 有石头且在走廊里
+      if (p.stoneCount() > 0 && p.target && p.target.type === 'loose') T.hint('T10', now);
+      if (p.charge > 0) T.hint('T11', now);
+      // T12 靠近开着的门
+      if (p.interactTarget) T.hint('T12', now);
+      // T13/T14 贴墙与探头
+      if (p.wallHug) { T.hint('T13', now); T.hint('T14', now); }
+      // T15 蹲行
+      if (inHome && floor <= 1) T.hint('T15', now);
+      // T16 天黑
+      if (this.time.hour >= 19 && this.time.day === 1) { T.hint('T16', now); T.setObjective('sleep'); }
+
+      // 目标推进：喝到水 → 找包 → 烧水 → …
+      if (!T.done.drink && p.needs.thirst < 20) { T.completeObjective('drink'); T.setObjective('bag'); }
+      if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
+      // 插座没电 → 目标变成「配电间在一楼」
+      if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
+        const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
+        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); }
+      }
+      // 推上闸 → 目标完成
+      const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
+      if (c2 && c2.breakerOn && !T.done.breaker) {
+        T.completeObjective('breaker'); T.completeObjective('boil');
+        T.hint('T20', now);
+        T.setObjective('leave');
+      } else if (T.done.sleep && !T.done.breaker) {
+        T.setObjective('breaker');
+      }
+
+      /* 走出宿舍楼、越过草坪 → **教学结束，UI 永久消失。**
+         没有庆祝、没有「教学完成」字样。只是没有人再告诉你该干什么了。 */
+      if (home && !inHome) {
+        const f = home.footprint;
+        const away = C.rectDist(f, p.pos.x, p.pos.z);
+        if (away > 26) T.finish(C.Notebook, this.time);
+      }
     },
 
     /* 笔记本的被动记录（14.3）。每帧都跑，所以贵的那部分要节流。

@@ -116,7 +116,7 @@
        所以再挂一个**非被动**的 touchmove，把不是发生在可滚动面板里的手势直接吃掉。
        可滚动面板（背包、笔记本、调参、开场层）要放行，否则它们就滚不动了。 */
     _lockPageScroll() {
-      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note, #loot');
+      const scrollable = (t) => t && t.closest && t.closest('#inv, #tuner, #startHint, #note, #loot, #kitchen');
       document.addEventListener('touchmove', (e) => {
         if (scrollable(e.target)) return;
         if (e.cancelable) e.preventDefault();

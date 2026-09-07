@@ -204,12 +204,30 @@
           `<li><span class="note-when">第 ${c.day} 天 ${c.hhmm}</span>${c.text}</li>`).join('') + '</ul>';
       }
       if (this.page === 'recipe') {
-        return '<ul class="note-list">' + C.Config.recipes.map(r => {
+        /* 两张表：**烹饪按熟练度解锁，手艺按书解锁。**
+           没解锁的也全列出来 —— 知道「有这么一条自己还够不着」本身就是驱动力。 */
+        const lv = C.Cooking ? C.Cooking.level() : 0;
+        const cook = C.Config.recipes.map(r => {
+          const on = r.lv <= lv;
+          const mat = Object.keys(r.need).map(k =>
+            (C.Config.ingredientNames[k] || k) + (r.need[k] > 1 ? '×' + r.need[k] : '')).join(' + ');
+          const eff = [r.satiety ? '饱食 ' + r.satiety : '', r.thirst ? '渴 ' + r.thirst : '',
+                       '噪音 ' + r.loud].filter(Boolean).join('　');
+          return `<li class="${on ? '' : 'note-locked'}"><b>${on ? r.name : '？？'}</b>` +
+                 `<span class="note-need">${on ? mat : '烹饪 ' + r.lv + ' 级'}</span>` +
+                 `<span class="note-when">${on ? eff : ''}</span></li>`;
+        }).join('');
+        const craft = C.Config.craftRecipes.map(r => {
           const on = N.recipes.has(r.id);
           return `<li class="${on ? '' : 'note-locked'}"><b>${on ? r.name : '？？'}</b>` +
                  `<span class="note-need">${on ? r.need : '需要先找到' + (r.unlock === 'manual' ? '技术手册' : '课本')}</span>` +
                  `<span class="note-when">${on ? r.note : ''}</span></li>`;
-        }).join('') + '</ul>';
+        }).join('');
+        return `<h6 class="note-sub">烹饪 · 当前熟练度 ${lv} 级` +
+               `${C.Cooking ? '（' + C.Cooking.xp + ' 经验）' : ''}</h6>` +
+               '<ul class="note-list">' + cook + '</ul>' +
+               '<h6 class="note-sub">手艺 · 靠书解锁</h6>' +
+               '<ul class="note-list">' + craft + '</ul>';
       }
       if (!N.obs.size) return '<p class="note-empty">还没有观察到什么。屏息听听。</p>';
       const rows = Array.from(N.obs.values()).sort((a, b) => b.count - a.count);
