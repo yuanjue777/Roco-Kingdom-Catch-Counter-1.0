@@ -17,7 +17,7 @@
     const N = C.Config.needs;
     this.ownerId = ownerId;
     this.hunger = 0;            // 挤占量 0–100
-    this.thirst = 0;
+    this.thirst = C.Config.needs.startThirst || 0;   // 开局就有点渴（见 00-config 的注释）
     this.fatigue = 0;
     this.health = N.barLength;  // 当前生命
     this.diarrheaHours = 0;     // 腹泻剩余（游戏小时）

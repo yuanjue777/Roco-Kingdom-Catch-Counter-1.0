@@ -243,5 +243,95 @@ section('10. 存档往返');
      !C.Tutorial.hint('T09', 3.5), JSON.stringify(C.Tutorial.shown));
 }
 
+section('11. 常驻目标卡片：去哪儿 + 怎么办');
+{
+  C.Tutorial.reset(true);
+  const c = C.Tutorial.card();
+  ok('开局就有卡片', !!c);
+  ok('第一条是「找点喝的」', c.text.indexOf('喝的') >= 0, c.text);
+  ok('进度是 1 / 7', c.progress.index === 1 && c.progress.total === 7, JSON.stringify(c.progress));
+
+  /* **教学全程都在同一栋宿舍楼里，所以位置能写死。**
+     每一条目标都必须给出楼层 —— 新手不知道自己在几楼。 */
+  let missing = [];
+  for (const o of C.TutorialObjectives) {
+    if (!o.where) missing.push(o.id + ':没写地点');
+    else if (!/[一二三四]楼/.test(o.where)) missing.push(o.id + ':地点没写楼层');
+    if (!o.hints || o.hints.length !== 2) missing.push(o.id + ':提示不是两句');
+  }
+  ok('七个目标都有「几楼·哪间」和两句提示', missing.length === 0, missing.join(' / '));
+
+  // 提示要能教会按键；独白不能带按键（那是角色在想事情，不是系统在说话）
+  const keyed = C.TutorialObjectives.filter(o => /按/.test(o.hints.join('')));
+  ok('大多数提示直接告诉玩家按哪个键', keyed.length >= 5, keyed.length + ' / 7');
+  const badMono = C.TutorialObjectives.filter(o => /按\s?[A-Z]/.test(o.text));
+  ok('独白里没有按键指令（语气不能混）', badMono.length === 0, badMono.map(o => o.id).join());
+}
+
+section('12. 第二句提示只往前走，且不会被跳过');
+{
+  C.Tutorial.reset(true);
+  const first = C.Tutorial.hintText();
+  ok('先给第一句', first.indexOf('衣柜') >= 0, first);
+  ok('推进成功', C.Tutorial.advanceStage(1) === true);
+  ok('换成第二句', C.Tutorial.hintText() !== first, C.Tutorial.hintText());
+  ok('**再推进是空操作**（只有两句，不能越界）', C.Tutorial.advanceStage(1) === false);
+  ok('也不能回退', C.Tutorial.advanceStage(0) === false && C.Tutorial.stage === 1);
+
+  // 换目标 → 阶段归零
+  C.Tutorial.completeObjective('drink');
+  C.Tutorial.setObjective('bag');
+  ok('换目标后回到第一句', C.Tutorial.stage === 0 &&
+     C.Tutorial.hintText().indexOf('六格') >= 0, C.Tutorial.hintText());
+
+  /* **别把第二句挂在会同时完成该目标的条件上。**
+     背上包就完成 bag、按下 Z 就完成 sound —— 那两句提示会永远看不到。
+     所以这两条的第二句必须讲「还没做到时」的事。 */
+  const bag = C.TutorialObjectives.find(o => o.id === 'bag');
+  ok('bag 的第二句是「还没找到包」时的话', /衣柜|口袋/.test(bag.hints[1]), bag.hints[1]);
+  const snd = C.TutorialObjectives.find(o => o.id === 'sound');
+  ok('sound 的第二句是「还没屏息」时的话', /跑/.test(snd.hints[1]), snd.hints[1]);
+}
+
+section('13. 打勾：只给玩家正看着的那一条');
+{
+  C.Tutorial.reset(true);
+  C.Tutorial.take();
+  C.Tutorial.completeObjective('drink');
+  let kinds = C.Tutorial.take().map(x => x.kind);
+  ok('完成当前目标 → 出打勾', kinds.indexOf('objective-done') >= 0, kinds.join());
+
+  // 后台顺手补完的目标不该抢画面（推上闸会同时把「烧点开水」也标完）
+  C.Tutorial.setObjective('breaker');
+  C.Tutorial.take();
+  C.Tutorial.completeObjective('boil');
+  kinds = C.Tutorial.take().map(x => x.kind);
+  ok('补完别的目标 → 不出打勾', kinds.indexOf('objective-done') < 0, kinds.join());
+  ok('当前目标没被顶掉', C.Tutorial.objective === 'breaker');
+}
+
+section('14. 卡片跟着教学一起消失');
+{
+  C.Tutorial.reset(true);
+  ok('教学中有卡片', C.Tutorial.card() !== null);
+  C.Tutorial.finish(null, null);
+  ok('**结束后卡片是 null** —— 从现在起没人告诉你该干什么了', C.Tutorial.card() === null);
+  C.Tutorial.reset(true);
+  C.Tutorial.skip();
+  ok('跳过教学也没有卡片', C.Tutorial.card() === null);
+  ok('跳过后阶段归零', C.Tutorial.stage === 0);
+}
+
+section('15. 卡片状态进存档');
+{
+  C.Tutorial.reset(true);
+  C.Tutorial.advanceStage(1);
+  const raw = JSON.parse(JSON.stringify(C.Tutorial.serialize()));
+  C.Tutorial.reset(true);
+  C.Tutorial.deserialize(raw);
+  ok('读档后还在第二句（不会倒回去重讲一遍）', C.Tutorial.stage === 1);
+  ok('读档后卡片能画出来', C.Tutorial.card().hint === C.Tutorial.hintText());
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);
 process.exit(fail === 0 ? 0 : 1);

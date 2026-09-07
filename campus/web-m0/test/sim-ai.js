@@ -458,7 +458,15 @@ section('12. 需求挤占');
 const NC = C.Config.needs;
 {
   const n = new C.Needs(1);
-  ok('初始满血且无挤占', n.health === 100 && n.healthMax() === 100);
+  /* 开局带 30 点口渴（教学第一条目标要它是真的，见 00-config.needs.startThirst）。
+     下面测的是**涨落速率**，所以先归零，免得起点混进来。 */
+  ok('开局就有点渴 —— 「嗓子干得厉害」不是假话', n.thirst === NC.startThirst && NC.startThirst > 0, String(n.thirst));
+  ok('开局满血，但上限已经被口渴挤掉一点',
+     n.health === 100 && n.healthMax() === 100 - NC.startThirst, n.healthMax().toFixed(1));
+  ok('喝到 20 以下才算「喝到了」—— 口渴只会自己涨，不会自己降',
+     NC.drinkGoalThirst < NC.startThirst, `${NC.drinkGoalThirst} < ${NC.startThirst}`);
+  n.thirst = 0;
+  ok('归零后无挤占', n.healthMax() === 100);
   n.update(NC.thirstFullHours / 2, false);
   ok(`口渴 ${NC.thirstFullHours} 小时涨满：一半时间涨到 50`, Math.abs(n.thirst - 50) < 0.01, n.thirst.toFixed(1));
   ok('可用生命上限被挤占压低', n.healthMax() < 100, n.healthMax().toFixed(1));
@@ -466,7 +474,7 @@ const NC = C.Config.needs;
   n.damage(30, '测试');
   const before = n.health;
   n.consume('water');
-  ok('喝水立即解除口渴挤占，上限回升', n.thirst === 50 - 25);
+  ok('喝水立即解除口渴挤占，上限回升', n.thirst === 50 - 25, n.thirst.toFixed(1));
   ok('但当前生命不因此回血 —— 挤占解除只是解锁上限', n.health === before, n.health.toFixed(1));
   n.heal(10);
   ok('治疗才抬当前生命', n.health === before + 10);

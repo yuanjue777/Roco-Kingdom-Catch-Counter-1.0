@@ -158,10 +158,19 @@
   };
 
   /* ── 教学提示 ────────────────────────────────────────
-     **不做任务列表面板。** 目标是左上角一行小字，5 秒后淡出。 */
+     **不做任务列表面板** —— 但目标卡片在教学期间常驻左上角，不淡出。
+
+     `[实测]` 原来是「一行小字，5 秒后淡出」。放到实机上，
+     新手看完那行独白之后就没有任何指引了：他知道「要找点喝的」，
+     **但不知道柜子能翻、不知道按 F、不知道 402 就是脚下这间。**
+     教学全程都在同一栋宿舍楼里，位置是确定的 —— 那就把它写出来。
+
+     卡片三行：进度 + 去哪儿 ｜ 独白（角色在想什么）｜ 提示（玩家该按什么）。
+     **教学一结束，整块 UI 永久移除** —— 那个消失本身就是一句话。 */
   const TutorialUI = {
-    game: null, objective: '', objTimer: 0, key: null, keyTimer: 0,
+    game: null, key: null, keyTimer: 0,
     mono: '', monoTimer: 0, panel: null,
+    doneFlash: 0, queued: null,
 
     init(game) {
       this.game = game;
@@ -170,6 +179,7 @@
         '<div id="tutObj"></div><div id="tutMono"></div>' +
         '<div id="tutKey"></div><div id="tutPanel"></div>';
       this.objEl = document.getElementById('tutObj');
+      this.objEl.classList.add('on');            // 常驻：不再靠计时器淡出
       this.monoEl = document.getElementById('tutMono');
       this.keyEl = document.getElementById('tutKey');
       this.panelEl = document.getElementById('tutPanel');
@@ -178,8 +188,16 @@
 
     update(dt) {
       for (const p of C.Tutorial.take()) this._show(p);
-      // 目标 5 秒后淡出；长按 Tab 可以重新调出（装配层把 Tab 转过来）
-      if (this.objTimer > 0) { this.objTimer -= dt; if (this.objTimer <= 0) this.objEl.classList.remove('on'); }
+      /* 打勾停 1.5 秒再切下一条 —— **完成的反馈比下一个目标更重要**，
+         新手需要知道刚才那一下是对的。期间来的新目标先排队。 */
+      if (this.doneFlash > 0) {
+        this.doneFlash -= dt;
+        if (this.doneFlash <= 0) {
+          this.objEl.classList.remove('done');
+          this._card(this.queued || C.Tutorial.card());
+          this.queued = null;
+        }
+      }
       if (this.monoTimer > 0) { this.monoTimer -= dt; if (this.monoTimer <= 0) this.monoEl.classList.remove('on'); }
       if (this.keyTimer > 0) { this.keyTimer -= dt; if (this.keyTimer <= 0) this.keyEl.classList.remove('on'); }
       if (C.Tutorial.finished && this.el.style.display !== 'none') {
@@ -188,17 +206,27 @@
       }
     },
 
-    /** 长按 Tab 重新调出当前目标 */
-    recall() {
-      if (!C.Tutorial.enabled || !C.Tutorial.objective) return;
-      this.objEl.textContent = C.Tutorial.objectiveText();
-      this.objEl.classList.add('on');
-      this.objTimer = 5;
+    /** 按 Tab 重画当前目标（卡片本来就常驻，这里只是兜底刷新） */
+    recall() { if (this.doneFlash <= 0) this._card(C.Tutorial.card()); },
+
+    /** 画那张常驻卡片。`null` = 没有在进行的目标，清空。 */
+    _card(c) {
+      if (!c) { this.objEl.innerHTML = ''; return; }
+      this.objEl.innerHTML =
+        `<b>目标 ${c.progress.index} / ${c.progress.total}</b>` +
+        (c.where ? `<span class="tut-where">${c.where}</span>` : '') +
+        `<i>${c.text}</i>` +
+        (c.hint ? `<em>${c.hint}</em>` : '');
     },
 
     _show(p) {
       if (p.kind === 'objective') {
-        this.objEl.textContent = p.text; this.objEl.classList.add('on'); this.objTimer = 5;
+        if (this.doneFlash > 0) { this.queued = p; return; }   // 打勾还没放完，排队
+        this._card(p);
+      } else if (p.kind === 'objective-done') {
+        this.objEl.innerHTML = `<b>✓ 完成</b><i>${p.text}</i>`;
+        this.objEl.classList.add('done');
+        this.doneFlash = 1.5;
       } else if (p.kind === C.TutorialHintKind.Monologue) {
         this.monoEl.textContent = p.text; this.monoEl.classList.add('on'); this.monoTimer = 4;
       } else if (p.kind === C.TutorialHintKind.Key) {

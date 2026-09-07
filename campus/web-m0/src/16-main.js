@@ -486,6 +486,13 @@
       C.Cooking.emitProcessNoise(dt);
     },
 
+    /** 身上有没有能解渴的东西（背包 + 六格快取位一起看） */
+    _hasDrink(p) {
+      const drinkable = (id) => { const d = C.ITEMS[id]; return d && d.use && d.use.thirst < 0; };
+      if (p.hotbar.some(x => x && drinkable(x.id))) return true;
+      return !!(p.bag && p.bag.items.some(x => drinkable(x.id)));
+    },
+
     /* 教学触发（教学设计 4.2 触发表）。
        **按键提示只在该操作第一次在情境中变得必要时出现。**
        所以这里判断的是「情境」，不是「时间到了」。 */
@@ -497,6 +504,20 @@
       const floor = Math.round(p.pos.y / H);
       const home = this.level.buildings && this.level.buildings.find(b => b.spec.spawn);
       const inHome = home && C.Streaming.buildingAt(p.pos) === home;
+
+      /* ── 常驻目标卡片的第二句提示 ────────────────────
+         触发的是**情境**，不是时间。每个目标只往前走一步，不回退。
+         注意别把「换第二句」挂在会同时完成该目标的条件上（比如背上包、按下 Z），
+         那样第二句永远不会被看到。 */
+      const stage = (id) => { if (T.objective === id) T.advanceStage(1); };
+      /* `[实测]` 这里判断的是「拿到了**能喝的**」，不是「口袋里有东西」——
+         **开局身上就有 4 块石头**（投石是核心动作，不能一开始就用不了），
+         写成「口袋非空」的话第二句提示在第 0 帧就跳出来了。 */
+      if (this._hasDrink(p)) stage('drink');
+      if (p.hotbar.every(x => x)) stage('bag');             // 口袋满了
+      if (p.running && floor <= 1) stage('sound');          // 在楼下跑起来了
+      if (floor === 0) stage('breaker');                    // 下到一楼
+      if (p.charge > 0) stage('leave');                     // 开始蓄力投石
 
       // T01 视线落在可交互物上
       if (p.target || p.interactTarget) T.hint('T01', now);
@@ -525,14 +546,20 @@
       if (inHome && floor <= 1) T.hint('T15', now);
       // T16 天黑
       if (this.time.hour >= 19 && this.time.day === 1) { T.hint('T16', now); T.setObjective('sleep'); }
+      /* 睡眠只差「关门」那一步时才换第二句 —— 提前说「按 U 睡觉」只会让人白按一次 */
+      if (T.objective === 'sleep' && C.Sleep.check(p, this.level, C.ZombieManager.list).ok) stage('sleep');
 
       // 目标推进：喝到水 → 找包 → 烧水 → …
-      if (!T.done.drink && p.needs.thirst < 20) { T.completeObjective('drink'); T.setObjective('bag'); }
+      /* 口渴只会自己涨、不会自己降，所以「降到 20 以下」= **确实喝到了**。
+         开局是 30（见 00-config），不写死这两个数会立刻漂。 */
+      if (!T.done.drink && p.needs.thirst < C.Config.needs.drinkGoalThirst) {
+        T.completeObjective('drink'); T.setObjective('bag');
+      }
       if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
       // 插座没电 → 目标变成「配电间在一楼」
       if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
         const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
-        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); }
+        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
       const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);

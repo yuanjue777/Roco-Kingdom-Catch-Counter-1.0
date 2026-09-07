@@ -26,17 +26,44 @@
   ];
 
   /* ── 七个目标（设计 第二部分）────────────────────────
-     **全部用主角的第一人称内心独白语气**，不用系统指令语气：
+     `text` **全部用主角的第一人称内心独白语气**，不用系统指令语气：
        ✗「前往一楼配电间推上电闸」
-       ✓「水壶插上了没反应。配电间应该在一楼。」 */
+       ✓「水壶插上了没反应。配电间应该在一楼。」
+
+     但**光有独白，新手不知道该往哪儿走。**
+     所以每个目标再挂两样东西，它们是给玩家看的、不是给角色说的：
+       `where`  —— 去哪儿。教学全程都在这一栋宿舍楼里，所以能精确到楼层和房号。
+       `hints`  —— 怎么做。**分阶段**：进入目标给第一句，做到一半换第二句。
+     独白负责「为什么」，这两样负责「怎么办」。**两者语气不同是故意的。** */
   const OBJECTIVES = [
-    { id: 'drink',   text: '嗓子干得厉害，先找点喝的。',   teaches: '移动、交互、搜刮、需求条' },
-    { id: 'bag',     text: '东西拿不下了，得找个包。',     teaches: '背包、格子、重量' },
-    { id: 'boil',    text: '有水壶，烧点开水吧。',         teaches: '插座、电线、回路是死的' },
-    { id: 'sound',   text: '楼下有声音。',                 teaches: '**全部声音机制**' },
-    { id: 'sleep',   text: '天黑了。今晚就在这儿吧。',     teaches: '封锁、睡眠、安全睡点' },
-    { id: 'breaker', text: '配电间在一楼。',               teaches: '潜行实战、推闸' },
-    { id: 'leave',   text: '不能一直待在这栋楼里。',       teaches: '投石过开阔地' }
+    { id: 'drink',   text: '嗓子干得厉害，先找点喝的。',   teaches: '移动、交互、搜刮、需求条',
+      where: '四楼 · 402（你醒来的这间）',
+      hints: ['衣柜和书桌都能翻 —— 走近，按 F。',
+              '拿到了。按 B 打开背包，或者按 1–6 直接用。'] },
+    { id: 'bag',     text: '东西拿不下了，得找个包。',     teaches: '背包、格子、重量',
+      where: '四楼 · 隔壁 403',
+      hints: ['口袋只有六格。宿舍衣柜里应该有书包。',
+              '口袋满了。403、404 的衣柜都试试 —— 翻过的柜子会记住。'] },
+    { id: 'boil',    text: '有水壶，烧点开水吧。',         teaches: '插座、电线、回路是死的',
+      where: '四楼 · 402 墙角有插座',
+      hints: ['水壶要接电。找个插座，按 F 插上。',
+              '插上了，没反应 —— 这条回路的闸是断的。'] },
+    { id: 'sound',   text: '楼下有声音。',                 teaches: '**全部声音机制**',
+      where: '二楼 · 走廊',
+      hints: ['按住 Z 屏息，听得更远，声音会在画面上显出来。',
+              '走慢点。跑起来响度 45，二十米外都听得见。'] },
+    { id: 'sleep',   text: '天黑了。今晚就在这儿吧。',     teaches: '封锁、睡眠、安全睡点',
+      where: '四楼 · 任一间有床的',
+      hints: ['关上门窗，按 F 封锁。屋里和隔壁不能有丧尸。',
+              '按 U 睡觉。22:00 前睡满 6 小时会得到「精力充沛」。'] },
+    { id: 'breaker', text: '配电间在一楼。',               teaches: '潜行实战、推闸',
+      where: '一楼 · 走廊西端',
+      hints: ['一楼有一只在走廊里晃。按住 Ctrl 蹲行，响度只有 10。',
+              '配电箱在走廊西头。推闸响度 25 —— 推完就走。'] },
+    { id: 'leave',   text: '不能一直待在这栋楼里。',       teaches: '投石过开阔地',
+      where: '一楼 · 大门外的草坪',
+      hints: ['男201 桌上有石头。按住 G 蓄力，往远处丢。',
+              '石头落地响度 45，会把它们引过去。趁那几秒过草坪。'] }
   ];
 
   /* ── 提示（设计 4.2 触发表）──────────────────────────
@@ -81,6 +108,7 @@
     enabled: true,
     finished: false,
     objective: null,          // 当前目标 id
+    stage: 0,                 // 当前目标走到第几句提示（0 或 1）
     done: {},                 // 已完成的目标
     shown: {},                // 已出现过的提示
     pending: [],              // 待显示的提示队列（界面层消费）
@@ -90,6 +118,7 @@
       this.enabled = enabled !== false;
       this.finished = false;
       this.objective = null;
+      this.stage = 0;
       this.done = {}; this.shown = {}; this.pending = []; this._repeat = {};
       if (this.enabled) this.setObjective('drink');
       return this;
@@ -100,25 +129,64 @@
       this.enabled = false;
       this.finished = true;
       this.objective = null;
+      this.stage = 0;
       this.pending = [];
     },
 
-    objectiveText() {
-      const o = OBJECTIVES.find(x => x.id === this.objective);
-      return o ? o.text : '';
+    objectiveAt(id) { return OBJECTIVES.find(x => x.id === (id || this.objective)) || null; },
+    objectiveText() { const o = this.objectiveAt(); return o ? o.text : ''; },
+    /** 当前该显示的那句「怎么办」。**目标卡片常驻，所以这句话必须一直有效。** */
+    hintText() {
+      const o = this.objectiveAt();
+      if (!o || !o.hints) return '';
+      return o.hints[Math.min(this.stage, o.hints.length - 1)];
     },
+    whereText() { const o = this.objectiveAt(); return o ? (o.where || '') : ''; },
+    /** 第几个 / 共几个 —— **新手需要知道「还有多远」。** */
+    progress() {
+      const i = OBJECTIVES.findIndex(x => x.id === this.objective);
+      return { index: i < 0 ? Object.keys(this.done).length : i + 1, total: OBJECTIVES.length };
+    },
+    /** 界面层重画常驻卡片要的全部东西，一次取齐 */
+    card() {
+      if (!this.enabled || this.finished || !this.objective) return null;
+      return { id: this.objective, text: this.objectiveText(), where: this.whereText(),
+               hint: this.hintText(), progress: this.progress() };
+    },
+
+    /** 做到一半了 → 换第二句提示。**只往前走，不回退。** */
+    advanceStage(n) {
+      if (!this.enabled || this.finished || !this.objective) return false;
+      const o = this.objectiveAt();
+      if (!o || !o.hints) return false;
+      const want = n === undefined ? this.stage + 1 : n;
+      const next = Math.min(o.hints.length - 1, Math.max(this.stage, want));
+      if (next === this.stage) return false;
+      this.stage = next;
+      this.pending.push(Object.assign({ kind: 'objective' }, this.card()));
+      return true;
+    },
+
     setObjective(id) {
       if (!this.enabled || this.finished) return false;
       if (this.done[id] || this.objective === id) return false;
       this.objective = id;
-      this.pending.push({ kind: 'objective', id, text: this.objectiveText() });
+      this.stage = 0;                              // 换目标 = 提示从第一句重新开始
+      this.pending.push(Object.assign({ kind: 'objective' }, this.card()));
       C.EventBus.publish('TutorialObjectiveEvent', { id, text: this.objectiveText() });
       return true;
     },
     completeObjective(id) {
       if (!this.enabled || this.done[id]) return false;
+      const o = this.objectiveAt(id);
       this.done[id] = true;
-      if (this.objective === id) this.objective = null;
+      /* 打勾只在**当前显示着的**那个目标完成时给。
+         后台顺手补完的目标（推上闸会同时把「烧点开水」也标完）不该抢走画面。 */
+      if (this.objective === id) {
+        this.objective = null;
+        this.stage = 0;
+        if (o) this.pending.push({ kind: 'objective-done', id, text: o.text });
+      }
       return true;
     },
 
@@ -158,6 +226,7 @@
       this.finished = true;
       this.enabled = false;
       this.objective = null;
+      this.stage = 0;
       this.pending = [];
       if (notebook) notebook.addClue('离开宿舍楼', time);
       C.EventBus.publish('TutorialFinishedEvent', {});
@@ -166,13 +235,14 @@
 
     serialize() {
       return { enabled: this.enabled, finished: this.finished, objective: this.objective,
-               done: this.done, shown: this.shown, repeat: this._repeat };
+               stage: this.stage, done: this.done, shown: this.shown, repeat: this._repeat };
     },
     deserialize(d) {
       if (!d) return this;
       this.enabled = d.enabled !== false;
       this.finished = !!d.finished;
       this.objective = d.objective || null;
+      this.stage = d.stage || 0;
       this.done = d.done || {}; this.shown = d.shown || {}; this._repeat = d.repeat || {};
       this.pending = [];
       return this;

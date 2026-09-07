@@ -257,9 +257,26 @@
   /* ── 教学提示（教学设计 4.1）────────────────────────
      **四种全部不暂停游戏。** 这个游戏从第一秒起就不给人喘息。 */
   #tut { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
-  #tutObj { position: absolute; left: 22px; top: 18px; font-size: 13px; color: rgba(220,227,235,0.9);
-            text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .5s; }
+  /* 目标卡片：教学期间常驻左上角，**不淡出**。
+     三行 —— 进度+地点（做什么的坐标）／ 独白（角色在想什么）／ 提示（玩家该按什么）。
+     独白是斜体、偏灰，提示是青色，两者视觉上必须能一眼分开。 */
+  #tutObj { position: absolute; left: 20px; top: 16px; max-width: min(340px, 46vw);
+            border-left: 2px solid var(--accent); padding: 6px 12px;
+            background: rgba(10,13,18,0.55); border-radius: 0 4px 4px 0;
+            text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .4s; }
   #tutObj.on { opacity: 1; }
+  #tutObj:empty { display: none; }
+  #tutObj b { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+              letter-spacing: 0.1em; color: var(--accent); }
+  #tutObj .tut-where { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+  #tutObj i { display: block; font-style: italic; font-size: 13px; line-height: 1.55;
+              color: rgba(220,227,235,0.92); margin-top: 5px; }
+  #tutObj em { display: block; font-style: normal; font-size: 12px; line-height: 1.6;
+               color: var(--signal); margin-top: 4px; }
+  #tutObj.done { border-left-color: var(--signal); }
+  #tutObj.done i { color: rgba(220,227,235,0.5); text-decoration: line-through; }
+  #tutObj.done b { color: var(--signal); }
+  @media (max-height: 520px) { #tutObj { font-size: 12px; padding: 4px 9px; } #tutObj i { font-size: 12px; } }
   #tutMono { position: absolute; left: 0; right: 0; bottom: 21%; text-align: center;
              font-style: italic; font-size: 14px; color: rgba(220,227,235,0.82);
              text-shadow: 0 1px 5px #000; opacity: 0; transition: opacity .6s; }

@@ -251,9 +251,26 @@
   /* ── 教学提示（教学设计 4.1）────────────────────────
      **四种全部不暂停游戏。** 这个游戏从第一秒起就不给人喘息。 */
   #tut { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
-  #tutObj { position: absolute; left: 22px; top: 18px; font-size: 13px; color: rgba(220,227,235,0.9);
-            text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .5s; }
+  /* 目标卡片：教学期间常驻左上角，**不淡出**。
+     三行 —— 进度+地点（做什么的坐标）／ 独白（角色在想什么）／ 提示（玩家该按什么）。
+     独白是斜体、偏灰，提示是青色，两者视觉上必须能一眼分开。 */
+  #tutObj { position: absolute; left: 20px; top: 16px; max-width: min(340px, 46vw);
+            border-left: 2px solid var(--accent); padding: 6px 12px;
+            background: rgba(10,13,18,0.55); border-radius: 0 4px 4px 0;
+            text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .4s; }
   #tutObj.on { opacity: 1; }
+  #tutObj:empty { display: none; }
+  #tutObj b { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+              letter-spacing: 0.1em; color: var(--accent); }
+  #tutObj .tut-where { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+  #tutObj i { display: block; font-style: italic; font-size: 13px; line-height: 1.55;
+              color: rgba(220,227,235,0.92); margin-top: 5px; }
+  #tutObj em { display: block; font-style: normal; font-size: 12px; line-height: 1.6;
+               color: var(--signal); margin-top: 4px; }
+  #tutObj.done { border-left-color: var(--signal); }
+  #tutObj.done i { color: rgba(220,227,235,0.5); text-decoration: line-through; }
+  #tutObj.done b { color: var(--signal); }
+  @media (max-height: 520px) { #tutObj { font-size: 12px; padding: 4px 9px; } #tutObj i { font-size: 12px; } }
   #tutMono { position: absolute; left: 0; right: 0; bottom: 21%; text-align: center;
              font-style: italic; font-size: 14px; color: rgba(220,227,235,0.82);
              text-shadow: 0 1px 5px #000; opacity: 0; transition: opacity .6s; }
@@ -1256,6 +1273,14 @@
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
       barLength: 100,
+      /* `[实测]` 开局口渴 30，不是 0。
+         第一个教学目标是「嗓子干得厉害，先找点喝的」，而口渴 0 的话
+         **这句话是假的，而且目标在第 0 秒就自动完成了** ——
+         新手看到的第一件事是一个自己没做过的「✓ 完成」。
+         30 = 8 个游戏小时，正好是「睡了一夜没喝水」；喝一瓶水（−24）降到 6，
+         需求条肉眼可见地缩回去，这一下就把整条挤占机制讲清楚了。 */
+      startThirst: 30,
+      drinkGoalThirst: 20,       // 低于这个值 = 确实喝到了（口渴只会自己涨，不会自己降）
       /* `[实测]` 烹饪规格 0.1 的强制调整。原值下每天只需补 25 点饥饿，
          而一碗白饭就有 22 —— 食物完全不构成压力，整套烹饪系统失去存在理由。
          新值：每游戏日 饥饿 48 点 / 口渴 84 点 ≈ 2 顿正餐 + 1~2 次加餐 + 3.5 份饮水。 */
@@ -3227,7 +3252,7 @@
     const N = C.Config.needs;
     this.ownerId = ownerId;
     this.hunger = 0;            // 挤占量 0–100
-    this.thirst = 0;
+    this.thirst = C.Config.needs.startThirst || 0;   // 开局就有点渴（见 00-config 的注释）
     this.fatigue = 0;
     this.health = N.barLength;  // 当前生命
     this.diarrheaHours = 0;     // 腹泻剩余（游戏小时）
@@ -8047,17 +8072,44 @@
   ];
 
   /* ── 七个目标（设计 第二部分）────────────────────────
-     **全部用主角的第一人称内心独白语气**，不用系统指令语气：
+     `text` **全部用主角的第一人称内心独白语气**，不用系统指令语气：
        ✗「前往一楼配电间推上电闸」
-       ✓「水壶插上了没反应。配电间应该在一楼。」 */
+       ✓「水壶插上了没反应。配电间应该在一楼。」
+
+     但**光有独白，新手不知道该往哪儿走。**
+     所以每个目标再挂两样东西，它们是给玩家看的、不是给角色说的：
+       `where`  —— 去哪儿。教学全程都在这一栋宿舍楼里，所以能精确到楼层和房号。
+       `hints`  —— 怎么做。**分阶段**：进入目标给第一句，做到一半换第二句。
+     独白负责「为什么」，这两样负责「怎么办」。**两者语气不同是故意的。** */
   const OBJECTIVES = [
-    { id: 'drink',   text: '嗓子干得厉害，先找点喝的。',   teaches: '移动、交互、搜刮、需求条' },
-    { id: 'bag',     text: '东西拿不下了，得找个包。',     teaches: '背包、格子、重量' },
-    { id: 'boil',    text: '有水壶，烧点开水吧。',         teaches: '插座、电线、回路是死的' },
-    { id: 'sound',   text: '楼下有声音。',                 teaches: '**全部声音机制**' },
-    { id: 'sleep',   text: '天黑了。今晚就在这儿吧。',     teaches: '封锁、睡眠、安全睡点' },
-    { id: 'breaker', text: '配电间在一楼。',               teaches: '潜行实战、推闸' },
-    { id: 'leave',   text: '不能一直待在这栋楼里。',       teaches: '投石过开阔地' }
+    { id: 'drink',   text: '嗓子干得厉害，先找点喝的。',   teaches: '移动、交互、搜刮、需求条',
+      where: '四楼 · 402（你醒来的这间）',
+      hints: ['衣柜和书桌都能翻 —— 走近，按 F。',
+              '拿到了。按 B 打开背包，或者按 1–6 直接用。'] },
+    { id: 'bag',     text: '东西拿不下了，得找个包。',     teaches: '背包、格子、重量',
+      where: '四楼 · 隔壁 403',
+      hints: ['口袋只有六格。宿舍衣柜里应该有书包。',
+              '口袋满了。403、404 的衣柜都试试 —— 翻过的柜子会记住。'] },
+    { id: 'boil',    text: '有水壶，烧点开水吧。',         teaches: '插座、电线、回路是死的',
+      where: '四楼 · 402 墙角有插座',
+      hints: ['水壶要接电。找个插座，按 F 插上。',
+              '插上了，没反应 —— 这条回路的闸是断的。'] },
+    { id: 'sound',   text: '楼下有声音。',                 teaches: '**全部声音机制**',
+      where: '二楼 · 走廊',
+      hints: ['按住 Z 屏息，听得更远，声音会在画面上显出来。',
+              '走慢点。跑起来响度 45，二十米外都听得见。'] },
+    { id: 'sleep',   text: '天黑了。今晚就在这儿吧。',     teaches: '封锁、睡眠、安全睡点',
+      where: '四楼 · 任一间有床的',
+      hints: ['关上门窗，按 F 封锁。屋里和隔壁不能有丧尸。',
+              '按 U 睡觉。22:00 前睡满 6 小时会得到「精力充沛」。'] },
+    { id: 'breaker', text: '配电间在一楼。',               teaches: '潜行实战、推闸',
+      where: '一楼 · 走廊西端',
+      hints: ['一楼有一只在走廊里晃。按住 Ctrl 蹲行，响度只有 10。',
+              '配电箱在走廊西头。推闸响度 25 —— 推完就走。'] },
+    { id: 'leave',   text: '不能一直待在这栋楼里。',       teaches: '投石过开阔地',
+      where: '一楼 · 大门外的草坪',
+      hints: ['男201 桌上有石头。按住 G 蓄力，往远处丢。',
+              '石头落地响度 45，会把它们引过去。趁那几秒过草坪。'] }
   ];
 
   /* ── 提示（设计 4.2 触发表）──────────────────────────
@@ -8102,6 +8154,7 @@
     enabled: true,
     finished: false,
     objective: null,          // 当前目标 id
+    stage: 0,                 // 当前目标走到第几句提示（0 或 1）
     done: {},                 // 已完成的目标
     shown: {},                // 已出现过的提示
     pending: [],              // 待显示的提示队列（界面层消费）
@@ -8111,6 +8164,7 @@
       this.enabled = enabled !== false;
       this.finished = false;
       this.objective = null;
+      this.stage = 0;
       this.done = {}; this.shown = {}; this.pending = []; this._repeat = {};
       if (this.enabled) this.setObjective('drink');
       return this;
@@ -8121,25 +8175,64 @@
       this.enabled = false;
       this.finished = true;
       this.objective = null;
+      this.stage = 0;
       this.pending = [];
     },
 
-    objectiveText() {
-      const o = OBJECTIVES.find(x => x.id === this.objective);
-      return o ? o.text : '';
+    objectiveAt(id) { return OBJECTIVES.find(x => x.id === (id || this.objective)) || null; },
+    objectiveText() { const o = this.objectiveAt(); return o ? o.text : ''; },
+    /** 当前该显示的那句「怎么办」。**目标卡片常驻，所以这句话必须一直有效。** */
+    hintText() {
+      const o = this.objectiveAt();
+      if (!o || !o.hints) return '';
+      return o.hints[Math.min(this.stage, o.hints.length - 1)];
     },
+    whereText() { const o = this.objectiveAt(); return o ? (o.where || '') : ''; },
+    /** 第几个 / 共几个 —— **新手需要知道「还有多远」。** */
+    progress() {
+      const i = OBJECTIVES.findIndex(x => x.id === this.objective);
+      return { index: i < 0 ? Object.keys(this.done).length : i + 1, total: OBJECTIVES.length };
+    },
+    /** 界面层重画常驻卡片要的全部东西，一次取齐 */
+    card() {
+      if (!this.enabled || this.finished || !this.objective) return null;
+      return { id: this.objective, text: this.objectiveText(), where: this.whereText(),
+               hint: this.hintText(), progress: this.progress() };
+    },
+
+    /** 做到一半了 → 换第二句提示。**只往前走，不回退。** */
+    advanceStage(n) {
+      if (!this.enabled || this.finished || !this.objective) return false;
+      const o = this.objectiveAt();
+      if (!o || !o.hints) return false;
+      const want = n === undefined ? this.stage + 1 : n;
+      const next = Math.min(o.hints.length - 1, Math.max(this.stage, want));
+      if (next === this.stage) return false;
+      this.stage = next;
+      this.pending.push(Object.assign({ kind: 'objective' }, this.card()));
+      return true;
+    },
+
     setObjective(id) {
       if (!this.enabled || this.finished) return false;
       if (this.done[id] || this.objective === id) return false;
       this.objective = id;
-      this.pending.push({ kind: 'objective', id, text: this.objectiveText() });
+      this.stage = 0;                              // 换目标 = 提示从第一句重新开始
+      this.pending.push(Object.assign({ kind: 'objective' }, this.card()));
       C.EventBus.publish('TutorialObjectiveEvent', { id, text: this.objectiveText() });
       return true;
     },
     completeObjective(id) {
       if (!this.enabled || this.done[id]) return false;
+      const o = this.objectiveAt(id);
       this.done[id] = true;
-      if (this.objective === id) this.objective = null;
+      /* 打勾只在**当前显示着的**那个目标完成时给。
+         后台顺手补完的目标（推上闸会同时把「烧点开水」也标完）不该抢走画面。 */
+      if (this.objective === id) {
+        this.objective = null;
+        this.stage = 0;
+        if (o) this.pending.push({ kind: 'objective-done', id, text: o.text });
+      }
       return true;
     },
 
@@ -8179,6 +8272,7 @@
       this.finished = true;
       this.enabled = false;
       this.objective = null;
+      this.stage = 0;
       this.pending = [];
       if (notebook) notebook.addClue('离开宿舍楼', time);
       C.EventBus.publish('TutorialFinishedEvent', {});
@@ -8187,13 +8281,14 @@
 
     serialize() {
       return { enabled: this.enabled, finished: this.finished, objective: this.objective,
-               done: this.done, shown: this.shown, repeat: this._repeat };
+               stage: this.stage, done: this.done, shown: this.shown, repeat: this._repeat };
     },
     deserialize(d) {
       if (!d) return this;
       this.enabled = d.enabled !== false;
       this.finished = !!d.finished;
       this.objective = d.objective || null;
+      this.stage = d.stage || 0;
       this.done = d.done || {}; this.shown = d.shown || {}; this._repeat = d.repeat || {};
       this.pending = [];
       return this;
@@ -8369,10 +8464,19 @@
   };
 
   /* ── 教学提示 ────────────────────────────────────────
-     **不做任务列表面板。** 目标是左上角一行小字，5 秒后淡出。 */
+     **不做任务列表面板** —— 但目标卡片在教学期间常驻左上角，不淡出。
+
+     `[实测]` 原来是「一行小字，5 秒后淡出」。放到实机上，
+     新手看完那行独白之后就没有任何指引了：他知道「要找点喝的」，
+     **但不知道柜子能翻、不知道按 F、不知道 402 就是脚下这间。**
+     教学全程都在同一栋宿舍楼里，位置是确定的 —— 那就把它写出来。
+
+     卡片三行：进度 + 去哪儿 ｜ 独白（角色在想什么）｜ 提示（玩家该按什么）。
+     **教学一结束，整块 UI 永久移除** —— 那个消失本身就是一句话。 */
   const TutorialUI = {
-    game: null, objective: '', objTimer: 0, key: null, keyTimer: 0,
+    game: null, key: null, keyTimer: 0,
     mono: '', monoTimer: 0, panel: null,
+    doneFlash: 0, queued: null,
 
     init(game) {
       this.game = game;
@@ -8381,6 +8485,7 @@
         '<div id="tutObj"></div><div id="tutMono"></div>' +
         '<div id="tutKey"></div><div id="tutPanel"></div>';
       this.objEl = document.getElementById('tutObj');
+      this.objEl.classList.add('on');            // 常驻：不再靠计时器淡出
       this.monoEl = document.getElementById('tutMono');
       this.keyEl = document.getElementById('tutKey');
       this.panelEl = document.getElementById('tutPanel');
@@ -8389,8 +8494,16 @@
 
     update(dt) {
       for (const p of C.Tutorial.take()) this._show(p);
-      // 目标 5 秒后淡出；长按 Tab 可以重新调出（装配层把 Tab 转过来）
-      if (this.objTimer > 0) { this.objTimer -= dt; if (this.objTimer <= 0) this.objEl.classList.remove('on'); }
+      /* 打勾停 1.5 秒再切下一条 —— **完成的反馈比下一个目标更重要**，
+         新手需要知道刚才那一下是对的。期间来的新目标先排队。 */
+      if (this.doneFlash > 0) {
+        this.doneFlash -= dt;
+        if (this.doneFlash <= 0) {
+          this.objEl.classList.remove('done');
+          this._card(this.queued || C.Tutorial.card());
+          this.queued = null;
+        }
+      }
       if (this.monoTimer > 0) { this.monoTimer -= dt; if (this.monoTimer <= 0) this.monoEl.classList.remove('on'); }
       if (this.keyTimer > 0) { this.keyTimer -= dt; if (this.keyTimer <= 0) this.keyEl.classList.remove('on'); }
       if (C.Tutorial.finished && this.el.style.display !== 'none') {
@@ -8399,17 +8512,27 @@
       }
     },
 
-    /** 长按 Tab 重新调出当前目标 */
-    recall() {
-      if (!C.Tutorial.enabled || !C.Tutorial.objective) return;
-      this.objEl.textContent = C.Tutorial.objectiveText();
-      this.objEl.classList.add('on');
-      this.objTimer = 5;
+    /** 按 Tab 重画当前目标（卡片本来就常驻，这里只是兜底刷新） */
+    recall() { if (this.doneFlash <= 0) this._card(C.Tutorial.card()); },
+
+    /** 画那张常驻卡片。`null` = 没有在进行的目标，清空。 */
+    _card(c) {
+      if (!c) { this.objEl.innerHTML = ''; return; }
+      this.objEl.innerHTML =
+        `<b>目标 ${c.progress.index} / ${c.progress.total}</b>` +
+        (c.where ? `<span class="tut-where">${c.where}</span>` : '') +
+        `<i>${c.text}</i>` +
+        (c.hint ? `<em>${c.hint}</em>` : '');
     },
 
     _show(p) {
       if (p.kind === 'objective') {
-        this.objEl.textContent = p.text; this.objEl.classList.add('on'); this.objTimer = 5;
+        if (this.doneFlash > 0) { this.queued = p; return; }   // 打勾还没放完，排队
+        this._card(p);
+      } else if (p.kind === 'objective-done') {
+        this.objEl.innerHTML = `<b>✓ 完成</b><i>${p.text}</i>`;
+        this.objEl.classList.add('done');
+        this.doneFlash = 1.5;
       } else if (p.kind === C.TutorialHintKind.Monologue) {
         this.monoEl.textContent = p.text; this.monoEl.classList.add('on'); this.monoTimer = 4;
       } else if (p.kind === C.TutorialHintKind.Key) {
@@ -9267,6 +9390,13 @@
       C.Cooking.emitProcessNoise(dt);
     },
 
+    /** 身上有没有能解渴的东西（背包 + 六格快取位一起看） */
+    _hasDrink(p) {
+      const drinkable = (id) => { const d = C.ITEMS[id]; return d && d.use && d.use.thirst < 0; };
+      if (p.hotbar.some(x => x && drinkable(x.id))) return true;
+      return !!(p.bag && p.bag.items.some(x => drinkable(x.id)));
+    },
+
     /* 教学触发（教学设计 4.2 触发表）。
        **按键提示只在该操作第一次在情境中变得必要时出现。**
        所以这里判断的是「情境」，不是「时间到了」。 */
@@ -9278,6 +9408,20 @@
       const floor = Math.round(p.pos.y / H);
       const home = this.level.buildings && this.level.buildings.find(b => b.spec.spawn);
       const inHome = home && C.Streaming.buildingAt(p.pos) === home;
+
+      /* ── 常驻目标卡片的第二句提示 ────────────────────
+         触发的是**情境**，不是时间。每个目标只往前走一步，不回退。
+         注意别把「换第二句」挂在会同时完成该目标的条件上（比如背上包、按下 Z），
+         那样第二句永远不会被看到。 */
+      const stage = (id) => { if (T.objective === id) T.advanceStage(1); };
+      /* `[实测]` 这里判断的是「拿到了**能喝的**」，不是「口袋里有东西」——
+         **开局身上就有 4 块石头**（投石是核心动作，不能一开始就用不了），
+         写成「口袋非空」的话第二句提示在第 0 帧就跳出来了。 */
+      if (this._hasDrink(p)) stage('drink');
+      if (p.hotbar.every(x => x)) stage('bag');             // 口袋满了
+      if (p.running && floor <= 1) stage('sound');          // 在楼下跑起来了
+      if (floor === 0) stage('breaker');                    // 下到一楼
+      if (p.charge > 0) stage('leave');                     // 开始蓄力投石
 
       // T01 视线落在可交互物上
       if (p.target || p.interactTarget) T.hint('T01', now);
@@ -9306,14 +9450,20 @@
       if (inHome && floor <= 1) T.hint('T15', now);
       // T16 天黑
       if (this.time.hour >= 19 && this.time.day === 1) { T.hint('T16', now); T.setObjective('sleep'); }
+      /* 睡眠只差「关门」那一步时才换第二句 —— 提前说「按 U 睡觉」只会让人白按一次 */
+      if (T.objective === 'sleep' && C.Sleep.check(p, this.level, C.ZombieManager.list).ok) stage('sleep');
 
       // 目标推进：喝到水 → 找包 → 烧水 → …
-      if (!T.done.drink && p.needs.thirst < 20) { T.completeObjective('drink'); T.setObjective('bag'); }
+      /* 口渴只会自己涨、不会自己降，所以「降到 20 以下」= **确实喝到了**。
+         开局是 30（见 00-config），不写死这两个数会立刻漂。 */
+      if (!T.done.drink && p.needs.thirst < C.Config.needs.drinkGoalThirst) {
+        T.completeObjective('drink'); T.setObjective('bag');
+      }
       if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
       // 插座没电 → 目标变成「配电间在一楼」
       if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
         const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
-        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); }
+        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
       const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
