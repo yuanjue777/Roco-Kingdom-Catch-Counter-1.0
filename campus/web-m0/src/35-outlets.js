@@ -132,16 +132,47 @@
     },
 
     serialize() {
-      return Object.keys(this.plugged).map(id => ({ outletId: id, itemId: this.plugged[id].itemId }));
+      return Object.keys(this.plugged).map(id => {
+        const r = this.plugged[id];
+        return { outletId: id, itemId: r.itemId,
+                 linkId: r.link ? r.link.id : null,
+                 stationId: r.station ? r.station.id : null };
+      });
     },
-    /** 读档：按存下来的清单重新插一遍（链路和灶台跟着重建） */
+
+    /**
+     * 读档。
+     *
+     * **优先「认领」已经被还原出来的链路和灶台，而不是重新插一遍。**
+     * `[实测]` 供电和烹饪各自的 `deserialize` 已经把链路和灶台造回来了；
+     * 这里再 `plug()` 一次会得到**两条链路、两个灶台**，
+     * 玩家看到的是同一个插座上插着两台电水壶，功率也翻倍。
+     *
+     * 找不到（比如单独读插座、或者存档是老版本）才退回重新插一遍。
+     */
     deserialize(list, level) {
-      this.reset();
+      this.plugged = {};
       if (!list || !level || !level.outlets) return this;
       for (const rec of list) {
         const o = level.outlets.find(x => x.id === rec.outletId);
         if (!o || !C.ITEMS[rec.itemId]) continue;
-        this.plug(o, { hotbar: [], bag: null, _removeItem() {} }, C.makeItem(rec.itemId, 1));
+        const link = rec.linkId !== null && rec.linkId !== undefined
+          ? C.Power.links.find(l => l.id === rec.linkId) : null;
+        if (link) {
+          let station = rec.stationId !== null && rec.stationId !== undefined
+            ? (C.Cooking.stations.find(st => st.id === rec.stationId) || null) : null;
+          /* 链路还在、灶台却没了（比如烹饪那半边被重置过）：**把灶台补回来**。
+             不补的话，插座上明明插着电水壶，走过去却烧不了水。 */
+          if (!station && C.Config.cooking.heaters[rec.itemId]) {
+            station = C.Cooking.addStation({ pos: C.V.copy(o.pos), surface: 'outlet', slots: 1,
+                                             heater: rec.itemId, link, deviceId: 'dev-' + o.id });
+          }
+          this.plugged[o.id] = {
+            link, deviceId: 'dev-' + o.id, itemId: rec.itemId, outletId: o.id, station
+          };
+        } else {
+          this.plug(o, { hotbar: [], bag: null, _removeItem() {} }, C.makeItem(rec.itemId, 1));
+        }
       }
       return this;
     }

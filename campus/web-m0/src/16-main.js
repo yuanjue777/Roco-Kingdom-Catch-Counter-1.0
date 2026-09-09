@@ -104,9 +104,10 @@
       if (!this._noteReady) {
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
-        C.HotbarUI.init(this);
+        C.HotbarUI.init(this); C.PanelUI.init(this);
         this._noteReady = true;
       }
+      C.PanelUI.game = this; C.PanelUI.close();
       C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
@@ -329,7 +330,7 @@
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
             !(e.target && e.target.closest &&
-              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar'))) {
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -361,7 +362,7 @@
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
       return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
-             (C.LoadoutUI && C.LoadoutUI.open);
+             (C.PanelUI && C.PanelUI.open) || (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -526,6 +527,7 @@
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
       C.HotbarUI.update();
+      C.PanelUI.update(this.player);
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};
@@ -616,13 +618,15 @@
          `[实测]` 触发条件从「站在楼上」改成「**真的把东西插上去了**」——
          之前楼上一站就弹「插上了，没反应」，可玩家根本还没插过任何东西。
          现在楼里有插座了（35-outlets），这句话终于对得上他刚做的动作。 */
+      /* 分闸是**按楼层**的（见 24-campus），所以这里盯的是出生那一层的那一条。 */
+      const homeCircuitId = home ? 'circuit-' + home.spec.id + '-' + C.Config.level.spawnRoomFloor : null;
       if (!T.done.boil && T.objective === 'boil' && inHome) {
-        const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
+        const c = homeCircuitId && C.Power.circuits.get(homeCircuitId);
         const pluggedHere = Object.keys(C.Outlets.plugged).length > 0;
         if (c && !c.breakerOn && pluggedHere) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
-      const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
+      const c2 = homeCircuitId && C.Power.circuits.get(homeCircuitId);
       if (c2 && c2.breakerOn && !T.done.breaker) {
         T.completeObjective('breaker'); T.completeObjective('boil');
         T.hint('T20', now);

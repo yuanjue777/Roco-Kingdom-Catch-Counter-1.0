@@ -245,10 +245,13 @@ section('9. 出生地不同 = 换一整个开局');
   ok('教学局总数也还是 320', lv2.zombieSpawns.length === K.campus.zombieTotal);
   ok('学生出生在四楼 402', Math.abs(lv2.spawn.y - 3 * K.level.floorHeight) < 0.5, String(lv2.spawn.y));
 
-  // 出生楼的闸永远是断的（教学目标 3 靠它成立）
-  const own = lv.circuits.find(c => c.id === 'circuit-guard');
-  ok('出生楼的闸是断的 —— 不管出生在哪栋', own && own.breakerOn === false);
-  ok('别的楼照常通电', lv.circuits.find(c => c.id === 'circuit-dormM').breakerOn === true);
+  /* 出生**那一层**的闸是断的（教学目标 3 靠它成立），不管出生在哪栋。
+     保安室只有一层，所以断的就是它的 0 层。 */
+  const own = lv.circuits.find(c => c.id === 'circuit-guard-0');
+  ok('出生那一层的闸是断的 —— 不管出生在哪栋', own && own.breakerOn === false);
+  ok('别的楼照常通电', lv.circuits.find(c => c.id === 'circuit-dormM-0').breakerOn === true);
+  ok('全校只断这一条', lv.circuits.filter(c => !c.breakerOn).length === 1,
+     lv.circuits.filter(c => !c.breakerOn).map(c => c.id).join());
 }
 
 section('10. 开局物品与出生点进游戏');

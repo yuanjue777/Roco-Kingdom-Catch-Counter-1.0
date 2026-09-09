@@ -950,7 +950,7 @@ section('22. 笔记本（14.3）');
      round.pins.length === 1 && round.obs.get('Wanderer:看见').count === 2);
 }
 
-section('23. 存档 v2：背包与容器');
+section('23. 存档 v3：背包、容器，以及 M3 的全部状态');
 {
   const sim2 = makeSim();
   C.Notebook.reset();
@@ -963,7 +963,12 @@ section('23. 存档 v2：背包与容器');
   sim2.level.looseItems[0].taken = true;
 
   const raw = JSON.parse(JSON.stringify(C.Save.build(game)));
-  ok('存档版本升到 2', raw.version === 2);
+  /* v3 把 M3 的状态收了进来。**写了 `serialize()` 却没接进存档，比没写更危险** ——
+     存一次读回来，电闸全复位、锅没了、角色特性全丢，而且不报任何错。 */
+  ok('存档版本升到 3', raw.version === 3, String(raw.version));
+  ok('**存档层不硬依赖第 4 层**：只加载 00–26 时照样能存',
+     'power' in raw && 'cooking' in raw && 'loadout' in raw && raw.power === null,
+     JSON.stringify({ power: raw.power, cooking: raw.cooking })); 
   ok('背包连格子布局一起存', raw.player.bag && raw.player.bag.items.length > 0);
   ok('只存翻过的容器', raw.containers.length === 1 && raw.containers[0].id === box.id);
   ok('地上被拿走的东西也记下来', raw.loose.length === 1 && raw.loose[0] === 0);
@@ -978,7 +983,23 @@ section('23. 存档 v2：背包与容器');
   ok('读档还原背包', p3.bag && p3.bag.count('water') === 2, p3.bag && String(p3.bag.count('water')));
   ok('读档还原容器的已翻状态', sim3.level.containers.find(b => b.id === box.id).opened === true);
   ok('读档还原地上已被拿走的物品', sim3.level.looseItems[0].taken === true);
-  ok('v1 老存档被明确判为不兼容', C.Save.version === 2);
+  /* 老存档要**明确判为不兼容**，而不是读进来半个世界然后到处出错。
+     node 里没有 localStorage，临时装一个假的来验这条路径。 */
+  const store = {};
+  globalThis.localStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  store['campus-save-v1'] = JSON.stringify({ version: 2, player: {} });
+  const old = C.Save.read();
+  ok('v2 老存档被判为不兼容，并带上它的版本号',
+     old && old.incompatible === true && old.version === 2, JSON.stringify(old));
+  ok('不兼容的存档不会被 apply 进游戏', C.Save.apply(game3, old) === false);
+  const wrote = C.Save.save(game3);
+  ok('新存的能存进去', wrote.ok === true, wrote.msg);
+  ok('新存的能读回来', C.Save.read() && C.Save.read().version === 3);
+  delete globalThis.localStorage;
 }
 
 section('24. 开始游戏不能依赖指针锁定');

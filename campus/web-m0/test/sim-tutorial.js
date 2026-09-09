@@ -94,12 +94,22 @@ section('3. 402 所在回路的闸是断的');
 {
   const s = campus();
   const home = s.level.buildings.find(b => b.spec.spawn);
-  const c = C.Power.circuits.get('circuit-' + home.spec.id);
-  ok('出生楼的回路存在', !!c);
+  /* **分闸是按楼层的**：一栋楼一个配电箱，里面每层一个闸。
+     只有出生的那一层是断的 —— 走下一层楼，插座就是好的，
+     玩家立刻知道「不是水壶坏了，是我这层没电」。
+     `[实测]` 原来是整栋楼一条回路，于是宿舍楼 32 个插座全是死的，
+     玩家学到的不是「要去推闸」，是「这游戏的插座没做完」。 */
+  const c = C.Power.circuits.get('circuit-' + home.spec.id + '-' + C.Config.level.spawnRoomFloor);
+  ok('出生那一层的回路存在', !!c);
   ok('**闸是断开的** —— 玩家插上水壶会发现没反应', c.breakerOn === false);
   ok('配电箱在一层', c.panelAt && c.panelAt.y < C.Config.level.floorHeight, c.panelAt && c.panelAt.y.toFixed(1));
-  ok('其余楼的闸是通的（只有出生楼是教学）',
+  ok('全校只有这一条闸是断的',
      [...C.Power.circuits.values()].filter(x => !x.breakerOn).length === 1);
+  ok('同一栋楼别的层是通的',
+     C.Power.circuits.get('circuit-' + home.spec.id + '-2').breakerOn === true);
+  // 配电箱要有实体，玩家才走得到跟前按 F
+  const panel = s.level.panels.find(x => x.buildingKey === home.spec.id);
+  ok('出生楼有一个能交互的配电箱', !!panel && C.V.dist(panel.pos, c.panelAt) < 0.01);
 
   /* **开局第一个真正的目标是：从四楼下到一楼，推上闸，再回来。全程有丧尸。**
      这就把「探索这栋楼」变成了一个具体的、有回报的目标。 */

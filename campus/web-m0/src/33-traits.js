@@ -204,6 +204,25 @@
     tutorialSupported() { const ch = this.character(); return !!(ch && ch.tutorial); },
 
     serialize() { return { characterId: this.characterId, picked: this.picked.slice() }; },
+
+    /**
+     * 只还原「选了谁、选了哪些特性」，**不碰管线**。
+     *
+     * 读档专用：`restart()` 已经把修正挂过一遍了，
+     * 这时候再走一次 `deserialize()`（它会 unapply + 等着重新 apply）
+     * 要么把修正全卸掉，要么叠成两份 —— 两种都不报错，但数值全错。
+     *
+     * 存在这个方法的另一个理由：**存档层不该直接去读 `Loadout.picked`。**
+     * 那是「业务代码里做角色判断」的第一步，而 `sim-traits` 有一条测试盯着它。
+     */
+    restoreSelection(d) {
+      if (!d) return this;
+      if (d.characterId && C.Config.characters.some(c => c.id === d.characterId)) {
+        this.characterId = d.characterId;
+      }
+      this.picked = (d.picked || []).filter(id => C.Config.traits[id] && !C.Config.traits[id].fixed);
+      return this;
+    },
     deserialize(d) {
       if (!d) return this;
       this.unapply();

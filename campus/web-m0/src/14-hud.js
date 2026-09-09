@@ -228,7 +228,8 @@
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
-        t.type === 'outlet' ? C.Outlets.label(t.obj)
+        t.type === 'panel' ? `[F] ${t.obj.name}`
+        : t.type === 'outlet' ? C.Outlets.label(t.obj)
         : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);

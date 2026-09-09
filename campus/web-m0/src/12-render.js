@@ -246,6 +246,14 @@
       inst.instanceMatrix.needsUpdate = true;
       const group = new THREE.Group();
       group.add(inst);
+      // 配电箱：比插座大得多（40×55cm），灰蓝色，一栋楼一个，走廊西端一眼能看见
+      for (const p of (this.level.panels || [])) {
+        if ((p.buildingId === undefined ? 0 : p.buildingId) !== bid) continue;
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.55, 0.12),
+          new THREE.MeshLambertMaterial({ color: 0x8C99A8 }));
+        box.position.set(p.pos.x, p.pos.y, p.pos.z);
+        group.add(box);
+      }
       if (bid !== 0) this.outletGroups.set(bid, group);
       this.scene.add(group);
     }

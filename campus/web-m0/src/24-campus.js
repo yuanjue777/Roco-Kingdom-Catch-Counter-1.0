@@ -374,7 +374,7 @@
           const bb = room.bounds;
           outlets.push({
             id: 'oc-' + b.spec.id + '-' + fi + '-' + room.name,
-            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id + '-' + fi, buildingId: b.buildingId,
             // 贴着门那面墙（房间的南墙），离地 0.35m —— 真实插座就在这个高度
             pos: V.make((bb.min.x + bb.max.x) / 2 - 0.9, meta.y0 + 0.35, bb.min.z + 0.12)
           });
@@ -385,29 +385,59 @@
           const t = (i + 0.5) / n;
           outlets.push({
             id: 'oc-' + b.spec.id + '-' + fi + '-h' + i,
-            name: b.name + ' 走廊插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            name: b.name + (fi + 1) + '楼走廊插座', circuitId: 'circuit-' + b.spec.id + '-' + fi,
+            buildingId: b.buildingId,
             pos: V.make(cb.min.x + (cb.max.x - cb.min.x) * t, meta.y0 + 0.35, cb.max.z - 0.12)
           });
         }
       }
     }
 
-    const circuits = built.map((b) => {
+    /* ── 配电回路：**一层一个分闸**（供电规格 2.2）────────
+       `[实测]` 原来是「一栋楼一条回路」，而出生楼那条是断的 ——
+       于是玩家在宿舍楼里走遍四层，**32 个插座全是死的**。
+       第一次接触「电」这个系统，看到的是三十多个坏掉的插座，
+       他学到的不是「要去推闸」，是「这游戏的插座没做完」。
+
+       改成一层一个分闸之后：**开局只有出生的那一层是断的**，
+       下一层楼的插座就是好的 —— 玩家立刻知道「不是水壶坏了，是我这层没电」，
+       而这正好是把他推向一楼配电间的那句话（教学目标 3 → 6）。
+
+       配电箱是一栋楼一个，在一层走廊西端，里面是这栋楼所有楼层的分闸。 */
+    const circuits = [];
+    for (const b of built) {
+      const m0 = b.floorsMeta[0];
+      const cb = m0.corridor.bounds;
+      const panelAt = V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2);
+      for (let f = 0; f < b.floorsMeta.length; f++) {
+        circuits.push({
+          id: 'circuit-' + b.spec.id + '-' + f,
+          name: b.name + ' ' + (f + 1) + '楼',
+          buildingId: b.buildingId, floor: f, panelBuilding: b.spec.id,
+          // **只有出生的那一层是断的**
+          breakerOn: !(b.spec.id === home.spec.id && f === fl),
+          panelAt
+        });
+      }
+    }
+
+    /* 配电箱：一栋楼一个，玩家能走到跟前按 F 的实体。
+       `[实测]` 在这之前 `panelAt` 只是一个存在数据里的坐标，
+       **没有任何东西渲染它，也没有任何办法跟它交互** ——
+       教学目标 6「配电间在一楼」和插座一样，是做不到的。 */
+    const panels = built.map((b) => {
       const m0 = b.floorsMeta[0];
       const cb = m0.corridor.bounds;
       return {
-        id: 'circuit-' + b.spec.id,
-        name: b.name + ' 照明插座',
-        buildingId: b.buildingId,
-        // 出生楼的闸是断的（教学目标 3 靠它成立）；不在出生楼时照常通电
-        breakerOn: b.spec.id !== home.spec.id,
-        panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
+        id: 'panel-' + b.spec.id, name: b.name + ' 配电箱',
+        buildingId: b.buildingId, buildingKey: b.spec.id,
+        pos: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
       };
     });
 
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets, panels,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,

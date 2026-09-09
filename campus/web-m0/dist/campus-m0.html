@@ -248,6 +248,31 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 配电箱（37-panel-ui）────────────────────────────
+     刻意做得很小：一栋楼几行，一行一个楼层，一个按钮。
+     **推一次闸响度 25**，这个界面上的每一次点击都是有代价的决定，
+     它不该长得像一个设置菜单。 */
+  #panel { position: fixed; inset: 0; z-index: 8; display: none;
+           align-items: center; justify-content: center; pointer-events: none; }
+  #panel.open { display: flex; }
+  .pn-panel { pointer-events: auto; width: min(320px, 88vw);
+              background: rgba(12,16,22,0.93); border: 1px solid var(--line);
+              border-radius: 6px; padding: 12px 14px 14px; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
+  .pn-panel h5 { margin: 0 0 8px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .pn-hint, .pn-dead { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .pn-dead { color: var(--accent); }
+  .pn-row { display: flex; align-items: center; gap: 9px; padding: 6px 2px;
+            border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; }
+  .pn-row b { flex: 1; font-weight: 500; }
+  .pn-row em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .pn-row.live em { color: var(--signal); }
+  .pn-row.off em { color: var(--accent); }
+  .pn-row u { font-family: var(--mono); font-size: 11px; text-decoration: none; color: var(--dim); }
+  .pn-row button { font-family: var(--cjk); font-size: 11.5px; padding: 3px 12px; cursor: pointer;
+                   background: rgba(30,38,48,0.9); color: var(--ink);
+                   border: 1px solid var(--line); border-radius: 3px; }
+  .pn-row button:hover { border-color: var(--accent); color: var(--accent); }
+
   /* ── 常驻快取栏（屏幕正下方居中）──────────────────────
      它是 HUD 不是面板：不暂停、不抢鼠标、不挡准星。
      `pointer-events` 只给格子本身，中间那条准星线不能被它吃掉。 */
@@ -607,6 +632,7 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="panel"></div>
 <div id="hotbar"></div>
 <div id="pick"></div>
 <div id="startHint">
@@ -4242,6 +4268,7 @@
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
     // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
     for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
+    for (const p of lv.panels || []) consider(p.pos, p, 'panel', 0.5);
     return best;
   };
 
@@ -4286,6 +4313,7 @@
         else if (t.type === 'container') {
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
         } else if (t.type === 'outlet') this.useOutlet(t.obj);
+        else if (t.type === 'panel') C.EventBus.publish('PanelOpenedEvent', { panel: t.obj });
         else this.pickUp(t.obj);
       }
     } else {
@@ -5363,6 +5391,14 @@
       inst.instanceMatrix.needsUpdate = true;
       const group = new THREE.Group();
       group.add(inst);
+      // 配电箱：比插座大得多（40×55cm），灰蓝色，一栋楼一个，走廊西端一眼能看见
+      for (const p of (this.level.panels || [])) {
+        if ((p.buildingId === undefined ? 0 : p.buildingId) !== bid) continue;
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.55, 0.12),
+          new THREE.MeshLambertMaterial({ color: 0x8C99A8 }));
+        box.position.set(p.pos.x, p.pos.y, p.pos.z);
+        group.add(box);
+      }
       if (bid !== 0) this.outletGroups.set(bid, group);
       this.scene.add(group);
     }
@@ -5928,7 +5964,8 @@
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
-        t.type === 'outlet' ? C.Outlets.label(t.obj)
+        t.type === 'panel' ? `[F] ${t.obj.name}`
+        : t.type === 'outlet' ? C.Outlets.label(t.obj)
         : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
@@ -6787,7 +6824,7 @@
           const bb = room.bounds;
           outlets.push({
             id: 'oc-' + b.spec.id + '-' + fi + '-' + room.name,
-            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id + '-' + fi, buildingId: b.buildingId,
             // 贴着门那面墙（房间的南墙），离地 0.35m —— 真实插座就在这个高度
             pos: V.make((bb.min.x + bb.max.x) / 2 - 0.9, meta.y0 + 0.35, bb.min.z + 0.12)
           });
@@ -6798,29 +6835,59 @@
           const t = (i + 0.5) / n;
           outlets.push({
             id: 'oc-' + b.spec.id + '-' + fi + '-h' + i,
-            name: b.name + ' 走廊插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            name: b.name + (fi + 1) + '楼走廊插座', circuitId: 'circuit-' + b.spec.id + '-' + fi,
+            buildingId: b.buildingId,
             pos: V.make(cb.min.x + (cb.max.x - cb.min.x) * t, meta.y0 + 0.35, cb.max.z - 0.12)
           });
         }
       }
     }
 
-    const circuits = built.map((b) => {
+    /* ── 配电回路：**一层一个分闸**（供电规格 2.2）────────
+       `[实测]` 原来是「一栋楼一条回路」，而出生楼那条是断的 ——
+       于是玩家在宿舍楼里走遍四层，**32 个插座全是死的**。
+       第一次接触「电」这个系统，看到的是三十多个坏掉的插座，
+       他学到的不是「要去推闸」，是「这游戏的插座没做完」。
+
+       改成一层一个分闸之后：**开局只有出生的那一层是断的**，
+       下一层楼的插座就是好的 —— 玩家立刻知道「不是水壶坏了，是我这层没电」，
+       而这正好是把他推向一楼配电间的那句话（教学目标 3 → 6）。
+
+       配电箱是一栋楼一个，在一层走廊西端，里面是这栋楼所有楼层的分闸。 */
+    const circuits = [];
+    for (const b of built) {
+      const m0 = b.floorsMeta[0];
+      const cb = m0.corridor.bounds;
+      const panelAt = V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2);
+      for (let f = 0; f < b.floorsMeta.length; f++) {
+        circuits.push({
+          id: 'circuit-' + b.spec.id + '-' + f,
+          name: b.name + ' ' + (f + 1) + '楼',
+          buildingId: b.buildingId, floor: f, panelBuilding: b.spec.id,
+          // **只有出生的那一层是断的**
+          breakerOn: !(b.spec.id === home.spec.id && f === fl),
+          panelAt
+        });
+      }
+    }
+
+    /* 配电箱：一栋楼一个，玩家能走到跟前按 F 的实体。
+       `[实测]` 在这之前 `panelAt` 只是一个存在数据里的坐标，
+       **没有任何东西渲染它，也没有任何办法跟它交互** ——
+       教学目标 6「配电间在一楼」和插座一样，是做不到的。 */
+    const panels = built.map((b) => {
       const m0 = b.floorsMeta[0];
       const cb = m0.corridor.bounds;
       return {
-        id: 'circuit-' + b.spec.id,
-        name: b.name + ' 照明插座',
-        buildingId: b.buildingId,
-        // 出生楼的闸是断的（教学目标 3 靠它成立）；不在出生楼时照常通电
-        breakerOn: b.spec.id !== home.spec.id,
-        panelAt: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
+        id: 'panel-' + b.spec.id, name: b.name + ' 配电箱',
+        buildingId: b.buildingId, buildingKey: b.spec.id,
+        pos: V.make(cb.min.x + 1.2, m0.y0 + 1.2, (cb.min.z + cb.max.z) / 2)
       };
     });
 
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets, panels,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,
@@ -9380,6 +9447,25 @@
     tutorialSupported() { const ch = this.character(); return !!(ch && ch.tutorial); },
 
     serialize() { return { characterId: this.characterId, picked: this.picked.slice() }; },
+
+    /**
+     * 只还原「选了谁、选了哪些特性」，**不碰管线**。
+     *
+     * 读档专用：`restart()` 已经把修正挂过一遍了，
+     * 这时候再走一次 `deserialize()`（它会 unapply + 等着重新 apply）
+     * 要么把修正全卸掉，要么叠成两份 —— 两种都不报错，但数值全错。
+     *
+     * 存在这个方法的另一个理由：**存档层不该直接去读 `Loadout.picked`。**
+     * 那是「业务代码里做角色判断」的第一步，而 `sim-traits` 有一条测试盯着它。
+     */
+    restoreSelection(d) {
+      if (!d) return this;
+      if (d.characterId && C.Config.characters.some(c => c.id === d.characterId)) {
+        this.characterId = d.characterId;
+      }
+      this.picked = (d.picked || []).filter(id => C.Config.traits[id] && !C.Config.traits[id].fixed);
+      return this;
+    },
     deserialize(d) {
       if (!d) return this;
       this.unapply();
@@ -9693,16 +9779,47 @@
     },
 
     serialize() {
-      return Object.keys(this.plugged).map(id => ({ outletId: id, itemId: this.plugged[id].itemId }));
+      return Object.keys(this.plugged).map(id => {
+        const r = this.plugged[id];
+        return { outletId: id, itemId: r.itemId,
+                 linkId: r.link ? r.link.id : null,
+                 stationId: r.station ? r.station.id : null };
+      });
     },
-    /** 读档：按存下来的清单重新插一遍（链路和灶台跟着重建） */
+
+    /**
+     * 读档。
+     *
+     * **优先「认领」已经被还原出来的链路和灶台，而不是重新插一遍。**
+     * `[实测]` 供电和烹饪各自的 `deserialize` 已经把链路和灶台造回来了；
+     * 这里再 `plug()` 一次会得到**两条链路、两个灶台**，
+     * 玩家看到的是同一个插座上插着两台电水壶，功率也翻倍。
+     *
+     * 找不到（比如单独读插座、或者存档是老版本）才退回重新插一遍。
+     */
     deserialize(list, level) {
-      this.reset();
+      this.plugged = {};
       if (!list || !level || !level.outlets) return this;
       for (const rec of list) {
         const o = level.outlets.find(x => x.id === rec.outletId);
         if (!o || !C.ITEMS[rec.itemId]) continue;
-        this.plug(o, { hotbar: [], bag: null, _removeItem() {} }, C.makeItem(rec.itemId, 1));
+        const link = rec.linkId !== null && rec.linkId !== undefined
+          ? C.Power.links.find(l => l.id === rec.linkId) : null;
+        if (link) {
+          let station = rec.stationId !== null && rec.stationId !== undefined
+            ? (C.Cooking.stations.find(st => st.id === rec.stationId) || null) : null;
+          /* 链路还在、灶台却没了（比如烹饪那半边被重置过）：**把灶台补回来**。
+             不补的话，插座上明明插着电水壶，走过去却烧不了水。 */
+          if (!station && C.Config.cooking.heaters[rec.itemId]) {
+            station = C.Cooking.addStation({ pos: C.V.copy(o.pos), surface: 'outlet', slots: 1,
+                                             heater: rec.itemId, link, deviceId: 'dev-' + o.id });
+          }
+          this.plugged[o.id] = {
+            link, deviceId: 'dev-' + o.id, itemId: rec.itemId, outletId: o.id, station
+          };
+        } else {
+          this.plug(o, { hotbar: [], bag: null, _removeItem() {} }, C.makeItem(rec.itemId, 1));
+        }
       }
       return this;
     }
@@ -9783,6 +9900,108 @@
   C.HotbarUI = HotbarUI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/37-panel-ui.js ===== */
+/*
+ * 37-panel-ui.js —— 配电箱：一栋楼所有楼层的分闸
+ *
+ * `[实测]` 在这个文件出现之前，`panelAt` 只是一个存在数据里的坐标 ——
+ * **没有任何东西渲染它，也没有任何办法跟它交互。**
+ * 于是教学目标 6「配电间在一楼」和插座一样，是做不到的：
+ * 玩家一路潜行下到一楼，找到了那个位置，然后发现那里什么也没有。
+ *
+ * 界面刻意做得很小：一栋楼几行，每行一个楼层，一个按钮。
+ * **推闸响度 25**，所以这个界面上的每一次点击都是一次有代价的决定 ——
+ * 它不该长得像一个设置菜单。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const PanelUI = {
+    open: false, game: null, panel: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('panel');
+      this.el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        if (b.dataset.act === 'close') return this.close();
+        if (b.dataset.act === 'flip') this._flip(b.dataset.arg);
+      });
+      C.EventBus.subscribe('PanelOpenedEvent', (e) => this.toggle(e.panel));
+    },
+
+    toggle(panel) {
+      if (this.open && this.panel === panel) return this.close();
+      this.panel = panel;
+      this.open = true;
+      this.el.classList.add('open');
+      this.game.releaseMouseForPanel();
+      this.render();
+    },
+    close() {
+      if (!this.open) return;
+      this.open = false; this.panel = null;
+      this.el.classList.remove('open');
+      this.game.restoreMouseAfterPanel();
+    },
+
+    /** 走远了自动关，和搜刮/厨房一个道理 */
+    update(player) {
+      if (!this.open || !this.panel) return;
+      if (C.V.dist(player.pos, this.panel.pos) > C.Config.interact.range + 2.0) this.close();
+    },
+
+    _circuits() {
+      if (!this.panel) return [];
+      const out = [];
+      for (const [, c] of C.Power.circuits) {
+        if (c.id.indexOf('circuit-' + this.panel.buildingKey + '-') === 0) out.push(c);
+      }
+      return out.sort((a, b) => (a.floor || 0) - (b.floor || 0));
+    },
+
+    _flip(id) {
+      const c = C.Power.circuits.get(id);
+      if (!c) return;
+      /* 推闸的声音从**配电箱这个位置**发出去，不是从玩家身上。
+         两者差不了几米，但「站远一点按」在这里不该变成一个规避手段。 */
+      const r = C.Power.setBreaker(id, !c.breakerOn, this.panel.pos, this.game.player.id);
+      this.game.msg(r.msg + (r.ok ? '（响度 ' + C.Config.power.breakerLoudness + '）' : ''));
+      this.render();
+    },
+
+    render() {
+      if (!this.open || !this.panel) return;
+      const list = this._circuits();
+      const dead = C.Power.gridUp === false;
+      const rows = list.map(c => {
+        const st = c.state();
+        const label = st === 'live' ? '通电' : st === 'off' ? '已拉下'
+                    : st === 'damaged' ? '线路损坏' : '主干线已断';
+        const can = st === 'live' || st === 'off';
+        return `<div class="pn-row ${st}">` +
+          `<b>${c.name}</b><em>${label}</em>` +
+          (can ? `<button data-act="flip" data-arg="${c.id}">${c.breakerOn ? '拉下' : '推上'}</button>`
+               : '<u>修不了</u>') + '</div>';
+      }).join('');
+
+      this.el.innerHTML =
+        '<div class="pn-panel">' +
+          `<h5>${this.panel.name}<button class="loot-btn" data-act="close">关闭</button></h5>` +
+          (dead
+            /* 第 11 天之后，这个界面的意义从「推闸」变成「确认真的没救了」。
+               **必须说清楚是市电没了，不是闸的问题** —— 否则玩家会反复推它。 */
+            ? '<p class="pn-dead">市电已经断了 —— 推闸没有用。要用电只能自己发电。</p>'
+            : `<p class="pn-hint">推一次闸响度 ${C.Config.power.breakerLoudness}。</p>`) +
+          rows +
+        '</div>';
+    }
+  };
+
+  C.PanelUI = PanelUI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -9791,7 +10010,12 @@
 (function (root) {
   const C = (root.Campus = root.Campus || {});
   const KEY = 'campus-save-v1';
-  const VERSION = 2;   // v2：加了背包/容器/笔记本，v1 存档不再兼容
+  /* v3：把 M3 的全部状态收进来 —— 供电（含每层分闸）、插座上插着什么、
+     烹饪熟练度与正在做的锅、教学进度、角色与特性、**玩家放在地上的东西**。
+     `[实测]` 在 v3 之前，各模块的 `serialize()` 都写好了，
+     但存档只存到 v2 —— 存一次读回来，**电闸全复位、锅没了、角色特性全丢**，
+     而且不报任何错。**写了序列化却没接进存档，比没写更危险。** */
+  const VERSION = 3;
 
   C.Save = {
     version: VERSION,
@@ -9817,7 +10041,21 @@
           .map(b => ({ id: b.id, revealed: b.revealed, grid: b.grid.serialize() })),
         loose: (game.level.looseItems || [])
           .map((l, i) => (l.taken ? i : -1)).filter(i => i >= 0),
+        /* 玩家自己放在地上的东西：关卡里本来没有它们，读档要重新造出来。
+           固定散落物只需要记「被捡走了没有」（下面的 `loose`）。 */
+        dropped: (game.level.looseItems || [])
+          .filter(l => l.dropped && !l.taken)
+          .map(l => ({ id: l.id, pos: C.V.copy(l.pos),
+                       item: { id: l.item.id, count: l.item.count } })),
         notebook: C.Notebook.serialize(),
+        /* 这几个是第 4 层的系统。**存档是第 2 层，不能硬依赖它们** ——
+           调声音数值时只加载 00–11 跑测试是常事，
+           那种场景下 `C.Cooking` 根本不存在，硬调会让保存整个炸掉。 */
+        power: C.Power ? C.Power.serialize() : null,
+        cooking: C.Cooking ? C.Cooking.serialize() : null,
+        outlets: C.Outlets ? C.Outlets.serialize() : null,
+        tutorial: C.Tutorial ? C.Tutorial.serialize() : null,
+        loadout: C.Loadout ? C.Loadout.serialize() : null,
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
         // 丧尸：ID、类型、位置、生命、行为状态、目标点
         zombies: C.ZombieManager.list.map(z => ({
@@ -9870,6 +10108,26 @@
         if (game.level.looseItems && game.level.looseItems[i]) game.level.looseItems[i].taken = true;
       }
       C.Notebook.deserialize(d.notebook);
+      /* ── M3 的状态 ────────────────────────────────
+         **顺序有讲究**：供电要在插座之前（插座要往链路上挂设备），
+         烹饪要在插座之前（插上加热设备会就地建灶台）。 */
+      if (d.power && C.Power) C.Power.deserialize(d.power);
+      if (d.cooking && C.Cooking) C.Cooking.deserialize(d.cooking, C.Power);
+      if (d.outlets && C.Outlets) C.Outlets.deserialize(d.outlets, game.level);
+      if (d.tutorial && C.Tutorial) C.Tutorial.deserialize(d.tutorial);
+      /* 角色与特性**不重新挂管线** —— restart() 已经挂过一遍了，
+         再 apply 一次会把每一条修正叠成两份。`restoreSelection` 只还原选择本身。
+         也不在这里直接读 `Loadout.picked`：那是「业务代码里做角色判断」的第一步。 */
+      if (d.loadout && C.Loadout) C.Loadout.restoreSelection(d.loadout);
+      // 玩家放在地上的东西：关卡里没有它们，要重新造
+      if (!game.level.looseItems) game.level.looseItems = [];
+      for (const r of d.dropped || []) {
+        if (!C.ITEMS[r.item.id]) continue;
+        const loose = { id: r.id, pos: C.V.copy(r.pos), taken: false, dropped: true,
+                        item: C.makeItem(r.item.id, r.item.count) };
+        game.level.looseItems.push(loose);
+        if (game.renderer && game.renderer.addLoose) game.renderer.addLoose(loose);
+      }
       if (d.skills) Object.assign(C.Config.skills, d.skills);
       for (const r of d.portals || []) {
         const portal = game.level.graph.portals[r.i];
@@ -10238,9 +10496,10 @@
       if (!this._noteReady) {
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
-        C.HotbarUI.init(this);
+        C.HotbarUI.init(this); C.PanelUI.init(this);
         this._noteReady = true;
       }
+      C.PanelUI.game = this; C.PanelUI.close();
       C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
@@ -10463,7 +10722,7 @@
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
             !(e.target && e.target.closest &&
-              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar'))) {
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -10495,7 +10754,7 @@
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
       return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
-             (C.LoadoutUI && C.LoadoutUI.open);
+             (C.PanelUI && C.PanelUI.open) || (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -10660,6 +10919,7 @@
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
       C.HotbarUI.update();
+      C.PanelUI.update(this.player);
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};
@@ -10750,13 +11010,15 @@
          `[实测]` 触发条件从「站在楼上」改成「**真的把东西插上去了**」——
          之前楼上一站就弹「插上了，没反应」，可玩家根本还没插过任何东西。
          现在楼里有插座了（35-outlets），这句话终于对得上他刚做的动作。 */
+      /* 分闸是**按楼层**的（见 24-campus），所以这里盯的是出生那一层的那一条。 */
+      const homeCircuitId = home ? 'circuit-' + home.spec.id + '-' + C.Config.level.spawnRoomFloor : null;
       if (!T.done.boil && T.objective === 'boil' && inHome) {
-        const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
+        const c = homeCircuitId && C.Power.circuits.get(homeCircuitId);
         const pluggedHere = Object.keys(C.Outlets.plugged).length > 0;
         if (c && !c.breakerOn && pluggedHere) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
-      const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
+      const c2 = homeCircuitId && C.Power.circuits.get(homeCircuitId);
       if (c2 && c2.breakerOn && !T.done.breaker) {
         T.completeObjective('breaker'); T.completeObjective('boil');
         T.hint('T20', now);

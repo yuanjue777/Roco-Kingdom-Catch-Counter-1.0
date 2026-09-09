@@ -254,6 +254,31 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 配电箱（37-panel-ui）────────────────────────────
+     刻意做得很小：一栋楼几行，一行一个楼层，一个按钮。
+     **推一次闸响度 25**，这个界面上的每一次点击都是有代价的决定，
+     它不该长得像一个设置菜单。 */
+  #panel { position: fixed; inset: 0; z-index: 8; display: none;
+           align-items: center; justify-content: center; pointer-events: none; }
+  #panel.open { display: flex; }
+  .pn-panel { pointer-events: auto; width: min(320px, 88vw);
+              background: rgba(12,16,22,0.93); border: 1px solid var(--line);
+              border-radius: 6px; padding: 12px 14px 14px; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
+  .pn-panel h5 { margin: 0 0 8px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .pn-hint, .pn-dead { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .pn-dead { color: var(--accent); }
+  .pn-row { display: flex; align-items: center; gap: 9px; padding: 6px 2px;
+            border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; }
+  .pn-row b { flex: 1; font-weight: 500; }
+  .pn-row em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .pn-row.live em { color: var(--signal); }
+  .pn-row.off em { color: var(--accent); }
+  .pn-row u { font-family: var(--mono); font-size: 11px; text-decoration: none; color: var(--dim); }
+  .pn-row button { font-family: var(--cjk); font-size: 11.5px; padding: 3px 12px; cursor: pointer;
+                   background: rgba(30,38,48,0.9); color: var(--ink);
+                   border: 1px solid var(--line); border-radius: 3px; }
+  .pn-row button:hover { border-color: var(--accent); color: var(--accent); }
+
   /* ── 常驻快取栏（屏幕正下方居中）──────────────────────
      它是 HUD 不是面板：不暂停、不抢鼠标、不挡准星。
      `pointer-events` 只给格子本身，中间那条准星线不能被它吃掉。 */
@@ -617,6 +642,7 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="panel"></div>
 <div id="hotbar"></div>
 <div id="pick"></div>
 <div id="startHint">
@@ -693,6 +719,7 @@
 <script src="src/34-loadout-ui.js"></script>
 <script src="src/35-outlets.js"></script>
 <script src="src/36-hotbar-ui.js"></script>
+<script src="src/37-panel-ui.js"></script>
 <script src="src/20-save.js"></script>
 <script src="src/17-touch.js"></script>
 <script src="src/16-main.js"></script>

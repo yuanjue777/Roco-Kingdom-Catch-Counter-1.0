@@ -490,6 +490,7 @@
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
     // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
     for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
+    for (const p of lv.panels || []) consider(p.pos, p, 'panel', 0.5);
     return best;
   };
 
@@ -534,6 +535,7 @@
         else if (t.type === 'container') {
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
         } else if (t.type === 'outlet') this.useOutlet(t.obj);
+        else if (t.type === 'panel') C.EventBus.publish('PanelOpenedEvent', { panel: t.obj });
         else this.pickUp(t.obj);
       }
     } else {
