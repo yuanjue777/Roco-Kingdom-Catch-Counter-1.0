@@ -39,6 +39,7 @@
     this._buildThrowPreview();
     this._buildAvatar();
     this._buildContainers();
+    this._buildOutlets();
     this.stoneMeshes = [];
   }
 
@@ -203,13 +204,51 @@
       if (bid !== 0) this.containerGroups.set(bid, group);
       this.scene.add(group);
     }
-    this.looseMeshes = (this.level.looseItems || []).map(l => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
-        new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
-      m.position.set(l.pos.x, l.pos.y, l.pos.z);
-      this.scene.add(m);
-      return { mesh: m, loose: l };
-    });
+    this.looseMeshes = (this.level.looseItems || []).map(l => this._makeLoose(l));
+  };
+
+  /** 一件散落物的方块。玩家**放下**东西时也走这里，所以要能单独建一个。 */
+  Renderer.prototype._makeLoose = function (l) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
+      // 自己放下的用暖一点的颜色，好在灰盒里认出来
+      new THREE.MeshLambertMaterial({ color: l.dropped ? 0xE0B070 : 0xd8d0c0 }));
+    m.position.set(l.pos.x, l.pos.y, l.pos.z);
+    this.scene.add(m);
+    return { mesh: m, loose: l };
+  };
+
+  /** 玩家放下一件东西 —— 关卡建好之后才出现的散落物，要补一个网格 */
+  Renderer.prototype.addLoose = function (l) {
+    if (!this.looseMeshes) this.looseMeshes = [];
+    this.looseMeshes.push(this._makeLoose(l));
+  };
+
+  /* ── 插座 ──────────────────────────────────────────
+     **看不见的插座等于没有插座。** 一栋楼三十几个、全校两百多个，
+     所以按楼合批成 InstancedMesh，跟着分区加载一起显隐。
+     14×8cm 的小白板贴在墙上，离地 0.35m —— 不显眼，但找得到。 */
+  Renderer.prototype._buildOutlets = function () {
+    const list = this.level.outlets || [];
+    if (!list.length) return;
+    const byBuilding = new Map();
+    for (const o of list) {
+      const k = o.buildingId === undefined ? 0 : o.buildingId;
+      if (!byBuilding.has(k)) byBuilding.set(k, []);
+      byBuilding.get(k).push(o);
+    }
+    const geo = new THREE.BoxGeometry(0.14, 0.08, 0.03);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xE8E4DA });
+    const m4 = new THREE.Matrix4();
+    this.outletGroups = new Map();
+    for (const [bid, arr] of byBuilding) {
+      const inst = new THREE.InstancedMesh(geo, mat, arr.length);
+      arr.forEach((o, i) => { m4.makeTranslation(o.pos.x, o.pos.y, o.pos.z); inst.setMatrixAt(i, m4); });
+      inst.instanceMatrix.needsUpdate = true;
+      const group = new THREE.Group();
+      group.add(inst);
+      if (bid !== 0) this.outletGroups.set(bid, group);
+      this.scene.add(group);
+    }
   };
 
   /** 背包类容器被整个拎走：实例矩阵缩到 0（重建整批太贵，也没必要） */
@@ -222,9 +261,13 @@
   };
 
   Renderer.prototype._syncContainers = function () {
-    if (!this.containerGroups) return;
     const S = C.Streaming;
-    for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
+    if (this.containerGroups) {
+      for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
+    }
+    if (this.outletGroups) {
+      for (const [bid, group] of this.outletGroups) group.visible = !S || S.isLoaded(bid);
+    }
   };
 
   Renderer.prototype._buildAvatar = function () {

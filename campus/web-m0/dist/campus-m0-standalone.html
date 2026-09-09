@@ -252,6 +252,30 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 常驻快取栏（屏幕正下方居中）──────────────────────
+     它是 HUD 不是面板：不暂停、不抢鼠标、不挡准星。
+     `pointer-events` 只给格子本身，中间那条准星线不能被它吃掉。 */
+  #hotbar { position: fixed; left: 50%; transform: translateX(-50%);
+            bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 4;
+            display: flex; gap: 5px; pointer-events: none; }
+  .hb-slot { position: relative; width: 74px; height: 46px; border-radius: 4px;
+             display: flex; align-items: center; justify-content: center; text-align: center;
+             font-style: normal; padding: 3px 5px 5px;
+             background: rgba(12,16,22,0.72); border: 1px solid var(--line);
+             pointer-events: auto; cursor: pointer; overflow: hidden; }
+  .hb-slot.empty { background: rgba(12,16,22,0.34); pointer-events: none; }
+  .hb-slot:hover { border-color: var(--signal); }
+  .hb-slot.rare { border-color: var(--warn, #E5B45C); }
+  .hb-slot b { position: absolute; left: 4px; top: 2px; font-family: var(--mono);
+               font-size: 9.5px; font-weight: 400; color: var(--dim); }
+  .hb-slot.empty b { color: rgba(126,136,150,0.45); }
+  .hb-slot span { font-size: 10.5px; line-height: 1.25; color: var(--ink); }
+  .hb-slot u { position: absolute; right: 4px; bottom: 2px; font-family: var(--mono);
+               font-size: 10px; text-decoration: none; color: var(--signal); }
+  body.touch #hotbar { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  body.touch .hb-slot { width: 58px; height: 38px; }
+  @media (max-height: 520px) { .hb-slot { width: 62px; height: 38px; } .hb-slot span { font-size: 10px; } }
+
   /* ── 开局选择界面（角色与特性规格 4.5）───────────────
      三栏：角色 ｜ 他是谁 ｜ 特性池。剩余点数永远挂在最上面。
      **固定特性与自选特性分区显示** —— 玩家要一眼看清哪些是改不了的。 */
@@ -590,6 +614,7 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="hotbar"></div>
 <div id="pick"></div>
 <div id="startHint">
   <div class="card">
@@ -787,6 +812,9 @@
       lootFast: 40,
       lootSlow: 15,          // 保留：门/窗的缓慢开关仍在用这一档「轻手轻脚」的响度
       grabBag: 18,           // 整个拎走一个包：不用翻，只有拎起来那一下的窸窣声
+      /* 放下东西：基础 8，再按重量加最多 12（`8 + 重量×3`）。
+         **扔一口 2.2kg 的铁锅（14）和放下一张纸（8）不该一样响。** */
+      dropItem: 8,
       meleeHit: 55,
       playerHurt: 60,
       broadcast: 150,
@@ -4225,6 +4253,8 @@
     for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
     for (const c of lv.containers || []) if (!c.taken) consider(c.pos, c, 'container', 0.4);
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
+    // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
+    for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
     return best;
   };
 
@@ -4268,7 +4298,8 @@
         if (t.type === 'door') this._doorAction(t.obj, true);
         else if (t.type === 'container') {
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
-        } else this.pickUp(t.obj);
+        } else if (t.type === 'outlet') this.useOutlet(t.obj);
+        else this.pickUp(t.obj);
       }
     } else {
       // 轻点：只有「按住」另有含义的目标才需要这条支路
@@ -4354,6 +4385,54 @@
     if (r.ok) loose.taken = true;
     this.lastAction = r.msg;
     C.EventBus.publish('PickupEvent', { ok: r.ok, msg: r.msg });
+  };
+
+  /**
+   * 把一件东西放到脚边的地上。**放下的东西必须能再捡起来** ——
+   * 否则「丢弃」就等于「销毁」，玩家永远不敢按它，负重管理这条玩法就死了。
+   *
+   * 实现上它和地上本来就有的散落物是同一种东西（`level.looseItems`），
+   * 所以捡回来走的是同一条 `pickUp` 路径，不需要第二套逻辑。
+   */
+  Player.prototype.dropItem = function (item) {
+    if (!item) return { ok: false, msg: '没有这件东西' };
+    const def = C.ITEMS[item.id];
+    this._removeItem(item);
+    const lv = this.world.level;
+    if (!lv.looseItems) lv.looseItems = [];
+    /* 放在**脚前 0.6 米、地面上**。放在正脚下的话，第一人称里低头也看不见，
+       玩家会以为东西真的没了。 */
+    const pos = { x: this.pos.x - Math.sin(this.yaw) * 0.6,
+                  y: this.pos.y + 0.12,
+                  z: this.pos.z - Math.cos(this.yaw) * 0.6 };
+    const loose = { id: 'drop' + (lv._nextDrop = (lv._nextDrop || 0) + 1),
+                    item, pos, taken: false, dropped: true };
+    lv.looseItems.push(loose);
+    // 放下也有声音，只是很小 —— 但**扔一口铁锅和放下一张纸不该一样响**
+    const loud = C.ModifierPipeline.query('sound.drop',
+      C.Config.loudness.dropItem + Math.min(12, (def ? def.weight : 0) * 3), this.id);
+    C.SoundSystem.emit({ worldPosition: pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: '放下' + (def ? def.name : '') });
+    this.lastAction = '放下 ' + (def ? def.name : '');
+    C.EventBus.publish('ItemDroppedEvent', { loose, item });
+    return { ok: true, msg: '放下 ' + (def ? def.name : '') + (item.count > 1 ? ' ×' + item.count : ''), loose };
+  };
+
+  /**
+   * 对着插座按 F。
+   *
+   * **这是「电」这个系统在世界里唯一的入口。** 之前它只存在于代码里 ——
+   * 有回路、有链路、有功率上限，但玩家没有任何办法把一台设备接上去。
+   *
+   * 规则：身上拿着能插电的东西 → 插上；已经插了 → 拔下来。
+   * 闸没推的时候**照样能插上**，只是没反应 ——
+   * 那个「插上了，什么也没发生」正是教学目标 3 想让玩家撞的墙。
+   */
+  Player.prototype.useOutlet = function (outlet) {
+    const r = C.Outlets.use(outlet, this);
+    this.lastAction = r.msg;
+    C.EventBus.publish('OutletUsedEvent', { outlet, ok: r.ok, msg: r.msg });
+    return r;
   };
 
   Player.prototype._doorAction = function (door, slow) {
@@ -5090,6 +5169,7 @@
     this._buildThrowPreview();
     this._buildAvatar();
     this._buildContainers();
+    this._buildOutlets();
     this.stoneMeshes = [];
   }
 
@@ -5254,13 +5334,51 @@
       if (bid !== 0) this.containerGroups.set(bid, group);
       this.scene.add(group);
     }
-    this.looseMeshes = (this.level.looseItems || []).map(l => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
-        new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
-      m.position.set(l.pos.x, l.pos.y, l.pos.z);
-      this.scene.add(m);
-      return { mesh: m, loose: l };
-    });
+    this.looseMeshes = (this.level.looseItems || []).map(l => this._makeLoose(l));
+  };
+
+  /** 一件散落物的方块。玩家**放下**东西时也走这里，所以要能单独建一个。 */
+  Renderer.prototype._makeLoose = function (l) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
+      // 自己放下的用暖一点的颜色，好在灰盒里认出来
+      new THREE.MeshLambertMaterial({ color: l.dropped ? 0xE0B070 : 0xd8d0c0 }));
+    m.position.set(l.pos.x, l.pos.y, l.pos.z);
+    this.scene.add(m);
+    return { mesh: m, loose: l };
+  };
+
+  /** 玩家放下一件东西 —— 关卡建好之后才出现的散落物，要补一个网格 */
+  Renderer.prototype.addLoose = function (l) {
+    if (!this.looseMeshes) this.looseMeshes = [];
+    this.looseMeshes.push(this._makeLoose(l));
+  };
+
+  /* ── 插座 ──────────────────────────────────────────
+     **看不见的插座等于没有插座。** 一栋楼三十几个、全校两百多个，
+     所以按楼合批成 InstancedMesh，跟着分区加载一起显隐。
+     14×8cm 的小白板贴在墙上，离地 0.35m —— 不显眼，但找得到。 */
+  Renderer.prototype._buildOutlets = function () {
+    const list = this.level.outlets || [];
+    if (!list.length) return;
+    const byBuilding = new Map();
+    for (const o of list) {
+      const k = o.buildingId === undefined ? 0 : o.buildingId;
+      if (!byBuilding.has(k)) byBuilding.set(k, []);
+      byBuilding.get(k).push(o);
+    }
+    const geo = new THREE.BoxGeometry(0.14, 0.08, 0.03);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xE8E4DA });
+    const m4 = new THREE.Matrix4();
+    this.outletGroups = new Map();
+    for (const [bid, arr] of byBuilding) {
+      const inst = new THREE.InstancedMesh(geo, mat, arr.length);
+      arr.forEach((o, i) => { m4.makeTranslation(o.pos.x, o.pos.y, o.pos.z); inst.setMatrixAt(i, m4); });
+      inst.instanceMatrix.needsUpdate = true;
+      const group = new THREE.Group();
+      group.add(inst);
+      if (bid !== 0) this.outletGroups.set(bid, group);
+      this.scene.add(group);
+    }
   };
 
   /** 背包类容器被整个拎走：实例矩阵缩到 0（重建整批太贵，也没必要） */
@@ -5273,9 +5391,13 @@
   };
 
   Renderer.prototype._syncContainers = function () {
-    if (!this.containerGroups) return;
     const S = C.Streaming;
-    for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
+    if (this.containerGroups) {
+      for (const [bid, group] of this.containerGroups) group.visible = !S || S.isLoaded(bid);
+    }
+    if (this.outletGroups) {
+      for (const [bid, group] of this.outletGroups) group.visible = !S || S.isLoaded(bid);
+    }
   };
 
   Renderer.prototype._buildAvatar = function () {
@@ -5793,7 +5915,8 @@
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
-      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 28);
+      // 快取栏现在常驻在屏幕正下方，这一行要往上让开，别叠在格子上
+      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 62);
       if (player.charge > 0) {
         const cw = 120;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
@@ -5818,7 +5941,8 @@
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
-        t.type !== 'container' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
+        t.type === 'outlet' ? C.Outlets.label(t.obj)
+        : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
       if (player.interactProgress > 0) {
@@ -5842,11 +5966,14 @@
     }
 
     // 前方可翻越的提示。与开门提示互斥，避免同一位置两行字打架。
+    /* `[实测]` 翻越提示原来也画在 `cy + 46`，和上面的交互提示**完全重叠** ——
+       站在矮墙前看着插座时，两行字叠成一团，谁也读不出来。
+       两者可以同时成立（贴着窗台看墙上的插座），所以是往下挪一行，不是二选一。 */
     if (!player.interactTarget && !touch) {
       const v = player.vaultTarget && player.vaultTarget();
       if (v) {
         ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.9)'; ctx.font = '12.5px ' + SANS;
-        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + 46);
+        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + (player.target ? 66 : 46));
       }
     }
 
@@ -6658,6 +6785,39 @@
        **出生的 402 所在回路开关是断开的** —— 开局第一个真正的目标是
        「从四楼下到一楼，推上闸，再回来」，全程有丧尸。
        这是一个完美的教学关卡，而且它把「探索这栋楼」变成了具体的、有回报的目标。 */
+    /* ── 插座 ────────────────────────────────────────
+       `[实测]` **原来整栋楼一个插座都没有。**
+       电水壶、电磁炉、冰箱全都只能靠代码凭空创建链路 ——
+       教学的第三个目标「水壶要接电，找个插座」在游戏里根本做不到。
+
+       每个房间靠门那面墙上一个，走廊每隔一段一个。
+       插座属于所在楼的回路：**闸没推就是没电**，这一点是教学目标 3 的全部内容。 */
+    const outlets = [];
+    for (const b of built) {
+      for (let fi = 0; fi < b.floorsMeta.length; fi++) {
+        const meta = b.floorsMeta[fi];
+        for (const room of meta.rooms) {
+          const bb = room.bounds;
+          outlets.push({
+            id: 'oc-' + b.spec.id + '-' + fi + '-' + room.name,
+            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            // 贴着门那面墙（房间的南墙），离地 0.35m —— 真实插座就在这个高度
+            pos: V.make((bb.min.x + bb.max.x) / 2 - 0.9, meta.y0 + 0.35, bb.min.z + 0.12)
+          });
+        }
+        const cb = meta.corridor.bounds;
+        const n = Math.max(1, Math.round((cb.max.x - cb.min.x) / 14));
+        for (let i = 0; i < n; i++) {
+          const t = (i + 0.5) / n;
+          outlets.push({
+            id: 'oc-' + b.spec.id + '-' + fi + '-h' + i,
+            name: b.name + ' 走廊插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            pos: V.make(cb.min.x + (cb.max.x - cb.min.x) * t, meta.y0 + 0.35, cb.max.z - 0.12)
+          });
+        }
+      }
+    }
+
     const circuits = built.map((b) => {
       const m0 = b.floorsMeta[0];
       const cb = m0.corridor.bounds;
@@ -6673,7 +6833,7 @@
 
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns, circuits,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,
@@ -7130,11 +7290,16 @@
       this.render();
     },
 
+    /* `[实测]` 这里原来是**直接把物品删掉**。
+       「丢掉」等于「销毁」，玩家永远不敢按它 —— 而背包只有几十格、
+       负重上限 20kg，「放下点东西再回来拿」本该是每天都要做的决定。
+       现在它走 `player.dropItem`：东西落在脚边，走近按 F 捡回来。 */
     _drop(uid) {
       const p = this.game.player, f = this._findAnywhere(+uid);
       if (!f) return;
-      if (f.from === 'hotbar') p.hotbar[f.slot] = null; else f.from.remove(f.it);
-      this.game.msg('丢掉 ' + C.ITEMS[f.it.id].name);
+      const r = p.dropItem(f.it);
+      if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
+      this.game.msg(r.msg + '　（走近按 F 捡回来）');
       this.render();
     }
   };
@@ -7429,6 +7594,16 @@
       this.tip = document.getElementById('lootTip');
       // 拖动用 pointer 事件：鼠标和手指走同一条路
       this.el.addEventListener('pointerdown', (e) => this._down(e));
+      /* 右键 = 把这一格放到地上（和背包界面同一个手势）。
+         **注意要 stopPropagation** —— 游戏里右键是屏息，
+         不拦住的话在搜刮界面上点个右键会顺手憋一口气。 */
+      this.el.addEventListener('contextmenu', (e) => {
+        const el = e.target.closest('.loot-item');
+        e.preventDefault();
+        if (!el || el.classList.contains('hid')) return;
+        e.stopPropagation();
+        this._dropToGround(+el.dataset.uid);
+      });
       addEventListener('pointermove', (e) => this._move(e));
       addEventListener('pointerup', (e) => this._up(e));
       addEventListener('pointercancel', () => this._cancel());
@@ -7546,6 +7721,24 @@
       const hi = p.hotbar.findIndex(i => i && i.uid === uid);
       if (hi >= 0) return { it: p.hotbar[hi], grid: null, which: 'hotbar', slot: hi };
       return null;
+    },
+
+    /** 把一件东西放到脚边的地上（不是销毁 —— 走近按 F 就能捡回来） */
+    _dropToGround(uid) {
+      const p = this.game.player;
+      const box = this.container;
+      let it = p.hotbar.find(x => x && x.uid === uid) ||
+               (p.bag && p.bag.items.find(x => x.uid === uid));
+      // 容器格子里的东西：先从容器里取出来，再放到地上
+      if (!it && box) {
+        it = box.grid.items.find(x => x.uid === uid);
+        if (it) box.grid.remove(it);
+      }
+      if (!it) return;
+      const r = p.dropItem(it);
+      if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
+      this.game.msg(r.msg + '　（走近按 F 捡回来）');
+      this.render();
     },
 
     _down(e) {
@@ -9378,6 +9571,231 @@
   C.LoadoutUI = LoadoutUI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/35-outlets.js ===== */
+/*
+ * 35-outlets.js —— 墙上的插座：把「电」这个系统接进世界
+ *
+ * `[实测]` **在这个文件出现之前，整栋楼一个插座都没有。**
+ * 供电系统（29）有回路、有链路、有功率上限、有跳闸，
+ * 烹饪系统（30）有灶台、有锅、有 32 个配方 ——
+ * 但玩家没有任何办法把一台电水壶接到墙上。
+ * 教学的第三个目标「有水壶，烧点开水吧」在游戏里根本做不到。
+ *
+ * 这一层就是那个缺掉的入口。它做的事只有一件：
+ * **把「玩家手里的一台设备」和「墙上的一个插座」连起来。**
+ *
+ * 第 4 层（交互层）：向下用 Power（2 层）与 Cooking（4 层），不被任何层依赖。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  /** 这件物品能插电吗 → 返回它在供电系统里的设备 key，插不了返回 null */
+  function deviceKeyOf(itemId) {
+    const P = C.Config.power.devices;
+    if (P[itemId] !== undefined) return itemId;
+    return null;
+  }
+
+  const Outlets = {
+    /** outletId → { link, deviceId, itemId, station } */
+    plugged: {},
+
+    reset() { this.plugged = {}; return this; },
+
+    /** 这个插座上插着什么（没插返回 null） */
+    at(outlet) { return this.plugged[outlet.id] || null; },
+
+    /**
+     * 插座的电从哪来：它所属回路上的市电。
+     * **一个回路共用一个 grid 电源**，所以同一栋楼的插座功率是互相抢的 ——
+     * 这正是「电磁炉 + 电水壶必跳闸」成立的原因。
+     */
+    _sourceFor(outlet) {
+      let src = C.Power.sources.find(s => s.kind === 'grid' && s.circuitId === outlet.circuitId);
+      if (!src) src = C.Power.addSource('grid', { circuitId: outlet.circuitId, pos: outlet.pos });
+      return src;
+    },
+
+    /**
+     * 对着插座按 F。
+     * @returns {ok, msg}
+     */
+    use(outlet, player) {
+      const cur = this.at(outlet);
+      if (cur) return this.unplug(outlet, player);
+
+      // 手上（快取位 + 背包）有没有能插的东西
+      const found = this._findDevice(player);
+      if (!found) return { ok: false, msg: '身上没有能插电的东西' };
+      return this.plug(outlet, player, found.item);
+    },
+
+    _findDevice(player) {
+      for (const it of player.hotbar) if (it && deviceKeyOf(it.id)) return { item: it };
+      if (player.bag) for (const it of player.bag.items) if (deviceKeyOf(it.id)) return { item: it };
+      return null;
+    },
+
+    plug(outlet, player, item) {
+      const key = deviceKeyOf(item.id);
+      if (!key) return { ok: false, msg: C.ITEMS[item.id].name + '不用插电' };
+      const watt = C.Config.power.devices[key];
+      const src = this._sourceFor(outlet);
+      const link = C.Power.createLink(src);
+      /* 墙插自带「零米线」：设备就挂在插座上。
+         玩家想把设备放远一点，才需要真的去找电线（15.4）。 */
+      link.cables = [];
+      link.wall = true;
+      const deviceId = 'dev-' + outlet.id;
+      const label = C.ITEMS[item.id].name;
+      link.devices.push({ id: deviceId, watt, on: false, label });
+
+      const rec = { link, deviceId, itemId: item.id, outletId: outlet.id, station: null };
+      /* 加热设备插上就地变成一个灶台 —— 否则玩家插上电水壶之后
+         还得再找一个「台面」才能烧水，中间那一步在现实里并不存在。 */
+      if (C.Config.cooking.heaters[key]) {
+        rec.station = C.Cooking.addStation({
+          pos: C.V.copy(outlet.pos), surface: 'outlet', slots: 1,
+          heater: key, link, deviceId
+        });
+      }
+      this.plugged[outlet.id] = rec;
+      player._removeItem(item);
+
+      const r = C.Power.setDevice(link, deviceId, true);
+      C.EventBus.publish('DevicePluggedEvent', { outlet, itemId: item.id, ok: r.ok });
+      /* **闸没推的时候照样插得上，只是没反应。**
+         那句「插上了，没反应」是教学目标 3 的全部内容 —— 不能在这里拦住他。 */
+      if (!r.ok) return { ok: true, msg: label + '插上了 —— ' + r.msg };
+      return { ok: true, msg: label + '插上了，通电了' };
+    },
+
+    unplug(outlet, player) {
+      const rec = this.plugged[outlet.id];
+      if (!rec) return { ok: false, msg: '这个插座上没东西' };
+      const name = C.ITEMS[rec.itemId].name;
+      /* 正在做饭的时候拔电 = 那锅东西废了。
+         **拔插头和跳闸是同一件事**，不该有一个更温柔的版本。 */
+      if (rec.station && rec.station.session) C.Cooking.stop(rec.station);
+      if (rec.station) {
+        const i = C.Cooking.stations.indexOf(rec.station);
+        if (i >= 0) C.Cooking.stations.splice(i, 1);
+      }
+      const li = C.Power.links.indexOf(rec.link);
+      if (li >= 0) C.Power.links.splice(li, 1);
+      delete this.plugged[outlet.id];
+
+      const back = C.makeItem(rec.itemId, 1);
+      const r = player.acquire(back);
+      // 背包满了就掉在脚边 —— **不能凭空销毁**
+      if (!r.ok) player.dropItem(back);
+      C.EventBus.publish('DeviceUnpluggedEvent', { outlet, itemId: rec.itemId });
+      return { ok: true, msg: '拔下 ' + name + (r.ok ? '' : '（背包满了，放在脚边）') };
+    },
+
+    /** 这个插座此刻有没有电（界面上要能直接看出来） */
+    powered(outlet) {
+      const c = C.Power.circuits.get(outlet.circuitId);
+      return !!(c && c.canDeliver(C.Power.gridUp));
+    },
+
+    label(outlet) {
+      const rec = this.at(outlet);
+      if (rec) return '[F] 拔下 ' + C.ITEMS[rec.itemId].name;
+      return '[F] ' + outlet.name + (this.powered(outlet) ? '' : '（没电）');
+    },
+
+    serialize() {
+      return Object.keys(this.plugged).map(id => ({ outletId: id, itemId: this.plugged[id].itemId }));
+    },
+    /** 读档：按存下来的清单重新插一遍（链路和灶台跟着重建） */
+    deserialize(list, level) {
+      this.reset();
+      if (!list || !level || !level.outlets) return this;
+      for (const rec of list) {
+        const o = level.outlets.find(x => x.id === rec.outletId);
+        if (!o || !C.ITEMS[rec.itemId]) continue;
+        this.plug(o, { hotbar: [], bag: null, _removeItem() {} }, C.makeItem(rec.itemId, 1));
+      }
+      return this;
+    }
+  };
+
+  C.Outlets = Outlets;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/36-hotbar-ui.js ===== */
+/*
+ * 36-hotbar-ui.js —— 常驻快取栏（屏幕正下方居中）
+ *
+ * 六格快取栏一直存在（主文档 10.1），但在这之前它**只在背包界面里看得见** ——
+ * 于是「按 1–6 直接用」这条规则，玩家要么记不住，要么根本不知道自己拿着什么。
+ *
+ * 三条规矩：
+ *   ① **常驻**。它是 HUD，不是面板 —— 不暂停、不抢鼠标、不挡准星。
+ *   ② 空格子也画出来。**六个格子的形状本身就是「你只有六格」这句话。**
+ *   ③ 只在内容变了的时候重画。每帧写 DOM 是白烧性能，而它一秒钟变不了两次。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const HotbarUI = {
+    game: null, el: null, _sig: '',
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('hotbar');
+      this.el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-slot]');
+        if (b) this._use(+b.dataset.slot);
+      });
+      /* 右键 = 放下。**右键在游戏里是屏息**，所以只有点在格子上才算，
+         并且要吃掉浏览器菜单。 */
+      this.el.addEventListener('contextmenu', (e) => {
+        const b = e.target.closest('[data-slot]');
+        if (!b) return;
+        e.preventDefault(); e.stopPropagation();
+        this._drop(+b.dataset.slot);
+      });
+      this.render(true);
+    },
+
+    _use(i) {
+      const p = this.game.player, it = p.hotbar[i];
+      if (!it) return;
+      this.game.msg(p.useItem(it).msg);
+      this.render(true);
+    },
+    _drop(i) {
+      const p = this.game.player, it = p.hotbar[i];
+      if (!it) return;
+      const r = p.dropItem(it);
+      if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
+      this.game.msg(r.msg + '　（走近按 F 捡回来）');
+      this.render(true);
+    },
+
+    update() { this.render(false); },
+
+    render(force) {
+      const p = this.game && this.game.player;
+      if (!p || !this.el) return;
+      const sig = p.hotbar.map(it => it ? it.id + ':' + it.count : '-').join('|');
+      if (!force && sig === this._sig) return;
+      this._sig = sig;
+      this.el.innerHTML = p.hotbar.map((it, i) => {
+        if (!it) return `<i class="hb-slot empty"><b>${i + 1}</b></i>`;
+        const def = C.ITEMS[it.id];
+        return `<i class="hb-slot ${def.rare ? 'rare' : ''}" data-slot="${i}" title="左键用 · 右键放下">` +
+          `<b>${i + 1}</b><span>${def.name}</span>` +
+          (it.count > 1 ? `<u>×${it.count}</u>` : '') + '</i>';
+      }).join('');
+    }
+  };
+
+  C.HotbarUI = HotbarUI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -9807,6 +10225,7 @@
       C.Notebook.reset();
       C.Power.reset(this.level);
       C.Cooking.reset();
+      C.Outlets.reset();
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -9832,8 +10251,10 @@
       if (!this._noteReady) {
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
+        C.HotbarUI.init(this);
         this._noteReady = true;
       }
+      C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
       document.getElementById('tut').style.display = '';
@@ -10036,6 +10457,12 @@
       this.drag = { on: false, x: 0, y: 0 };
       addEventListener('mousemove', (e) => {
         if (this.locked) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; return; }
+        /* **面板开着的时候视角必须完全不动。**
+           `[实测]` 指针锁定模式早就处理好了（开面板就 exitPointerLock），
+           但**拖动模式**（sandbox 的 iframe 里锁不上指针，只能拖）没管：
+           在搜刮界面上拖一个格子，视角跟着转了半圈。
+           拖动模式下没有「锁」可以退，所以只能在这里直接把拖拽掐掉。 */
+        if (this._panelOpen()) { this.drag.on = false; return; }
         if (this.lookMode !== 'drag' || !this.drag.on) return;
         this.mouse.dx += e.clientX - this.drag.x;
         this.mouse.dy += e.clientY - this.drag.y;
@@ -10046,8 +10473,10 @@
       addEventListener('mousedown', (e) => {
         if (e.button === 2) this.rmb = true;
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
-        if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled &&
-            !(e.target && e.target.closest && e.target.closest('#inv, #note, #tuner'))) {
+        // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
+        if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
+            !(e.target && e.target.closest &&
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -10179,8 +10608,19 @@
          否则选完之后没有人再叫 requestAnimationFrame，画面永远是黑的。 */
       if (this._pickPending || !this.renderer) { requestAnimationFrame((t) => this._frame(t)); return; }
 
-      // 视角
-      if (this.locked || this.lookMode === 'drag') {
+      /* ── 视角 ────────────────────────────────────────
+         **面板开着就一律不转视角，攒下的位移直接丢掉。**
+
+         `[实测]` 这条判断必须放在这里，而不是散在各个事件处理里。
+         之前有三条路都能让视角在搜刮界面开着时转起来：
+           ① 拖动模式的 mousedown 没把 `#loot` 排除掉；
+           ② 指针锁定退出是异步的（`pointerlockchange`），
+              退出前这一两帧的 `movementX` 已经攒进 `mouse.dx` 了；
+           ③ 触屏的摇杆层同样不认识面板。
+         堵三个入口不如**在唯一的出口上判断一次** —— 这里是鼠标位移变成 yaw 的
+         唯一地方，守住它，上面三条路自动全都堵死。 */
+      if (this._panelOpen()) { this.mouse.dx = 0; this.mouse.dy = 0; }
+      else if (this.locked || this.lookMode === 'drag') {
         // 拖动模式的行程被窗口宽度限制住，灵敏度要高一些，手感才跟锁定时接近
         const sens = this.locked ? 0.0022 : 0.0040;
         this.player.yaw -= this.mouse.dx * sens;
@@ -10232,6 +10672,7 @@
       C.LootUI.update(this.player);
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
+      C.HotbarUI.update();
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};
@@ -10318,10 +10759,14 @@
         T.completeObjective('drink'); T.setObjective('bag');
       }
       if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
-      // 插座没电 → 目标变成「配电间在一楼」
-      if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
+      /* 插座没电 → 目标变成「配电间在一楼」。
+         `[实测]` 触发条件从「站在楼上」改成「**真的把东西插上去了**」——
+         之前楼上一站就弹「插上了，没反应」，可玩家根本还没插过任何东西。
+         现在楼里有插座了（35-outlets），这句话终于对得上他刚做的动作。 */
+      if (!T.done.boil && T.objective === 'boil' && inHome) {
         const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
-        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
+        const pluggedHere = Object.keys(C.Outlets.plugged).length > 0;
+        if (c && !c.breakerOn && pluggedHere) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
       const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);

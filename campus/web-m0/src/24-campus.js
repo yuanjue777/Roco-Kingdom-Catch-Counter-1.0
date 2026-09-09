@@ -359,6 +359,39 @@
        **出生的 402 所在回路开关是断开的** —— 开局第一个真正的目标是
        「从四楼下到一楼，推上闸，再回来」，全程有丧尸。
        这是一个完美的教学关卡，而且它把「探索这栋楼」变成了具体的、有回报的目标。 */
+    /* ── 插座 ────────────────────────────────────────
+       `[实测]` **原来整栋楼一个插座都没有。**
+       电水壶、电磁炉、冰箱全都只能靠代码凭空创建链路 ——
+       教学的第三个目标「水壶要接电，找个插座」在游戏里根本做不到。
+
+       每个房间靠门那面墙上一个，走廊每隔一段一个。
+       插座属于所在楼的回路：**闸没推就是没电**，这一点是教学目标 3 的全部内容。 */
+    const outlets = [];
+    for (const b of built) {
+      for (let fi = 0; fi < b.floorsMeta.length; fi++) {
+        const meta = b.floorsMeta[fi];
+        for (const room of meta.rooms) {
+          const bb = room.bounds;
+          outlets.push({
+            id: 'oc-' + b.spec.id + '-' + fi + '-' + room.name,
+            name: room.name + ' 插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            // 贴着门那面墙（房间的南墙），离地 0.35m —— 真实插座就在这个高度
+            pos: V.make((bb.min.x + bb.max.x) / 2 - 0.9, meta.y0 + 0.35, bb.min.z + 0.12)
+          });
+        }
+        const cb = meta.corridor.bounds;
+        const n = Math.max(1, Math.round((cb.max.x - cb.min.x) / 14));
+        for (let i = 0; i < n; i++) {
+          const t = (i + 0.5) / n;
+          outlets.push({
+            id: 'oc-' + b.spec.id + '-' + fi + '-h' + i,
+            name: b.name + ' 走廊插座', circuitId: 'circuit-' + b.spec.id, buildingId: b.buildingId,
+            pos: V.make(cb.min.x + (cb.max.x - cb.min.x) * t, meta.y0 + 0.35, cb.max.z - 0.12)
+          });
+        }
+      }
+    }
+
     const circuits = built.map((b) => {
       const m0 = b.floorsMeta[0];
       const cb = m0.corridor.bounds;
@@ -374,7 +407,7 @@
 
     return {
       isCampus: true,
-      graph: g, solids, doors, spawn, zombieSpawns, circuits,
+      graph: g, solids, doors, spawn, zombieSpawns, circuits, outlets,
       portalInitialStates: g.portals.map(p => p.state),
       buildings: built, zones: cfg.zones, zoneNodes, exits: cfg.exits,
       floorsMeta, corridorLen: home.corridorLen, roomZ0: home.roomZ0, roomZ1: home.roomZ1,

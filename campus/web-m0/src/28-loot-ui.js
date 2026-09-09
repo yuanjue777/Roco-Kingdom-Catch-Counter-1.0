@@ -41,6 +41,16 @@
       this.tip = document.getElementById('lootTip');
       // 拖动用 pointer 事件：鼠标和手指走同一条路
       this.el.addEventListener('pointerdown', (e) => this._down(e));
+      /* 右键 = 把这一格放到地上（和背包界面同一个手势）。
+         **注意要 stopPropagation** —— 游戏里右键是屏息，
+         不拦住的话在搜刮界面上点个右键会顺手憋一口气。 */
+      this.el.addEventListener('contextmenu', (e) => {
+        const el = e.target.closest('.loot-item');
+        e.preventDefault();
+        if (!el || el.classList.contains('hid')) return;
+        e.stopPropagation();
+        this._dropToGround(+el.dataset.uid);
+      });
       addEventListener('pointermove', (e) => this._move(e));
       addEventListener('pointerup', (e) => this._up(e));
       addEventListener('pointercancel', () => this._cancel());
@@ -158,6 +168,24 @@
       const hi = p.hotbar.findIndex(i => i && i.uid === uid);
       if (hi >= 0) return { it: p.hotbar[hi], grid: null, which: 'hotbar', slot: hi };
       return null;
+    },
+
+    /** 把一件东西放到脚边的地上（不是销毁 —— 走近按 F 就能捡回来） */
+    _dropToGround(uid) {
+      const p = this.game.player;
+      const box = this.container;
+      let it = p.hotbar.find(x => x && x.uid === uid) ||
+               (p.bag && p.bag.items.find(x => x.uid === uid));
+      // 容器格子里的东西：先从容器里取出来，再放到地上
+      if (!it && box) {
+        it = box.grid.items.find(x => x.uid === uid);
+        if (it) box.grid.remove(it);
+      }
+      if (!it) return;
+      const r = p.dropItem(it);
+      if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
+      this.game.msg(r.msg + '　（走近按 F 捡回来）');
+      this.render();
     },
 
     _down(e) {

@@ -202,7 +202,8 @@
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '12px ' + MONO;
-      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 28);
+      // 快取栏现在常驻在屏幕正下方，这一行要往上让开，别叠在格子上
+      ctx.fillText('石头 ×' + player.stoneCount() + (player.bag ? '　' + player.bag.label : '　无背包'), W - 28, H - 62);
       if (player.charge > 0) {
         const cw = 120;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 28 - cw, H - 22, cw, 6);
@@ -227,7 +228,8 @@
       const t = player.target;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
-        t.type !== 'container' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
+        t.type === 'outlet' ? C.Outlets.label(t.obj)
+        : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
       if (player.interactProgress > 0) {
@@ -251,11 +253,14 @@
     }
 
     // 前方可翻越的提示。与开门提示互斥，避免同一位置两行字打架。
+    /* `[实测]` 翻越提示原来也画在 `cy + 46`，和上面的交互提示**完全重叠** ——
+       站在矮墙前看着插座时，两行字叠成一团，谁也读不出来。
+       两者可以同时成立（贴着窗台看墙上的插座），所以是往下挪一行，不是二选一。 */
     if (!player.interactTarget && !touch) {
       const v = player.vaultTarget && player.vaultTarget();
       if (v) {
         ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.9)'; ctx.font = '12.5px ' + SANS;
-        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + 46);
+        ctx.fillText('[Space] 翻越 ' + v.rise.toFixed(2) + 'm', cx, cy + (player.target ? 66 : 46));
       }
     }
 

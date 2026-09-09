@@ -488,6 +488,8 @@
     for (const d of lv.doors) consider(C.AABB.center(d.box), d, 'door');
     for (const c of lv.containers || []) if (!c.taken) consider(c.pos, c, 'container', 0.4);
     for (const l of lv.looseItems || []) if (!l.taken) consider(l.pos, l, 'loose', 0.4);
+    // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
+    for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
     return best;
   };
 
@@ -531,7 +533,8 @@
         if (t.type === 'door') this._doorAction(t.obj, true);
         else if (t.type === 'container') {
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
-        } else this.pickUp(t.obj);
+        } else if (t.type === 'outlet') this.useOutlet(t.obj);
+        else this.pickUp(t.obj);
       }
     } else {
       // 轻点：只有「按住」另有含义的目标才需要这条支路
@@ -617,6 +620,54 @@
     if (r.ok) loose.taken = true;
     this.lastAction = r.msg;
     C.EventBus.publish('PickupEvent', { ok: r.ok, msg: r.msg });
+  };
+
+  /**
+   * 把一件东西放到脚边的地上。**放下的东西必须能再捡起来** ——
+   * 否则「丢弃」就等于「销毁」，玩家永远不敢按它，负重管理这条玩法就死了。
+   *
+   * 实现上它和地上本来就有的散落物是同一种东西（`level.looseItems`），
+   * 所以捡回来走的是同一条 `pickUp` 路径，不需要第二套逻辑。
+   */
+  Player.prototype.dropItem = function (item) {
+    if (!item) return { ok: false, msg: '没有这件东西' };
+    const def = C.ITEMS[item.id];
+    this._removeItem(item);
+    const lv = this.world.level;
+    if (!lv.looseItems) lv.looseItems = [];
+    /* 放在**脚前 0.6 米、地面上**。放在正脚下的话，第一人称里低头也看不见，
+       玩家会以为东西真的没了。 */
+    const pos = { x: this.pos.x - Math.sin(this.yaw) * 0.6,
+                  y: this.pos.y + 0.12,
+                  z: this.pos.z - Math.cos(this.yaw) * 0.6 };
+    const loose = { id: 'drop' + (lv._nextDrop = (lv._nextDrop || 0) + 1),
+                    item, pos, taken: false, dropped: true };
+    lv.looseItems.push(loose);
+    // 放下也有声音，只是很小 —— 但**扔一口铁锅和放下一张纸不该一样响**
+    const loud = C.ModifierPipeline.query('sound.drop',
+      C.Config.loudness.dropItem + Math.min(12, (def ? def.weight : 0) * 3), this.id);
+    C.SoundSystem.emit({ worldPosition: pos, loudness: loud, category: C.SoundCategory.Impact,
+                         emitterId: this.id, label: '放下' + (def ? def.name : '') });
+    this.lastAction = '放下 ' + (def ? def.name : '');
+    C.EventBus.publish('ItemDroppedEvent', { loose, item });
+    return { ok: true, msg: '放下 ' + (def ? def.name : '') + (item.count > 1 ? ' ×' + item.count : ''), loose };
+  };
+
+  /**
+   * 对着插座按 F。
+   *
+   * **这是「电」这个系统在世界里唯一的入口。** 之前它只存在于代码里 ——
+   * 有回路、有链路、有功率上限，但玩家没有任何办法把一台设备接上去。
+   *
+   * 规则：身上拿着能插电的东西 → 插上；已经插了 → 拔下来。
+   * 闸没推的时候**照样能插上**，只是没反应 ——
+   * 那个「插上了，什么也没发生」正是教学目标 3 想让玩家撞的墙。
+   */
+  Player.prototype.useOutlet = function (outlet) {
+    const r = C.Outlets.use(outlet, this);
+    this.lastAction = r.msg;
+    C.EventBus.publish('OutletUsedEvent', { outlet, ok: r.ok, msg: r.msg });
+    return r;
   };
 
   Player.prototype._doorAction = function (door, slow) {

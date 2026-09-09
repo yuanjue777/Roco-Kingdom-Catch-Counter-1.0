@@ -163,11 +163,16 @@
       this.render();
     },
 
+    /* `[实测]` 这里原来是**直接把物品删掉**。
+       「丢掉」等于「销毁」，玩家永远不敢按它 —— 而背包只有几十格、
+       负重上限 20kg，「放下点东西再回来拿」本该是每天都要做的决定。
+       现在它走 `player.dropItem`：东西落在脚边，走近按 F 捡回来。 */
     _drop(uid) {
       const p = this.game.player, f = this._findAnywhere(+uid);
       if (!f) return;
-      if (f.from === 'hotbar') p.hotbar[f.slot] = null; else f.from.remove(f.it);
-      this.game.msg('丢掉 ' + C.ITEMS[f.it.id].name);
+      const r = p.dropItem(f.it);
+      if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
+      this.game.msg(r.msg + '　（走近按 F 捡回来）');
       this.render();
     }
   };

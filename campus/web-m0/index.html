@@ -254,6 +254,30 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 常驻快取栏（屏幕正下方居中）──────────────────────
+     它是 HUD 不是面板：不暂停、不抢鼠标、不挡准星。
+     `pointer-events` 只给格子本身，中间那条准星线不能被它吃掉。 */
+  #hotbar { position: fixed; left: 50%; transform: translateX(-50%);
+            bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 4;
+            display: flex; gap: 5px; pointer-events: none; }
+  .hb-slot { position: relative; width: 74px; height: 46px; border-radius: 4px;
+             display: flex; align-items: center; justify-content: center; text-align: center;
+             font-style: normal; padding: 3px 5px 5px;
+             background: rgba(12,16,22,0.72); border: 1px solid var(--line);
+             pointer-events: auto; cursor: pointer; overflow: hidden; }
+  .hb-slot.empty { background: rgba(12,16,22,0.34); pointer-events: none; }
+  .hb-slot:hover { border-color: var(--signal); }
+  .hb-slot.rare { border-color: var(--warn, #E5B45C); }
+  .hb-slot b { position: absolute; left: 4px; top: 2px; font-family: var(--mono);
+               font-size: 9.5px; font-weight: 400; color: var(--dim); }
+  .hb-slot.empty b { color: rgba(126,136,150,0.45); }
+  .hb-slot span { font-size: 10.5px; line-height: 1.25; color: var(--ink); }
+  .hb-slot u { position: absolute; right: 4px; bottom: 2px; font-family: var(--mono);
+               font-size: 10px; text-decoration: none; color: var(--signal); }
+  body.touch #hotbar { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  body.touch .hb-slot { width: 58px; height: 38px; }
+  @media (max-height: 520px) { .hb-slot { width: 62px; height: 38px; } .hb-slot span { font-size: 10px; } }
+
   /* ── 开局选择界面（角色与特性规格 4.5）───────────────
      三栏：角色 ｜ 他是谁 ｜ 特性池。剩余点数永远挂在最上面。
      **固定特性与自选特性分区显示** —— 玩家要一眼看清哪些是改不了的。 */
@@ -593,6 +617,7 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="hotbar"></div>
 <div id="pick"></div>
 <div id="startHint">
   <div class="card">
@@ -666,6 +691,8 @@
 <script src="src/32-kitchen-ui.js"></script>
 <script src="src/33-traits.js"></script>
 <script src="src/34-loadout-ui.js"></script>
+<script src="src/35-outlets.js"></script>
+<script src="src/36-hotbar-ui.js"></script>
 <script src="src/20-save.js"></script>
 <script src="src/17-touch.js"></script>
 <script src="src/16-main.js"></script>

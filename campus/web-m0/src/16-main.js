@@ -78,6 +78,7 @@
       C.Notebook.reset();
       C.Power.reset(this.level);
       C.Cooking.reset();
+      C.Outlets.reset();
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -103,8 +104,10 @@
       if (!this._noteReady) {
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
+        C.HotbarUI.init(this);
         this._noteReady = true;
       }
+      C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
       document.getElementById('tut').style.display = '';
@@ -307,6 +310,12 @@
       this.drag = { on: false, x: 0, y: 0 };
       addEventListener('mousemove', (e) => {
         if (this.locked) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; return; }
+        /* **面板开着的时候视角必须完全不动。**
+           `[实测]` 指针锁定模式早就处理好了（开面板就 exitPointerLock），
+           但**拖动模式**（sandbox 的 iframe 里锁不上指针，只能拖）没管：
+           在搜刮界面上拖一个格子，视角跟着转了半圈。
+           拖动模式下没有「锁」可以退，所以只能在这里直接把拖拽掐掉。 */
+        if (this._panelOpen()) { this.drag.on = false; return; }
         if (this.lookMode !== 'drag' || !this.drag.on) return;
         this.mouse.dx += e.clientX - this.drag.x;
         this.mouse.dy += e.clientY - this.drag.y;
@@ -317,8 +326,10 @@
       addEventListener('mousedown', (e) => {
         if (e.button === 2) this.rmb = true;
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
-        if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled &&
-            !(e.target && e.target.closest && e.target.closest('#inv, #note, #tuner'))) {
+        // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
+        if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
+            !(e.target && e.target.closest &&
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -450,8 +461,19 @@
          否则选完之后没有人再叫 requestAnimationFrame，画面永远是黑的。 */
       if (this._pickPending || !this.renderer) { requestAnimationFrame((t) => this._frame(t)); return; }
 
-      // 视角
-      if (this.locked || this.lookMode === 'drag') {
+      /* ── 视角 ────────────────────────────────────────
+         **面板开着就一律不转视角，攒下的位移直接丢掉。**
+
+         `[实测]` 这条判断必须放在这里，而不是散在各个事件处理里。
+         之前有三条路都能让视角在搜刮界面开着时转起来：
+           ① 拖动模式的 mousedown 没把 `#loot` 排除掉；
+           ② 指针锁定退出是异步的（`pointerlockchange`），
+              退出前这一两帧的 `movementX` 已经攒进 `mouse.dx` 了；
+           ③ 触屏的摇杆层同样不认识面板。
+         堵三个入口不如**在唯一的出口上判断一次** —— 这里是鼠标位移变成 yaw 的
+         唯一地方，守住它，上面三条路自动全都堵死。 */
+      if (this._panelOpen()) { this.mouse.dx = 0; this.mouse.dy = 0; }
+      else if (this.locked || this.lookMode === 'drag') {
         // 拖动模式的行程被窗口宽度限制住，灵敏度要高一些，手感才跟锁定时接近
         const sens = this.locked ? 0.0022 : 0.0040;
         this.player.yaw -= this.mouse.dx * sens;
@@ -503,6 +525,7 @@
       C.LootUI.update(this.player);
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
+      C.HotbarUI.update();
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};
@@ -589,10 +612,14 @@
         T.completeObjective('drink'); T.setObjective('bag');
       }
       if (!T.done.bag && p.bag) { T.completeObjective('bag'); T.setObjective('boil'); T.hint('T04', now); }
-      // 插座没电 → 目标变成「配电间在一楼」
-      if (!T.done.boil && p.bag && T.objective === 'boil' && floor >= 2 && inHome) {
+      /* 插座没电 → 目标变成「配电间在一楼」。
+         `[实测]` 触发条件从「站在楼上」改成「**真的把东西插上去了**」——
+         之前楼上一站就弹「插上了，没反应」，可玩家根本还没插过任何东西。
+         现在楼里有插座了（35-outlets），这句话终于对得上他刚做的动作。 */
+      if (!T.done.boil && T.objective === 'boil' && inHome) {
         const c = C.Power.circuits.get('circuit-' + (home && home.spec.id));
-        if (c && !c.breakerOn) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
+        const pluggedHere = Object.keys(C.Outlets.plugged).length > 0;
+        if (c && !c.breakerOn && pluggedHere) { T.hint('T07', now); T.hint('T08', now); stage('boil'); }
       }
       // 推上闸 → 目标完成
       const c2 = home && C.Power.circuits.get('circuit-' + home.spec.id);
