@@ -1557,11 +1557,11 @@
                      keys: [['cooking.satiety', 'mul', 1.12]], desc: '烹饪食物饱腹额外 +12%' },
 
       // ══ 正向 · 伤势（战斗系统是 M4，全部未实装）══
-      infectProof: { name: '抗感染', value: 4, group: 'infect', live: false,
+      infectProof: { name: '抗感染', value: 4, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
-      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: false,
+      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 0.5]], desc: '出血速度 −50%' },
-      firstAid:    { name: '会包扎', value: 2, live: false,
+      firstAid:    { name: '会包扎', value: 2, live: true,
                      keys: [['injury.bandage_power', 'mul', 1.5]], desc: '绷带效果 +50%，可自制夹板' },
 
       // ══ 正向 · 其他 ══
@@ -1624,12 +1624,13 @@
                      keys: [['loot.time', 'mul', 1.4]], desc: '搜刮耗时 +40%（搜刮改成即时后暂无耗时可加）' },
 
       // ══ 负向 · 伤势 ══
-      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: false,
+      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 1.417]], desc: '被咬感染概率 60% → 85%' },
-      bleeder:     { name: '血友', value: -3, group: 'bleed', live: false,
+      bleeder:     { name: '血友', value: -3, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 2]], desc: '出血速度 ×2' },
-      painful:     { name: '怕疼', value: -2, live: false,
-                     desc: '受伤后视野抖动 5 秒，呼痛响度 +20' },
+      painful:     { name: '怕疼', value: -2, live: true,
+                     keys: [['injury.cry_loudness', 'add', 20]],
+                     desc: '被抓住时呼痛响度 +20（受伤视野抖动未实装）' },
 
       // ══ 负向 · 其他 ══
       badWithMaps: { name: '认路差', value: -2, live: false, flags: ['NO_AUTO_MAP'],
@@ -1655,15 +1656,15 @@
                      desc: '开局地图完全未揭示，所有熟练度 0 级' },
       unarmed:     { name: '手无寸铁', value: 0, fixed: true, live: true,
                      desc: '无任何初始武器' },
-      armed:       { name: '有家伙', value: 0, fixed: true, live: false,
+      armed:       { name: '有家伙', value: 0, fixed: true, live: true,
                      keys: [['combat.melee_damage', 'mul', 1.15], ['combat.durability_cost', 'mul', 0.75]],
-                     desc: '近战伤害 +15%，耐久消耗 −25%（战斗是 M4）' },
+                     desc: '近战伤害 +15%，耐久消耗 −25%' },
       aged:        { name: '上了年纪', value: 0, fixed: true, live: true,
                      keys: [['stamina.max', 'add', -22], ['move.speed', 'mul', 0.945]],
                      desc: '体力上限 −22，移动速度 −5.5%' },
       badBack:     { name: '腰不好', value: 0, fixed: true, live: true,
                      keys: [['inventory.weight_limit', 'add', -4]], desc: '负重上限 −4 kg' },
-      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: false,
+      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: true,
                      keys: [['combat.melee_damage', 'mul', 0.7], ['stamina.max', 'add', -25]],
                      desc: '近战伤害 −30%，体力上限 −25' },
       /* 保安的耳背是**固定**的，不能借用可选池里那条 —— 借用会让一条特性
@@ -1696,9 +1697,9 @@
                      keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
       glasses:     { name: '近视', value: 0, fixed: true, live: false, flags: ['MYOPIA'],
                      desc: '8 米外模糊，识别延迟 +0.6 秒，25% 概率摔碎眼镜' },
-      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: false,
+      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
-      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: false,
+      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 0.4], ['injury.bandage_power', 'mul', 1.5]],
                      desc: '出血速度 −60%，绷带效果 +50%，可自行处理骨折' },
       germaphobe:  { name: '洁癖', value: 0, fixed: true, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
@@ -1761,6 +1762,88 @@
         fixed: ['infectWard', 'dresser', 'feeble', 'germaphobe'],
         note: '容错率最高，战斗最弱。**洁癖到后期会强迫她成为一个厨子** —— 熟食按新做的算新鲜度。' }
     ],
+
+    /* ── 战斗（M4）────────────────────────────────────
+       **战斗不是解法，是失败的代价。**
+       近战响度 55 比追击低吼还响 —— 你能杀掉第一只，第三只会杀掉你。
+
+       核心判断：**单体威胁来自「退不掉」，不是「打得疼」。**
+       游荡者追击 2.7 m/s < 玩家奔跑 4.6 m/s —— 玩家永远能退，
+       所以把单体伤害调到 50 也没用，只会得到「一对一绝对安全、
+       一对多瞬间暴毙」的断崖。真正的威胁是**抓取**：它本身伤害不高，
+       危险在于**它给了别的丧尸赶到的时间**。
+       这条天然实现了「前期怪少后期怪多」的曲线，而且不用改任何数值。 */
+    combat: {
+      /* 抓取。三种丧尸抓法不同，但结构一样：
+         抓住 → 玩家不能移动、持续挨咬、**持续发出很响的呼痛（60）** → 引来更多。 */
+      grab: {
+        range: 1.1,               // 进入这个距离就会尝试抓
+        cooldown: 6,              // 同一只抓完之后多久才能再抓
+        biteInterval: 1.4,        // 被抓住期间每隔多久咬一口
+        struggleCost: 14,         // 每次挣脱按键消耗的体力
+        struggleGain: 34,         // 每次挣脱累积的进度（满 100 挣脱）
+        struggleDecay: 22,        // 不按的时候进度每秒衰减 —— 逼玩家连打
+        exhaustedGainMul: 0.45,   // 没体力时挣脱效率大降（体力管理直接决定生死）
+        cryLoudness: 60,          // 被抓住时的呼痛，等于 playerHurt
+        cryInterval: 1.0
+      },
+      /* 三种丧尸的抓取表现。`hold` 是抓住之后最长持续多久（挣脱不掉也会松手），
+         **它是「容错窗口」的长度** —— 攻速慢的意义全在这个数上。 */
+      grabs: {
+        Wanderer: { bite: 14, hold: 4.0, knockdown: 0,   label: '抱住了你' },
+        Crawler:  { bite: 10, hold: 3.0, knockdown: 1.6, label: '抓住了你的脚踝' },
+        Runner:   { bite: 20, hold: 2.5, knockdown: 2.2, label: '把你撞倒了' }
+      },
+      knockdownSpeedMul: 0.0,     // 倒地期间不能移动
+      getUpLoudness: 30,          // 爬起来的动静
+
+      /* 近战武器。**地点即难度** —— 高阶武器放在远而危险的地方，
+         不需要额外的门禁系统（消防斧在锅炉房，长柄在体育馆器材室）。
+         `windup` 是抬手时间：慢攻速给的是**玩家的容错**，不是丧尸的。 */
+      weapons: {
+        fist:      { name: '徒手',   damage: 6,  windup: 0.35, loud: 40, durability: 0,   exec: false, weight: 0 },
+        knife:     { name: '水果刀', damage: 22, windup: 0.40, loud: 45, durability: 40,  exec: true,  weight: 0.2 },
+        baton:     { name: '警棍',   damage: 26, windup: 0.55, loud: 52, durability: 90,  exec: false, weight: 1.1 },
+        pitchfork: { name: '钢叉',   damage: 34, windup: 0.75, loud: 55, durability: 70,  exec: false, weight: 2.4, reach: 1.8 },
+        bat:       { name: '棒球棍', damage: 30, windup: 0.65, loud: 55, durability: 80,  exec: false, weight: 1.6 },
+        axe:       { name: '消防斧', damage: 55, windup: 0.95, loud: 60, durability: 120, exec: true,  weight: 3.2 }
+      },
+      meleeRange: 1.4,            // 没写 reach 的武器用这个
+      /* 处决：**战斗在这个游戏里唯一合理的主动用法。**
+         从背后 + 它没察觉 + 手里有能处决的武器 → 秒杀，响度只有 30。 */
+      execute: { loud: 30, behindDot: -0.25, range: 1.2, staminaCost: 10, durabilityCost: 3 },
+      hitStaminaCost: 6,          // 每次挥击（= 主文档 3.3 的 meleeCost）
+      /* 弹弓：**不是武器，是投石的升级。**
+         一把能无声杀伤的远程武器会拆掉支柱一 —— 潜行游戏一旦有静音狙击，
+         最优解永远是「站远点一个一个点掉」，声音系统就退化成背景装饰。
+         所以它只做一件事：**隔着两个房间，精确地在你想要的位置制造响度 45。** */
+      slingshot: { speedMul: 1.45, spreadMul: 0.35, damage: 0, ammoWeight: 0.05 }
+    },
+
+    /* ── 伤势（M4）────────────────────────────────────
+       **吃喝不回血**（见 needs）—— 所以受伤是一个要养好几天的状态，
+       不是一场战斗内的资源。这会让玩家非常不愿意开打，正是我们要的。 */
+    injury: {
+      // 出血：每游戏小时掉多少血。绷带止血，皮实 −50%，血友 ×2
+      bleedPerHour: 6,
+      bleedHoursFromBite: 5,
+      bandagePower: 1,            // 一卷绷带止住多少「小时的出血」
+      // 骨折：只有跌落和奔行者撞倒会造成
+      fractureSpeedMul: 0.55,
+      fractureStaminaMul: 1.8,
+      fractureHealHours: 96,      // 不处理要四天；夹板/会包扎能缩短
+      splintHealMul: 0.4,
+      fallFractureHeight: 3.0,    // 掉落超过这个高度可能骨折
+      fallFractureChance: 0.45,
+      // 感染：**全游戏最致命的死因**
+      infectionChance: 0.6,       // 被咬后的基础概率（抗感染 ×0.5，易感染 ×1.417）
+      incubationHours: 30,        // 潜伏期，之后开始持续掉血
+      infectedHealthPerHour: 2.5,
+      antibioticCureChance: 0.85,
+      // 治疗
+      healPerBandage: 8,
+      healPerFirstAid: 30
+    },
 
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {
@@ -3181,6 +3264,20 @@
     reagent:    { name: '化学试剂',     size: [1, 2], weight: 0.45, kind: 'material' },
     burner:     { name: '酒精灯',       size: [1, 1], weight: 0.22, kind: 'tool' },
 
+    /* ── 武器（M4）────────────────────────────────────
+       **地点即难度**：低阶的在宿舍/教室随手可得，高阶的在远而危险的地方 ——
+       消防斧在锅炉房、钢叉/警棍在保安室、棒球棍在体育器材室。
+       不需要额外的门禁系统，`firstDay` 软引导已经在做这件事。 */
+    knife:      { name: '水果刀',       size: [1, 2], weight: 0.20, kind: 'weapon' },
+    axe:        { name: '消防斧',       size: [2, 4], weight: 3.20, kind: 'weapon', rare: true },
+    /* 弹弓**不是武器，是投石的升级**：更远、更准、弹药更轻，但不造成伤害。
+       一把能无声杀伤的远程武器会拆掉支柱一 —— 潜行游戏一旦有静音狙击，
+       最优解永远是「站远点一个一个点掉」，声音系统就退化成背景装饰。
+       它只做一件事：**隔着两个房间，精确地在你想要的位置制造响度 45。** */
+    slingshot:  { name: '弹弓',         size: [2, 2], weight: 0.30, kind: 'tool' },
+    pellet:     { name: '钢珠',         size: [1, 1], weight: 0.05, kind: 'throwable', stack: 16 },
+    splint:     { name: '夹板',         size: [1, 3], weight: 0.35, kind: 'medical' },
+
     // 保安室：全校唯一的战术背包与平面图都在这里
     pitchfork:  { name: '钢叉',         size: [1, 5], weight: 2.30, kind: 'weapon' },
     baton:      { name: '警棍',         size: [1, 3], weight: 0.85, kind: 'weapon' },
@@ -3506,8 +3603,18 @@
     return pool[pool.length - 1];
   }
 
+  /** 固定放置塞不下时的记录 —— 见下面 `fill` 的注释 */
+  const fixedOverflow = [];
+
   function fill(grid, kind, rng, fixedItems) {
-    for (const id of fixedItems || []) grid.autoAdd(C.makeItem(id));
+    /* `[实测]` **固定放置塞不下时会被静默丢掉。**
+       锅炉房工具柜是 4×4，发电机自己就是 4×4 —— 于是同一个柜子里的消防斧
+       （全校唯一一把，2×4）凭空消失，而且没有任何报错。
+       这类「唯一物品悄悄没了」是最难发现的一种 bug：
+       玩家只会觉得「这游戏里没有消防斧」。所以塞不下就**记下来并让测试红**。 */
+    for (const id of fixedItems || []) {
+      if (!grid.autoAdd(C.makeItem(id)).ok) fixedOverflow.push({ id, kind, grid: [grid.w, grid.h] });
+    }
     const spec = POOLS[kind];
     if (!spec) return;
     const n = rng.int(spec.count[0], spec.count[1]);
@@ -3596,24 +3703,44 @@
   const CAMPUS_FIXED = [
     { room: '男402', kind: 'wardrobe',    items: ['kettle', 'water', 'biscuit', 'shortWire'] },
     { room: '男403', kind: 'wardrobe',    items: ['schoolBag', 'noodle', 'noodle'] },   // 目标②的答案
-    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit', 'powerStrip'] },
+    /* `[实测]` 这四条原来都塞不下，被静默丢掉：
+       书桌 3×3 装不下「水×2 + 饼干 + 插线板(2×2)」，
+       衣柜 4×4 装不下「电饭煲(3×3) + 米×2(各 2×3)」，
+       床下箱 4×3 装不下「塑料布 + 绳 + 工具箱(3×2)」。
+       **教学要用的米和插线板就这样消失了，而且没有任何报错。**
+       现在拆开放，并且 `fill()` 会把塞不下的记进 `fixedLootOverflow` 让测试红。 */
+    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit'] },
+    { room: '男404', kind: 'wardrobe',    items: ['powerStrip'] },
     { room: '男406', kind: 'desk',        items: ['glassBox', 'shortWire', 'note406'] },
     { room: '男301', kind: 'desk',        items: ['deskLamp'] },
-    { room: '男303', kind: 'wardrobe',    items: ['riceCooker', 'riceBag', 'riceBag'] },
-    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope', 'toolkit'] },
+    { room: '男303', kind: 'wardrobe',    items: ['riceCooker'] },
+    { room: '男303', kind: 'desk',        items: ['riceBag'] },
+    { room: '男305', kind: 'desk',        items: ['riceBag'] },
+    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope'] },
+    { room: '男304', kind: 'desk',        items: ['toolkit'] },
     { room: '男306', kind: 'desk',        items: ['battery', 'battery', 'flashlight'] },
     { room: '男201', kind: 'desk',        items: ['stone', 'stone', 'stone'] },          // 投石的弹药
+    /* 低阶武器就在宿舍里 —— **它们不是奖励，是安慰剂**：
+       水果刀 22 伤害要挥三下才能杀掉一只游荡者，而每一下都响 45。 */
+    { room: '男205', kind: 'desk',        items: ['knife'] },
+    { room: '男301', kind: 'underBed',    items: ['slingshot', 'pellet'] },
     { room: '男203', kind: 'underBed',    items: ['canned', 'bandage', 'bandage'] },
     { room: '男206', kind: 'desk',        items: ['skillet', 'note206'] },
-    { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic'] },
+    { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic', 'splint'] },
+    { room: '医103', kind: 'medCab',      items: ['bandage', 'bandage', 'bandage', 'splint'] },
     { room: '实203', kind: 'reagentCab',  items: ['antibiotic'] },
     { room: '男401', kind: 'wardrobe',    items: ['antibiotic'] },
     { room: '保102', kind: 'guardLocker', items: ['tacticalBag', 'campusMap', 'masterKey'] },
     { room: '保103', kind: 'guardLocker', items: ['pitchfork', 'radio'] },
     { room: '体102', kind: 'gearRack',    items: ['hikingBag', 'starterGun', 'rope'] },
     // 发电机 4×4 = 16 格，一个工具柜就被它占满 —— 柴油只能另放一个柜子
-    { room: '锅101', kind: 'toolCab',     items: ['generator'] },
-    { room: '锅102', kind: 'toolCab',     items: ['diesel', 'fuse'] },
+    /* 消防斧是全校最强的近战武器，放在锅炉房 —— 远、黑、丧尸不多但没有退路。
+       **它和发电机不能放同一个柜子**：工具柜 4×4，发电机自己就占满了。 */
+    { room: '锅101', kind: 'toolCab',     items: ['axe', 'fuse'] },
+    /* 锅炉房每间有两个工具柜，所以这里写两条同房同型的条目 ——
+       上面那段「一个房间里可能摆着两个同型容器」的逻辑会分别兑现它们。 */
+    { room: '锅102', kind: 'toolCab',     items: ['generator'] },
+    { room: '锅102', kind: 'toolCab',     items: ['diesel'] },
     { room: '行401', kind: 'fileCab',     items: ['beacon', 'broadcastPart'] },
     { room: '行402', kind: 'fileCab',     items: ['broadcastPart', 'masterKey'] },
     { room: '图301', kind: 'bookshelf',   items: ['manual'] },
@@ -3724,6 +3851,8 @@
   C.ContainerKinds = KINDS;
   C.ContainerPools = POOLS;
   C.CampusFixedLoot = CAMPUS_FIXED;
+  /** 布置时塞不下的固定物品。**正常情况下必须是空的**（sim-ai 有断言盯着）。 */
+  C.fixedLootOverflow = fixedOverflow;
   C.placeContainers = placeInDormitory;
   C.placeLooseItems = placeLooseItems;
   C.placeCampusContainers = placeInCampus;
@@ -5026,8 +5155,14 @@
     if (this.visible && Math.abs(goal.y - this.pos.y) < 1.0) this._steer(goal, this.def.speedChase, dt);
     else { if (!this.path.length) this._pathTo(goal); this._follow(dt, this.def.speedChase); }
 
-    if (V.distXZ(this.pos, player.pos) < R.catchDistance && Math.abs(this.pos.y - player.pos.y) < 1.6) {
-      player.die('被' + this.def.name + '抓住');
+    /* 贴身 → **抓取**，不是直接死。
+       `[实测]` 原来是「接触即死」，那让单只丧尸既毫无威胁（永远能退）
+       又完全致命（一旦碰到就结束），中间没有任何过渡。
+       改成抓取之后：它把你钉在原地几秒、让你大声呼痛（60），
+       **危险的是那几秒里赶到的其它丧尸**，不是这一只。 */
+    const G = C.Config.combat.grab;
+    if (V.distXZ(this.pos, player.pos) < G.range && Math.abs(this.pos.y - player.pos.y) < 1.6) {
+      C.Combat.tryGrab(this, player);
     }
   };
 
@@ -10765,6 +10900,481 @@
   C.PlaceUI = PlaceUI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/40-combat.js ===== */
+/*
+ * 40-combat.js —— 近战 · 抓取 · 处决
+ *
+ * **战斗不是解法，是失败的代价。**
+ * 近战响度 55 比追击低吼（55）还响 —— 你能杀掉第一只，第三只会杀掉你。
+ *
+ * 这个文件的核心判断只有一条：
+ *
+ *   **单体威胁来自「退不掉」，不是「打得疼」。**
+ *
+ * 游荡者追击 2.7 m/s < 玩家奔跑 4.6 m/s —— 玩家永远能退。
+ * 所以把单体伤害调到 50 也没用，只会得到「一对一绝对安全、一对多瞬间暴毙」
+ * 的断崖，中间没有过渡。真正的威胁是**抓取**：它本身伤害不高（14），
+ * 危险在于**它把你钉在原地 4 秒，并且让你大声呼痛（60），
+ * 而那 4 秒足够别的丧尸赶到。**
+ *
+ * 这条天然实现了「前期怪少后期怪多」的难度曲线，而且不用改任何数值：
+ *   第 3 天走廊里就一只 → 被抓住是惊险
+ *   第 20 天同一条走廊六只 → 被抓住是死刑
+ *
+ * 第 3–4 层。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const V = C.V, M = C.M;
+
+  const Combat = {
+    /** 玩家当前被谁抓着：{ zombie, kind, until, struggle, nextBite, nextCry } */
+    grabbedBy: null,
+    /** 倒地剩余秒数（蜷伏者/奔行者会打倒你） */
+    downFor: 0,
+    /** 手里武器的耐久：weaponId → 剩余 */
+    durability: {},
+    swing: null,          // 挥击中：{ weaponId, at, until }
+    /* 战斗全部按**真实秒**计时（抬手 0.4s、抓住 4s），不是游戏小时。
+       自己维护一个单调时钟，别去借 SoundSystem 或 TimeSystem 的 —— 那两个
+       一个是游戏内时间（会 ×90 加速），一个根本没有 `now`。 */
+    t: 0,
+
+    reset() {
+      this.grabbedBy = null; this.downFor = 0; this.durability = {}; this.swing = null;
+      this.t = 0;
+      return this;
+    },
+
+    /* ── 武器 ──────────────────────────────────────── */
+
+    /** 玩家手里那把（快取位里第一件武器，没有就是徒手） */
+    weaponOf(player) {
+      const W = C.Config.combat.weapons;
+      for (const it of player.hotbar) if (it && W[it.id]) return { id: it.id, def: W[it.id], item: it };
+      if (player.bag) {
+        for (const it of player.bag.items) if (W[it.id]) return { id: it.id, def: W[it.id], item: it };
+      }
+      return { id: 'fist', def: W.fist, item: null };
+    },
+    /** 剩余耐久（徒手是 Infinity） */
+    durabilityOf(w) {
+      if (!w.def.durability) return Infinity;
+      if (this.durability[w.id] === undefined) this.durability[w.id] = w.def.durability;
+      return this.durability[w.id];
+    },
+    _spend(w, player, amount) {
+      if (!w.def.durability) return;
+      const cost = C.ModifierPipeline.query('combat.durability_cost', amount, player.id);
+      this.durability[w.id] = Math.max(0, this.durabilityOf(w) - cost);
+      if (this.durability[w.id] <= 0) {
+        if (w.item) player._removeItem(w.item);
+        delete this.durability[w.id];
+        C.EventBus.publish('WeaponBrokeEvent', { weaponId: w.id });
+        return true;      // 断了
+      }
+      return false;
+    },
+
+    /* ── 挥击 ──────────────────────────────────────── */
+
+    /**
+     * 挥一下。**慢攻速给的是玩家的容错，不是丧尸的** ——
+     * `windup` 期间玩家不能移动也不能取消，所以「什么时候挥」本身是个决定。
+     */
+    attack(player, zombies) {
+      const nowSeconds = this.t;
+      if (this.grabbedBy) return { ok: false, msg: '被抓住了，先挣脱' };
+      if (this.downFor > 0) return { ok: false, msg: '倒在地上' };
+      if (this.swing) return { ok: false, msg: '还在收手' };
+      if (player.stamina < C.Config.combat.hitStaminaCost) return { ok: false, msg: '没力气了' };
+
+      const w = this.weaponOf(player);
+      // 背后偷袭优先：**处决是战斗在这个游戏里唯一合理的主动用法**
+      const exec = this._findExecuteTarget(player, zombies, w);
+      if (exec) return this._execute(player, exec, w);
+
+      this.swing = { weaponId: w.id, at: nowSeconds, until: nowSeconds + w.def.windup, done: false };
+      player.stamina -= C.Config.combat.hitStaminaCost;
+      return { ok: true, msg: '挥出' + w.def.name, windup: w.def.windup };
+    },
+
+    /** 抬手结束的那一帧结算命中 */
+    update(dt, player, zombies) {
+      this.t += dt;
+      const nowSeconds = this.t;
+      // 倒地
+      if (this.downFor > 0) {
+        this.downFor = Math.max(0, this.downFor - dt);
+        if (this.downFor === 0) {
+          C.SoundSystem.emit({ worldPosition: player.pos, loudness: C.Config.combat.getUpLoudness,
+                               category: C.SoundCategory.Impact, emitterId: player.id, label: '爬起来' });
+        }
+      }
+      // 被抓住
+      if (this.grabbedBy) this._updateGrab(dt, player, nowSeconds);
+      // 挥击结算
+      if (this.swing && !this.swing.done && nowSeconds >= this.swing.until) {
+        this.swing.done = true;
+        this._resolveHit(player, zombies, this.swing.weaponId);
+      }
+      if (this.swing && nowSeconds >= this.swing.until + 0.15) this.swing = null;
+    },
+
+    _resolveHit(player, zombies, weaponId) {
+      const W = C.Config.combat.weapons[weaponId] || C.Config.combat.weapons.fist;
+      const w = { id: weaponId, def: W, item: this.weaponOf(player).item };
+      const reach = W.reach || C.Config.combat.meleeRange;
+      const eye = player.eyePos();
+      const fwd = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) };
+
+      let best = null, bd = reach;
+      for (const z of zombies) {
+        if (!z.alive) continue;
+        const to = V.sub(z.pos, player.pos);
+        const d = Math.hypot(to.x, to.z);
+        if (d > bd || Math.abs(z.pos.y - player.pos.y) > 1.6) continue;
+        const dot = (to.x / (d || 1)) * fwd.x + (to.z / (d || 1)) * fwd.z;
+        if (dot < 0.35) continue;
+        bd = d; best = z;
+      }
+
+      // **挥空也响。** 否则玩家会用「反正没打中」来免费试探
+      const loud = C.ModifierPipeline.query('sound.melee', W.loud, player.id);
+      C.SoundSystem.emit({ worldPosition: player.pos, loudness: loud, category: C.SoundCategory.Impact,
+                           emitterId: player.id, label: best ? '挥击命中' : '挥空' });
+      if (!best) { player.lastAction = '挥空了'; return { ok: false, msg: '挥空了' }; }
+
+      const dmg = C.ModifierPipeline.query('combat.melee_damage', W.damage, player.id);
+      best.hp -= dmg;
+      const broke = this._spend(w, player, 1);
+      if (best.hp <= 0) {
+        best.die ? best.die() : (best.alive = false);
+        C.EventBus.publish('ZombieKilledEvent', { zombie: best, weaponId });
+        // 打死的那一只如果正抓着你，抓取一起解除
+        if (this.grabbedBy && this.grabbedBy.zombie === best) this.release(player, '打死了它');
+      }
+      player.lastAction = '打中' + (best.def ? best.def.name : '丧尸') + (best.hp <= 0 ? ' —— 倒下了' : '');
+      return { ok: true, damage: dmg, killed: best.hp <= 0, broke };
+    },
+
+    /* ── 处决 ──────────────────────────────────────── */
+
+    _findExecuteTarget(player, zombies, w) {
+      if (!w.def.exec) return null;
+      const E = C.Config.combat.execute;
+      const fwd = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) };
+      for (const z of zombies) {
+        if (!z.alive) continue;
+        /* **必须是它没察觉你的时候。** 一旦进入警觉/调查/追击，背后偷袭就不算数 ——
+           否则「绕到背后处决」会变成对付任何一只丧尸的万能解。
+           状态是中文枚举（见 11-zombie 的 `State`），这里按「安全状态白名单」判，
+           **不要列黑名单** —— 以后加了新状态，白名单会自动把它当成危险的。 */
+        if (z.state !== '游荡' && z.state !== '趴伏') continue;
+        const to = V.sub(z.pos, player.pos);
+        const d = Math.hypot(to.x, to.z);
+        if (d > E.range || Math.abs(z.pos.y - player.pos.y) > 1.2) continue;
+        if ((to.x / (d || 1)) * fwd.x + (to.z / (d || 1)) * fwd.z < 0.35) continue;
+        // 它的朝向和「它到你」的方向同向 = 你在它背后
+        const zf = { x: -Math.sin(z.yaw), z: -Math.cos(z.yaw) };
+        const away = { x: -to.x / (d || 1), z: -to.z / (d || 1) };
+        if (zf.x * away.x + zf.z * away.z > E.behindDot) continue;
+        return z;
+      }
+      return null;
+    },
+
+    _execute(player, z, w) {
+      const E = C.Config.combat.execute;
+      player.stamina -= E.staminaCost;
+      z.hp = 0;
+      z.die ? z.die() : (z.alive = false);
+      this._spend(w, player, E.durabilityCost);
+      /* 响度只有 30 —— 这是战斗唯一一次**比它引来的麻烦更划算**的时候。
+         对比：正常挥击 55，够把半层楼的丧尸叫过来。 */
+      C.SoundSystem.emit({ worldPosition: player.pos, loudness: E.loud, category: C.SoundCategory.Impact,
+                           emitterId: player.id, label: '处决' });
+      C.EventBus.publish('ZombieKilledEvent', { zombie: z, weaponId: w.id, execute: true });
+      player.lastAction = '处决';
+      return { ok: true, execute: true, msg: '处决' };
+    },
+
+    /* ── 抓取 ──────────────────────────────────────── */
+
+    /** 丧尸贴身时调用。返回是否抓住了 */
+    tryGrab(z, player) {
+      const nowSeconds = this.t;
+      if (this.grabbedBy || !player.alive) return false;
+      if (C.Config.debug.godMode) return false;
+      if (z._grabCd && nowSeconds < z._grabCd) return false;
+      const G = C.Config.combat.grab;
+      const g = C.Config.combat.grabs[z.typeName] || C.Config.combat.grabs.Wanderer;
+      this.grabbedBy = {
+        zombie: z, kind: z.typeName, g,
+        until: nowSeconds + g.hold,
+        struggle: 0, nextBite: nowSeconds + G.biteInterval, nextCry: nowSeconds
+      };
+      if (g.knockdown > 0) this.downFor = Math.max(this.downFor, g.knockdown);
+      player.lastAction = (z.def ? z.def.name : '丧尸') + g.label;
+      C.EventBus.publish('GrabbedEvent', { zombie: z, label: g.label });
+      return true;
+    },
+
+    /** 玩家按挣脱键。**连打才有用** —— 不按的时候进度会衰减 */
+    struggle(player) {
+      const gb = this.grabbedBy;
+      if (!gb) return { ok: false, msg: '没有被抓住' };
+      const G = C.Config.combat.grab;
+      let gain = G.struggleGain;
+      // 没体力就挣不动 —— **体力管理直接决定生死，这是它最锋利的一次体现**
+      if (player.stamina < G.struggleCost) gain *= G.exhaustedGainMul;
+      else player.stamina -= G.struggleCost;
+      gb.struggle = Math.min(100, gb.struggle + gain);
+      if (gb.struggle >= 100) { this.release(player, '挣脱了'); return { ok: true, free: true, msg: '挣脱了' }; }
+      return { ok: true, free: false, progress: gb.struggle };
+    },
+
+    release(player, why) {
+      const gb = this.grabbedBy;
+      if (!gb) return;
+      // 冷却挂在那只丧尸身上，防止它松手的下一帧又抓住
+      gb.zombie._grabCd = this.t + C.Config.combat.grab.cooldown;
+      this.grabbedBy = null;
+      if (why) player.lastAction = why;
+      C.EventBus.publish('ReleasedEvent', { why });
+    },
+
+    _updateGrab(dt, player, nowSeconds) {
+      const gb = this.grabbedBy, G = C.Config.combat.grab;
+      gb.struggle = Math.max(0, gb.struggle - G.struggleDecay * dt);
+
+      /* **呼痛响度 60，每秒一次。** 这才是抓取真正的杀伤力：
+         它不是在扣血，是在把整层楼的丧尸叫到你身上。 */
+      if (nowSeconds >= gb.nextCry) {
+        gb.nextCry = nowSeconds + G.cryInterval;
+        const cry = C.ModifierPipeline.query('injury.cry_loudness', G.cryLoudness, player.id);
+        C.SoundSystem.emit({ worldPosition: player.pos, loudness: cry,
+                             category: C.SoundCategory.Voice, emitterId: player.id, label: '呼痛' });
+      }
+      if (nowSeconds >= gb.nextBite) {
+        gb.nextBite = nowSeconds + G.biteInterval;
+        C.Injury.bite(player.needs, gb.g.bite, player.rng);
+        if (player.needs.dead) { player.die('被' + (gb.zombie.def ? gb.zombie.def.name : '丧尸') + '咬死'); return; }
+      }
+      // 抓不住那么久也会松手 —— 这就是「容错窗口」的长度
+      if (nowSeconds >= gb.until) this.release(player, '它松开了');
+    },
+
+    /** 被抓住/倒地时移动速度的倍率（装配层乘上去） */
+    moveMul() {
+      if (this.grabbedBy || this.downFor > 0) return C.Config.combat.knockdownSpeedMul;
+      if (this.swing) return 0.35;      // 抬手期间几乎不能动
+      return 1;
+    },
+
+    serialize() {
+      return { durability: this.durability, downFor: this.downFor };
+    },
+    deserialize(d) {
+      if (!d) return this;
+      this.durability = d.durability || {};
+      this.downFor = d.downFor || 0;
+      this.grabbedBy = null; this.swing = null;   // 读档不该还被抓着
+      return this;
+    }
+  };
+
+  C.Combat = Combat;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/41-injury.js ===== */
+/*
+ * 41-injury.js —— 出血 · 骨折 · 感染
+ *
+ * **吃喝不回血**（§5）—— 所以受伤是一个要养好几天的状态，
+ * 不是一场战斗内的资源。这一条比任何伤害数值都更能让玩家不愿意开打。
+ *
+ * 三种伤势的性格完全不同，这是有意的：
+ *   出血  —— 立刻、可逆、便宜（一卷绷带）。**它是「战斗有代价」的日常提醒。**
+ *   骨折  —— 立刻、难逆、昂贵（四天或一副夹板）。**它惩罚的是跌落，不是战斗。**
+ *   感染  —— 延迟 30 小时才发作，只有抗生素能治。**它是全游戏最致命的死因。**
+ *
+ * 第 2 层：只认游戏小时，不认帧、不认渲染。
+ * 所有可被特性影响的数都走管线（`injury.*`），本层不认识「角色」这回事。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const M = C.M;
+
+  const Injury = {
+    bleedHours: 0,        // 还要流多久血
+    fractured: false,
+    fractureHours: 0,     // 还要多久长好
+    splinted: false,
+    infected: false,
+    infectionHours: 0,    // 距离发作还有多久；<= 0 = 已发作
+    ownerId: 0,
+
+    reset(ownerId) {
+      this.ownerId = ownerId === undefined ? 0 : ownerId;
+      this.bleedHours = 0;
+      this.fractured = false; this.fractureHours = 0; this.splinted = false;
+      this.infected = false; this.infectionHours = 0;
+      return this;
+    },
+
+    /* ── 受伤入口 ─────────────────────────────────── */
+
+    /**
+     * 被咬。**这是感染的唯一来源** —— 所以「被抓住」才是这个游戏真正的死因，
+     * 而不是掉血。
+     * @returns {damage, bleeding, infected}
+     */
+    bite(needs, rawDamage, rng) {
+      const I = C.Config.injury;
+      const dmg = C.ModifierPipeline.query('injury.bite_damage', rawDamage, this.ownerId);
+      needs.damage(dmg, '被咬');
+      this.bleedHours = Math.max(this.bleedHours, I.bleedHoursFromBite);
+
+      let got = false;
+      if (!this.infected) {
+        const chance = C.ModifierPipeline.query('injury.infection_chance', I.infectionChance, this.ownerId);
+        if ((rng ? rng.next() : Math.random()) < chance) {
+          this.infected = true;
+          this.infectionHours = I.incubationHours;
+          got = true;
+          C.EventBus.publish('InfectedEvent', {});
+        }
+      }
+      C.EventBus.publish('WoundedEvent', { damage: dmg, bleeding: true, infected: got });
+      return { damage: dmg, bleeding: true, infected: got };
+    },
+
+    /** 跌落。**骨折惩罚的是跌落，不是战斗** —— 走屋顶抄近路的代价在这里。 */
+    fall(needs, height, rng) {
+      const I = C.Config.injury;
+      if (height < I.fallFractureHeight) return { damage: 0, fractured: false };
+      const dmg = Math.round((height - I.fallFractureHeight) * 8 + 6);
+      needs.damage(dmg, '摔伤');
+      let broke = false;
+      if (!this.fractured && (rng ? rng.next() : Math.random()) < I.fallFractureChance) {
+        broke = true; this.fracture();
+      }
+      return { damage: dmg, fractured: broke };
+    },
+
+    fracture() {
+      if (this.fractured) return false;
+      this.fractured = true; this.splinted = false;
+      this.fractureHours = C.Config.injury.fractureHealHours;
+      C.EventBus.publish('FracturedEvent', {});
+      return true;
+    },
+
+    /* ── 治疗 ─────────────────────────────────────── */
+
+    /** 绷带：止血 + 一点回血。**这是「吃喝不回血」的唯一日常出口。** */
+    bandage(needs) {
+      const I = C.Config.injury;
+      if (this.bleedHours <= 0) return { ok: false, msg: '没有在流血' };
+      const power = C.ModifierPipeline.query('injury.bandage_power', I.bandagePower, this.ownerId);
+      this.bleedHours = Math.max(0, this.bleedHours - power);
+      needs.heal(C.ModifierPipeline.query('injury.bandage_heal', I.healPerBandage, this.ownerId));
+      return { ok: true, msg: this.bleedHours > 0 ? '血止住一些，还在渗' : '血止住了' };
+    },
+    splint() {
+      if (!this.fractured) return { ok: false, msg: '没有骨折' };
+      if (this.splinted) return { ok: false, msg: '已经上过夹板了' };
+      this.splinted = true;
+      this.fractureHours *= C.Config.injury.splintHealMul;
+      return { ok: true, msg: '上了夹板 —— 还是得养，但快多了' };
+    },
+    /**
+     * 抗生素。**不是必成功的** —— 15% 的失败率意味着
+     * 「我有一支抗生素」不等于「我安全了」，玩家仍然要避免被咬。
+     */
+    antibiotic(rng) {
+      if (!this.infected) return { ok: false, msg: '没有感染' };
+      const p = C.ModifierPipeline.query('injury.cure_chance', C.Config.injury.antibioticCureChance, this.ownerId);
+      if ((rng ? rng.next() : Math.random()) < p) {
+        this.infected = false; this.infectionHours = 0;
+        C.EventBus.publish('CuredEvent', {});
+        return { ok: true, msg: '压下去了' };
+      }
+      return { ok: false, msg: '没压住 —— 还得再来一支' };
+    },
+
+    /* ── 逐小时推进 ─────────────────────────────────
+       全部按游戏小时算，睡觉时时间加速 90 倍也一样成立。 */
+    update(dtHours, needs) {
+      if (dtHours <= 0 || needs.dead) return;
+      const I = C.Config.injury;
+
+      if (this.bleedHours > 0) {
+        const rate = C.ModifierPipeline.query('injury.bleed_rate', I.bleedPerHour, this.ownerId);
+        needs.damage(rate * Math.min(dtHours, this.bleedHours), '失血过多');
+        this.bleedHours = Math.max(0, this.bleedHours - dtHours);
+      }
+      if (this.fractured) {
+        this.fractureHours = Math.max(0, this.fractureHours - dtHours);
+        if (this.fractureHours <= 0) { this.fractured = false; this.splinted = false; }
+      }
+      if (this.infected) {
+        /* `[实测]` **一次 update 可能跨过潜伏期结束的那一刻。**
+           写成 `if 潜伏中 else 掉血` 的话，睡一觉（8 小时、时间 ×90）
+           或者任何一次大步长都会把发作后的伤害整段吞掉 ——
+           玩家睡醒发现自己一滴血没掉，然后以为感染是假的。
+           和烹饪的阶段推进（30-cooking）是同一类错误：
+           **跨越边界的那一步，两边都要结算。** */
+        let hours = dtHours;
+        if (this.infectionHours > 0) {
+          const used = Math.min(hours, this.infectionHours);
+          this.infectionHours -= used;
+          hours -= used;
+          if (this.infectionHours <= 0) C.EventBus.publish('InfectionOnsetEvent', {});
+        }
+        if (hours > 0) needs.damage(I.infectedHealthPerHour * hours, '感染');
+      }
+    },
+
+    /** 移动速度倍率（骨折）。走管线，这样「腿伤」特性和骨折能叠。 */
+    speedMul() {
+      return this.fractured
+        ? (this.splinted ? (1 + C.Config.injury.fractureSpeedMul) / 2 : C.Config.injury.fractureSpeedMul)
+        : 1;
+    },
+    staminaMul() { return this.fractured && !this.splinted ? C.Config.injury.fractureStaminaMul : 1; },
+
+    /** 界面直接显示这几行 */
+    lines() {
+      const out = [];
+      if (this.bleedHours > 0) out.push({ kind: 'bleed', text: '流血中（还有 ' + this.bleedHours.toFixed(1) + ' 小时）' });
+      if (this.fractured) out.push({ kind: 'fracture',
+        text: '骨折' + (this.splinted ? '（已上夹板）' : '') + '　还要 ' + this.fractureHours.toFixed(0) + ' 小时' });
+      if (this.infected) out.push({ kind: 'infect',
+        text: this.infectionHours > 0
+          ? '感染潜伏期　还有 ' + this.infectionHours.toFixed(0) + ' 小时发作'
+          : '**已发作** —— 每小时掉 ' + C.Config.injury.infectedHealthPerHour + ' 点，只有抗生素能治' });
+      return out;
+    },
+
+    serialize() {
+      return { bleedHours: this.bleedHours, fractured: this.fractured, fractureHours: this.fractureHours,
+               splinted: this.splinted, infected: this.infected, infectionHours: this.infectionHours };
+    },
+    deserialize(d) {
+      if (!d) return this;
+      this.bleedHours = d.bleedHours || 0;
+      this.fractured = !!d.fractured; this.fractureHours = d.fractureHours || 0;
+      this.splinted = !!d.splinted;
+      this.infected = !!d.infected; this.infectionHours = d.infectionHours || 0;
+      return this;
+    }
+  };
+
+  C.Injury = Injury;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -10818,6 +11428,8 @@
         cooking: C.Cooking ? C.Cooking.serialize() : null,
         outlets: C.Outlets ? C.Outlets.serialize() : null,
         placed: C.Placement ? C.Placement.serialize() : null,
+        combat: C.Combat ? C.Combat.serialize() : null,
+        injury: C.Injury ? C.Injury.serialize() : null,
         tutorial: C.Tutorial ? C.Tutorial.serialize() : null,
         loadout: C.Loadout ? C.Loadout.serialize() : null,
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
@@ -10878,6 +11490,8 @@
       if (d.power && C.Power) C.Power.deserialize(d.power);
       if (d.cooking && C.Cooking) C.Cooking.deserialize(d.cooking, C.Power);
       if (d.outlets && C.Outlets) C.Outlets.deserialize(d.outlets, game.level);
+      if (d.combat && C.Combat) C.Combat.deserialize(d.combat);
+      if (d.injury && C.Injury) C.Injury.deserialize(d.injury);
       if (d.placed && C.Placement) {
         C.Placement.deserialize(d.placed);
         // 关卡里没有它们的网格，读档要补上
@@ -11243,6 +11857,7 @@
       C.Cooking.reset();
       C.Outlets.reset();
       C.Placement.reset(); C.Placement.game = this;
+      C.Combat.reset(); C.Injury.reset(this.player ? this.player.id : 0);
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -11516,6 +12131,15 @@
           e.preventDefault();
           return;
         }
+        /* 左键 = 挥击。**要在「点击画面开始/锁定指针」之前**，
+           否则玩家在游戏里的每一次攻击都会顺带触发一次锁定请求。
+           `started` 之后才生效，免得开场那一下点击变成一次挥空（响度 40）。 */
+        if (e.button === 0 && this.started && !this._panelOpen() && !C.Placement.cable) {
+          const r = C.Combat.attack(this.player, C.ZombieManager.list);
+          if (!r.ok && r.msg) this.msg(r.msg);
+          e.preventDefault();
+          return;
+        }
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
@@ -11627,6 +12251,7 @@
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF && !this._eatF,
         throwHeld: !!k.KeyG,
+        // 被抓住时 Space 的含义变成「挣脱」，见下面 _input 的调用处
         jump: !!k.Space || !!this.tapped.Space
       };
       if (!C.Touch.enabled) return kb;
@@ -11684,6 +12309,8 @@
       this.time.update(dt);
       const dtHours = (this.time.totalGameSeconds - prevHour) / 3600;
       this.player.needs.update(dtHours, C.Sleep.active);
+      C.Injury.update(dtHours, this.player.needs);
+      if (this.player.needs.dead && this.player.alive) this.player.die(this.player.needs.cause);
       if (this.player.needs.dead) this.player.die(this.player.needs.cause);
 
       if (C.Sleep.active) {
@@ -11717,6 +12344,15 @@
       C.LootUI.update(this.player);
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
+      /* 被抓住时 **Space 的含义变成「挣脱」** —— 那一刻你也跳不起来，
+         所以不需要额外一个键，玩家的手指也不用重新学。
+         连打才有用：不按的时候进度每秒衰减 22。 */
+      if (C.Combat.grabbedBy && this.tapped.Space) {
+        const r = C.Combat.struggle(this.player);
+        if (r.free) this.msg('挣脱了');
+      }
+      // 战斗按【真实秒】走（抬手 0.4s、抓住 4s），所以用 dt 不是 dtHours
+      C.Combat.update(dt, this.player, C.ZombieManager.list);
       C.HotbarUI.update();
       C.PanelUI.update(this.player);
       C.DeviceUI.update(this.player);

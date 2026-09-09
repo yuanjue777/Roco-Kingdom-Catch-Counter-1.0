@@ -78,6 +78,20 @@
     reagent:    { name: '化学试剂',     size: [1, 2], weight: 0.45, kind: 'material' },
     burner:     { name: '酒精灯',       size: [1, 1], weight: 0.22, kind: 'tool' },
 
+    /* ── 武器（M4）────────────────────────────────────
+       **地点即难度**：低阶的在宿舍/教室随手可得，高阶的在远而危险的地方 ——
+       消防斧在锅炉房、钢叉/警棍在保安室、棒球棍在体育器材室。
+       不需要额外的门禁系统，`firstDay` 软引导已经在做这件事。 */
+    knife:      { name: '水果刀',       size: [1, 2], weight: 0.20, kind: 'weapon' },
+    axe:        { name: '消防斧',       size: [2, 4], weight: 3.20, kind: 'weapon', rare: true },
+    /* 弹弓**不是武器，是投石的升级**：更远、更准、弹药更轻，但不造成伤害。
+       一把能无声杀伤的远程武器会拆掉支柱一 —— 潜行游戏一旦有静音狙击，
+       最优解永远是「站远点一个一个点掉」，声音系统就退化成背景装饰。
+       它只做一件事：**隔着两个房间，精确地在你想要的位置制造响度 45。** */
+    slingshot:  { name: '弹弓',         size: [2, 2], weight: 0.30, kind: 'tool' },
+    pellet:     { name: '钢珠',         size: [1, 1], weight: 0.05, kind: 'throwable', stack: 16 },
+    splint:     { name: '夹板',         size: [1, 3], weight: 0.35, kind: 'medical' },
+
     // 保安室：全校唯一的战术背包与平面图都在这里
     pitchfork:  { name: '钢叉',         size: [1, 5], weight: 2.30, kind: 'weapon' },
     baton:      { name: '警棍',         size: [1, 3], weight: 0.85, kind: 'weapon' },

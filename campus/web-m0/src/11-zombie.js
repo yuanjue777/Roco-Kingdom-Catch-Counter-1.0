@@ -308,8 +308,14 @@
     if (this.visible && Math.abs(goal.y - this.pos.y) < 1.0) this._steer(goal, this.def.speedChase, dt);
     else { if (!this.path.length) this._pathTo(goal); this._follow(dt, this.def.speedChase); }
 
-    if (V.distXZ(this.pos, player.pos) < R.catchDistance && Math.abs(this.pos.y - player.pos.y) < 1.6) {
-      player.die('被' + this.def.name + '抓住');
+    /* 贴身 → **抓取**，不是直接死。
+       `[实测]` 原来是「接触即死」，那让单只丧尸既毫无威胁（永远能退）
+       又完全致命（一旦碰到就结束），中间没有任何过渡。
+       改成抓取之后：它把你钉在原地几秒、让你大声呼痛（60），
+       **危险的是那几秒里赶到的其它丧尸**，不是这一只。 */
+    const G = C.Config.combat.grab;
+    if (V.distXZ(this.pos, player.pos) < G.range && Math.abs(this.pos.y - player.pos.y) < 1.6) {
+      C.Combat.tryGrab(this, player);
     }
   };
 

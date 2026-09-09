@@ -721,11 +721,11 @@
                      keys: [['cooking.satiety', 'mul', 1.12]], desc: '烹饪食物饱腹额外 +12%' },
 
       // ══ 正向 · 伤势（战斗系统是 M4，全部未实装）══
-      infectProof: { name: '抗感染', value: 4, group: 'infect', live: false,
+      infectProof: { name: '抗感染', value: 4, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
-      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: false,
+      thickSkin:   { name: '皮实', value: 2, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 0.5]], desc: '出血速度 −50%' },
-      firstAid:    { name: '会包扎', value: 2, live: false,
+      firstAid:    { name: '会包扎', value: 2, live: true,
                      keys: [['injury.bandage_power', 'mul', 1.5]], desc: '绷带效果 +50%，可自制夹板' },
 
       // ══ 正向 · 其他 ══
@@ -788,12 +788,13 @@
                      keys: [['loot.time', 'mul', 1.4]], desc: '搜刮耗时 +40%（搜刮改成即时后暂无耗时可加）' },
 
       // ══ 负向 · 伤势 ══
-      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: false,
+      easyInfect:  { name: '易感染', value: -4, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 1.417]], desc: '被咬感染概率 60% → 85%' },
-      bleeder:     { name: '血友', value: -3, group: 'bleed', live: false,
+      bleeder:     { name: '血友', value: -3, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 2]], desc: '出血速度 ×2' },
-      painful:     { name: '怕疼', value: -2, live: false,
-                     desc: '受伤后视野抖动 5 秒，呼痛响度 +20' },
+      painful:     { name: '怕疼', value: -2, live: true,
+                     keys: [['injury.cry_loudness', 'add', 20]],
+                     desc: '被抓住时呼痛响度 +20（受伤视野抖动未实装）' },
 
       // ══ 负向 · 其他 ══
       badWithMaps: { name: '认路差', value: -2, live: false, flags: ['NO_AUTO_MAP'],
@@ -819,15 +820,15 @@
                      desc: '开局地图完全未揭示，所有熟练度 0 级' },
       unarmed:     { name: '手无寸铁', value: 0, fixed: true, live: true,
                      desc: '无任何初始武器' },
-      armed:       { name: '有家伙', value: 0, fixed: true, live: false,
+      armed:       { name: '有家伙', value: 0, fixed: true, live: true,
                      keys: [['combat.melee_damage', 'mul', 1.15], ['combat.durability_cost', 'mul', 0.75]],
-                     desc: '近战伤害 +15%，耐久消耗 −25%（战斗是 M4）' },
+                     desc: '近战伤害 +15%，耐久消耗 −25%' },
       aged:        { name: '上了年纪', value: 0, fixed: true, live: true,
                      keys: [['stamina.max', 'add', -22], ['move.speed', 'mul', 0.945]],
                      desc: '体力上限 −22，移动速度 −5.5%' },
       badBack:     { name: '腰不好', value: 0, fixed: true, live: true,
                      keys: [['inventory.weight_limit', 'add', -4]], desc: '负重上限 −4 kg' },
-      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: false,
+      feeble:      { name: '手无缚鸡之力', value: 0, fixed: true, live: true,
                      keys: [['combat.melee_damage', 'mul', 0.7], ['stamina.max', 'add', -25]],
                      desc: '近战伤害 −30%，体力上限 −25' },
       /* 保安的耳背是**固定**的，不能借用可选池里那条 —— 借用会让一条特性
@@ -860,9 +861,9 @@
                      keys: [['stamina.max', 'add', -25]], desc: '体力上限 −25' },
       glasses:     { name: '近视', value: 0, fixed: true, live: false, flags: ['MYOPIA'],
                      desc: '8 米外模糊，识别延迟 +0.6 秒，25% 概率摔碎眼镜' },
-      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: false,
+      infectWard:  { name: '抗感染', value: 0, fixed: true, group: 'infect', live: true,
                      keys: [['injury.infection_chance', 'mul', 0.5]], desc: '被咬感染概率 60% → 30%' },
-      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: false,
+      dresser:     { name: '会包扎', value: 0, fixed: true, group: 'bleed', live: true,
                      keys: [['injury.bleed_rate', 'mul', 0.4], ['injury.bandage_power', 'mul', 1.5]],
                      desc: '出血速度 −60%，绷带效果 +50%，可自行处理骨折' },
       germaphobe:  { name: '洁癖', value: 0, fixed: true, group: 'clean', live: false, flags: ['FRESHNESS_FLOOR_60'],
@@ -925,6 +926,88 @@
         fixed: ['infectWard', 'dresser', 'feeble', 'germaphobe'],
         note: '容错率最高，战斗最弱。**洁癖到后期会强迫她成为一个厨子** —— 熟食按新做的算新鲜度。' }
     ],
+
+    /* ── 战斗（M4）────────────────────────────────────
+       **战斗不是解法，是失败的代价。**
+       近战响度 55 比追击低吼还响 —— 你能杀掉第一只，第三只会杀掉你。
+
+       核心判断：**单体威胁来自「退不掉」，不是「打得疼」。**
+       游荡者追击 2.7 m/s < 玩家奔跑 4.6 m/s —— 玩家永远能退，
+       所以把单体伤害调到 50 也没用，只会得到「一对一绝对安全、
+       一对多瞬间暴毙」的断崖。真正的威胁是**抓取**：它本身伤害不高，
+       危险在于**它给了别的丧尸赶到的时间**。
+       这条天然实现了「前期怪少后期怪多」的曲线，而且不用改任何数值。 */
+    combat: {
+      /* 抓取。三种丧尸抓法不同，但结构一样：
+         抓住 → 玩家不能移动、持续挨咬、**持续发出很响的呼痛（60）** → 引来更多。 */
+      grab: {
+        range: 1.1,               // 进入这个距离就会尝试抓
+        cooldown: 6,              // 同一只抓完之后多久才能再抓
+        biteInterval: 1.4,        // 被抓住期间每隔多久咬一口
+        struggleCost: 14,         // 每次挣脱按键消耗的体力
+        struggleGain: 34,         // 每次挣脱累积的进度（满 100 挣脱）
+        struggleDecay: 22,        // 不按的时候进度每秒衰减 —— 逼玩家连打
+        exhaustedGainMul: 0.45,   // 没体力时挣脱效率大降（体力管理直接决定生死）
+        cryLoudness: 60,          // 被抓住时的呼痛，等于 playerHurt
+        cryInterval: 1.0
+      },
+      /* 三种丧尸的抓取表现。`hold` 是抓住之后最长持续多久（挣脱不掉也会松手），
+         **它是「容错窗口」的长度** —— 攻速慢的意义全在这个数上。 */
+      grabs: {
+        Wanderer: { bite: 14, hold: 4.0, knockdown: 0,   label: '抱住了你' },
+        Crawler:  { bite: 10, hold: 3.0, knockdown: 1.6, label: '抓住了你的脚踝' },
+        Runner:   { bite: 20, hold: 2.5, knockdown: 2.2, label: '把你撞倒了' }
+      },
+      knockdownSpeedMul: 0.0,     // 倒地期间不能移动
+      getUpLoudness: 30,          // 爬起来的动静
+
+      /* 近战武器。**地点即难度** —— 高阶武器放在远而危险的地方，
+         不需要额外的门禁系统（消防斧在锅炉房，长柄在体育馆器材室）。
+         `windup` 是抬手时间：慢攻速给的是**玩家的容错**，不是丧尸的。 */
+      weapons: {
+        fist:      { name: '徒手',   damage: 6,  windup: 0.35, loud: 40, durability: 0,   exec: false, weight: 0 },
+        knife:     { name: '水果刀', damage: 22, windup: 0.40, loud: 45, durability: 40,  exec: true,  weight: 0.2 },
+        baton:     { name: '警棍',   damage: 26, windup: 0.55, loud: 52, durability: 90,  exec: false, weight: 1.1 },
+        pitchfork: { name: '钢叉',   damage: 34, windup: 0.75, loud: 55, durability: 70,  exec: false, weight: 2.4, reach: 1.8 },
+        bat:       { name: '棒球棍', damage: 30, windup: 0.65, loud: 55, durability: 80,  exec: false, weight: 1.6 },
+        axe:       { name: '消防斧', damage: 55, windup: 0.95, loud: 60, durability: 120, exec: true,  weight: 3.2 }
+      },
+      meleeRange: 1.4,            // 没写 reach 的武器用这个
+      /* 处决：**战斗在这个游戏里唯一合理的主动用法。**
+         从背后 + 它没察觉 + 手里有能处决的武器 → 秒杀，响度只有 30。 */
+      execute: { loud: 30, behindDot: -0.25, range: 1.2, staminaCost: 10, durabilityCost: 3 },
+      hitStaminaCost: 6,          // 每次挥击（= 主文档 3.3 的 meleeCost）
+      /* 弹弓：**不是武器，是投石的升级。**
+         一把能无声杀伤的远程武器会拆掉支柱一 —— 潜行游戏一旦有静音狙击，
+         最优解永远是「站远点一个一个点掉」，声音系统就退化成背景装饰。
+         所以它只做一件事：**隔着两个房间，精确地在你想要的位置制造响度 45。** */
+      slingshot: { speedMul: 1.45, spreadMul: 0.35, damage: 0, ammoWeight: 0.05 }
+    },
+
+    /* ── 伤势（M4）────────────────────────────────────
+       **吃喝不回血**（见 needs）—— 所以受伤是一个要养好几天的状态，
+       不是一场战斗内的资源。这会让玩家非常不愿意开打，正是我们要的。 */
+    injury: {
+      // 出血：每游戏小时掉多少血。绷带止血，皮实 −50%，血友 ×2
+      bleedPerHour: 6,
+      bleedHoursFromBite: 5,
+      bandagePower: 1,            // 一卷绷带止住多少「小时的出血」
+      // 骨折：只有跌落和奔行者撞倒会造成
+      fractureSpeedMul: 0.55,
+      fractureStaminaMul: 1.8,
+      fractureHealHours: 96,      // 不处理要四天；夹板/会包扎能缩短
+      splintHealMul: 0.4,
+      fallFractureHeight: 3.0,    // 掉落超过这个高度可能骨折
+      fallFractureChance: 0.45,
+      // 感染：**全游戏最致命的死因**
+      infectionChance: 0.6,       // 被咬后的基础概率（抗感染 ×0.5，易感染 ×1.417）
+      incubationHours: 30,        // 潜伏期，之后开始持续掉血
+      infectedHealthPerHour: 2.5,
+      antibioticCureChance: 0.85,
+      // 治疗
+      healPerBandage: 8,
+      healPerFirstAid: 30
+    },
 
     // ── 生存需求（主文档 3.2 / 3.3 / 3.4）──────────────
     needs: {

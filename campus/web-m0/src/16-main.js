@@ -80,6 +80,7 @@
       C.Cooking.reset();
       C.Outlets.reset();
       C.Placement.reset(); C.Placement.game = this;
+      C.Combat.reset(); C.Injury.reset(this.player ? this.player.id : 0);
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -353,6 +354,15 @@
           e.preventDefault();
           return;
         }
+        /* 左键 = 挥击。**要在「点击画面开始/锁定指针」之前**，
+           否则玩家在游戏里的每一次攻击都会顺带触发一次锁定请求。
+           `started` 之后才生效，免得开场那一下点击变成一次挥空（响度 40）。 */
+        if (e.button === 0 && this.started && !this._panelOpen() && !C.Placement.cable) {
+          const r = C.Combat.attack(this.player, C.ZombieManager.list);
+          if (!r.ok && r.msg) this.msg(r.msg);
+          e.preventDefault();
+          return;
+        }
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
@@ -464,6 +474,7 @@
         holdBreath: !!k.KeyZ || this.rmb,     // 按住鼠标右键或 Z：Space 让给跳跃
         interact: !!k.KeyF && !this._eatF,
         throwHeld: !!k.KeyG,
+        // 被抓住时 Space 的含义变成「挣脱」，见下面 _input 的调用处
         jump: !!k.Space || !!this.tapped.Space
       };
       if (!C.Touch.enabled) return kb;
@@ -521,6 +532,8 @@
       this.time.update(dt);
       const dtHours = (this.time.totalGameSeconds - prevHour) / 3600;
       this.player.needs.update(dtHours, C.Sleep.active);
+      C.Injury.update(dtHours, this.player.needs);
+      if (this.player.needs.dead && this.player.alive) this.player.die(this.player.needs.cause);
       if (this.player.needs.dead) this.player.die(this.player.needs.cause);
 
       if (C.Sleep.active) {
@@ -554,6 +567,15 @@
       C.LootUI.update(this.player);
       C.KitchenUI.update(this.player);
       C.TutorialUI.update(dt);
+      /* 被抓住时 **Space 的含义变成「挣脱」** —— 那一刻你也跳不起来，
+         所以不需要额外一个键，玩家的手指也不用重新学。
+         连打才有用：不按的时候进度每秒衰减 22。 */
+      if (C.Combat.grabbedBy && this.tapped.Space) {
+        const r = C.Combat.struggle(this.player);
+        if (r.free) this.msg('挣脱了');
+      }
+      // 战斗按【真实秒】走（抬手 0.4s、抓住 4s），所以用 dt 不是 dtHours
+      C.Combat.update(dt, this.player, C.ZombieManager.list);
       C.HotbarUI.update();
       C.PanelUI.update(this.player);
       C.DeviceUI.update(this.player);

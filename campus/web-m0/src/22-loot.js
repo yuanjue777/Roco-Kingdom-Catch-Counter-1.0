@@ -103,8 +103,18 @@
     return pool[pool.length - 1];
   }
 
+  /** 固定放置塞不下时的记录 —— 见下面 `fill` 的注释 */
+  const fixedOverflow = [];
+
   function fill(grid, kind, rng, fixedItems) {
-    for (const id of fixedItems || []) grid.autoAdd(C.makeItem(id));
+    /* `[实测]` **固定放置塞不下时会被静默丢掉。**
+       锅炉房工具柜是 4×4，发电机自己就是 4×4 —— 于是同一个柜子里的消防斧
+       （全校唯一一把，2×4）凭空消失，而且没有任何报错。
+       这类「唯一物品悄悄没了」是最难发现的一种 bug：
+       玩家只会觉得「这游戏里没有消防斧」。所以塞不下就**记下来并让测试红**。 */
+    for (const id of fixedItems || []) {
+      if (!grid.autoAdd(C.makeItem(id)).ok) fixedOverflow.push({ id, kind, grid: [grid.w, grid.h] });
+    }
     const spec = POOLS[kind];
     if (!spec) return;
     const n = rng.int(spec.count[0], spec.count[1]);
@@ -193,24 +203,44 @@
   const CAMPUS_FIXED = [
     { room: '男402', kind: 'wardrobe',    items: ['kettle', 'water', 'biscuit', 'shortWire'] },
     { room: '男403', kind: 'wardrobe',    items: ['schoolBag', 'noodle', 'noodle'] },   // 目标②的答案
-    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit', 'powerStrip'] },
+    /* `[实测]` 这四条原来都塞不下，被静默丢掉：
+       书桌 3×3 装不下「水×2 + 饼干 + 插线板(2×2)」，
+       衣柜 4×4 装不下「电饭煲(3×3) + 米×2(各 2×3)」，
+       床下箱 4×3 装不下「塑料布 + 绳 + 工具箱(3×2)」。
+       **教学要用的米和插线板就这样消失了，而且没有任何报错。**
+       现在拆开放，并且 `fill()` 会把塞不下的记进 `fixedLootOverflow` 让测试红。 */
+    { room: '男404', kind: 'desk',        items: ['water', 'water', 'biscuit'] },
+    { room: '男404', kind: 'wardrobe',    items: ['powerStrip'] },
     { room: '男406', kind: 'desk',        items: ['glassBox', 'shortWire', 'note406'] },
     { room: '男301', kind: 'desk',        items: ['deskLamp'] },
-    { room: '男303', kind: 'wardrobe',    items: ['riceCooker', 'riceBag', 'riceBag'] },
-    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope', 'toolkit'] },
+    { room: '男303', kind: 'wardrobe',    items: ['riceCooker'] },
+    { room: '男303', kind: 'desk',        items: ['riceBag'] },
+    { room: '男305', kind: 'desk',        items: ['riceBag'] },
+    { room: '男304', kind: 'underBed',    items: ['tarp', 'rope'] },
+    { room: '男304', kind: 'desk',        items: ['toolkit'] },
     { room: '男306', kind: 'desk',        items: ['battery', 'battery', 'flashlight'] },
     { room: '男201', kind: 'desk',        items: ['stone', 'stone', 'stone'] },          // 投石的弹药
+    /* 低阶武器就在宿舍里 —— **它们不是奖励，是安慰剂**：
+       水果刀 22 伤害要挥三下才能杀掉一只游荡者，而每一下都响 45。 */
+    { room: '男205', kind: 'desk',        items: ['knife'] },
+    { room: '男301', kind: 'underBed',    items: ['slingshot', 'pellet'] },
     { room: '男203', kind: 'underBed',    items: ['canned', 'bandage', 'bandage'] },
     { room: '男206', kind: 'desk',        items: ['skillet', 'note206'] },
-    { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic'] },
+    { room: '医102', kind: 'medCab',      items: ['antibiotic', 'antibiotic', 'splint'] },
+    { room: '医103', kind: 'medCab',      items: ['bandage', 'bandage', 'bandage', 'splint'] },
     { room: '实203', kind: 'reagentCab',  items: ['antibiotic'] },
     { room: '男401', kind: 'wardrobe',    items: ['antibiotic'] },
     { room: '保102', kind: 'guardLocker', items: ['tacticalBag', 'campusMap', 'masterKey'] },
     { room: '保103', kind: 'guardLocker', items: ['pitchfork', 'radio'] },
     { room: '体102', kind: 'gearRack',    items: ['hikingBag', 'starterGun', 'rope'] },
     // 发电机 4×4 = 16 格，一个工具柜就被它占满 —— 柴油只能另放一个柜子
-    { room: '锅101', kind: 'toolCab',     items: ['generator'] },
-    { room: '锅102', kind: 'toolCab',     items: ['diesel', 'fuse'] },
+    /* 消防斧是全校最强的近战武器，放在锅炉房 —— 远、黑、丧尸不多但没有退路。
+       **它和发电机不能放同一个柜子**：工具柜 4×4，发电机自己就占满了。 */
+    { room: '锅101', kind: 'toolCab',     items: ['axe', 'fuse'] },
+    /* 锅炉房每间有两个工具柜，所以这里写两条同房同型的条目 ——
+       上面那段「一个房间里可能摆着两个同型容器」的逻辑会分别兑现它们。 */
+    { room: '锅102', kind: 'toolCab',     items: ['generator'] },
+    { room: '锅102', kind: 'toolCab',     items: ['diesel'] },
     { room: '行401', kind: 'fileCab',     items: ['beacon', 'broadcastPart'] },
     { room: '行402', kind: 'fileCab',     items: ['broadcastPart', 'masterKey'] },
     { room: '图301', kind: 'bookshelf',   items: ['manual'] },
@@ -321,6 +351,8 @@
   C.ContainerKinds = KINDS;
   C.ContainerPools = POOLS;
   C.CampusFixedLoot = CAMPUS_FIXED;
+  /** 布置时塞不下的固定物品。**正常情况下必须是空的**（sim-ai 有断言盯着）。 */
+  C.fixedLootOverflow = fixedOverflow;
   C.placeContainers = placeInDormitory;
   C.placeLooseItems = placeLooseItems;
   C.placeCampusContainers = placeInCampus;

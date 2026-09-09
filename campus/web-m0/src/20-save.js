@@ -50,6 +50,8 @@
         cooking: C.Cooking ? C.Cooking.serialize() : null,
         outlets: C.Outlets ? C.Outlets.serialize() : null,
         placed: C.Placement ? C.Placement.serialize() : null,
+        combat: C.Combat ? C.Combat.serialize() : null,
+        injury: C.Injury ? C.Injury.serialize() : null,
         tutorial: C.Tutorial ? C.Tutorial.serialize() : null,
         loadout: C.Loadout ? C.Loadout.serialize() : null,
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
@@ -110,6 +112,8 @@
       if (d.power && C.Power) C.Power.deserialize(d.power);
       if (d.cooking && C.Cooking) C.Cooking.deserialize(d.cooking, C.Power);
       if (d.outlets && C.Outlets) C.Outlets.deserialize(d.outlets, game.level);
+      if (d.combat && C.Combat) C.Combat.deserialize(d.combat);
+      if (d.injury && C.Injury) C.Injury.deserialize(d.injury);
       if (d.placed && C.Placement) {
         C.Placement.deserialize(d.placed);
         // 关卡里没有它们的网格，读档要补上
