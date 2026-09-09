@@ -95,6 +95,15 @@
     canCook(recipe, station, have) {
       if (recipe.lv > this.level()) return { ok: false, why: '还不会做（需要烹饪 ' + recipe.lv + ' 级）' };
 
+      /* 自带水箱的设备（电水壶/电饭煲/电炖锅）**要先往里倒水**。
+         `station.water === null/undefined` = 这台设备不吃这条规则（锅是从背包拿水的）。
+         `[实测]` 通电了还不会自己烧，是这条流程里最后一个「以为坏了」的坑 ——
+         所以这句话必须说出「壶里没水」，而不是笼统的「做不了」。 */
+      if (station.water !== null && station.water !== undefined &&
+          recipe.need && recipe.need.water && station.water < 1) {
+        return { ok: false, why: '壶里没水 —— 先倒一瓶水进去' };
+      }
+
       // 不需要加热的（泡面、咸菜配粥、腌菜、手擀面）
       if (recipe.heater !== 'none') {
         if (!station.heater) return { ok: false, why: '没有加热设备' };
@@ -232,13 +241,19 @@
     _onDone(st, recipe, nowHours) {
       const K = C.Config.cooking;
       const H = st.heater ? K.heaters[st.heater] : null;
-      // 结束提示音：**微波炉那声「叮」是全游戏最尴尬的死法之一。这是有意的。**
+      /* 结束提示音：**微波炉那声「叮」是全游戏最尴尬的死法之一。这是有意的。**
+         电水壶烧开是**哨响**（Whistle），和别的提示音听起来完全不一样 ——
+         这是玩家人在别的房间、只靠耳朵判断「水开了」的唯一依据。 */
       if (H && H.done > 0 && !st.debuzzed) {
+        const whistle = st.heater === 'kettle';
         C.SoundSystem.emit({
-          worldPosition: st.pos, loudness: H.done, category: C.SoundCategory.Impact,
-          emitterId: -1, label: H.name + '提示音'
+          worldPosition: st.pos, loudness: H.done,
+          category: whistle ? C.SoundCategory.Whistle : C.SoundCategory.Impact,
+          emitterId: -1, label: whistle ? '水开了' : H.name + '提示音'
         });
       }
+      // 烧完这壶，水箱就空了 —— 下一壶要重新倒
+      if (st.water !== null && st.water !== undefined && recipe.need && recipe.need.water) st.water = 0;
       if (H && H.autoShutoff && H.watt > 0 && st.link) {
         C.Power.setDevice(st.link, st.deviceId, false);
       }
@@ -403,8 +418,11 @@
         }
         if (ss.phase === Phase.Overcooked) loud += C.Config.cooking.overcookLoudAdd;
         if (loud <= 0) continue;
+        /* 烧水的过程声单独一类：**它和别的烹饪听起来不一样**，
+           玩家在隔壁房间就该听得出「我那壶水还在烧」。 */
+        const cat = ss.recipeId === 'boilWater' ? C.SoundCategory.Boil : C.SoundCategory.Ambient;
         C.SoundSystem.emit({
-          worldPosition: st.pos, loudness: loud, category: C.SoundCategory.Ambient,
+          worldPosition: st.pos, loudness: loud, category: cat,
           emitterId: -1, label: recipe.name + '（' + ss.phase + '）'
         });
       }
@@ -423,6 +441,7 @@
         stations: this.stations.map(st => ({
           id: st.id, pos: st.pos ? C.V.copy(st.pos) : null, surface: st.surface, slots: st.slots,
           heater: st.heater, cookware: st.cookware, deviceId: st.deviceId, debuzzed: !!st.debuzzed,
+          water: st.water === undefined ? null : st.water, placedId: st.placedId || null,
           linkId: st.link ? st.link.id : null,
           session: st.session ? {
             recipeId: st.session.recipeId, startAt: st.session.startAt,
@@ -445,6 +464,8 @@
         const st = this.addStation({ pos: r.pos, surface: r.surface, slots: r.slots,
                                      heater: r.heater, cookware: r.cookware, deviceId: r.deviceId });
         st.id = r.id; st.debuzzed = r.debuzzed;
+        st.water = r.water === undefined ? null : r.water;
+        st.placedId = r.placedId || null;
         st.link = C.Power.links.find(l => l.id === r.linkId) || null;
         if (r.session) st.session = Object.assign(Object.create(Session.prototype), r.session);
       }

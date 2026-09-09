@@ -491,6 +491,8 @@
     // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
     for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
     for (const p of lv.panels || []) consider(p.pos, p, 'panel', 0.5);
+    // 玩家自己摆出来的东西：给它最大的吸附，因为那是他刚亲手放下的
+    for (const o of (C.Placement ? C.Placement.list : [])) consider(o.pos, o, 'placed', 0.6);
     return best;
   };
 
@@ -536,6 +538,7 @@
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
         } else if (t.type === 'outlet') this.useOutlet(t.obj);
         else if (t.type === 'panel') C.EventBus.publish('PanelOpenedEvent', { panel: t.obj });
+        else if (t.type === 'placed') C.EventBus.publish('DeviceOpenedEvent', { placed: t.obj });
         else this.pickUp(t.obj);
       }
     } else {
@@ -666,6 +669,14 @@
    * 那个「插上了，什么也没发生」正是教学目标 3 想让玩家撞的墙。
    */
   Player.prototype.useOutlet = function (outlet) {
+    /* 手里正拿着某台设备的电线时，这个插座的含义就变了：
+       **不是「从背包里插一台设备」，是「把手上这根线插进去」。** */
+    if (C.Placement && C.Placement.cable) {
+      const r0 = C.Placement.plugCableInto(outlet);
+      this.lastAction = r0.msg;
+      C.EventBus.publish('OutletUsedEvent', { outlet, ok: r0.ok, msg: r0.msg });
+      return r0;
+    }
     const r = C.Outlets.use(outlet, this);
     this.lastAction = r.msg;
     C.EventBus.publish('OutletUsedEvent', { outlet, ok: r.ok, msg: r.msg });

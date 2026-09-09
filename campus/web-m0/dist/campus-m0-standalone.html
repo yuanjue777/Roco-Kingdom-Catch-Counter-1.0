@@ -252,6 +252,51 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 放置预览（39-device-ui）──────────────────────────
+     准星中间一个落点框：绿=放得下，红=放不下并说明原因。**不暂停游戏。** */
+  #place { position: fixed; inset: 0; z-index: 5; display: none; pointer-events: none; }
+  #place.on { display: block; }
+  .pl-box { position: absolute; left: 50%; top: 50%; width: 56px; height: 34px;
+            transform: translate(-50%, -50%) perspective(90px) rotateX(52deg);
+            border: 2px solid var(--signal); background: rgba(111,211,232,0.14); border-radius: 3px; }
+  .pl-box.no { border-color: var(--accent); background: rgba(228,87,61,0.16); }
+  .pl-tip { position: absolute; left: 0; right: 0; top: calc(50% + 46px); text-align: center;
+            font-size: 13px; color: var(--ink); text-shadow: 0 1px 4px #000; }
+  .pl-tip small { display: block; margin-top: 3px; font-size: 11px; color: var(--dim); }
+
+  /* ── 设备菜单（对准放好的东西按 F）──────────────────── */
+  #device { position: fixed; inset: 0; z-index: 8; display: none;
+            align-items: center; justify-content: center; pointer-events: none; }
+  #device.open { display: flex; }
+  .dv-panel { pointer-events: auto; width: min(330px, 88vw);
+              background: rgba(12,16,22,0.93); border: 1px solid var(--line);
+              border-radius: 6px; padding: 12px 14px 14px; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
+  .dv-panel h5 { margin: 0 0 8px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .dv-block { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .dv-block b { color: var(--accent); }
+  .dv-row { display: flex; align-items: center; gap: 9px; padding: 6px 2px;
+            border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; }
+  .dv-row button { font-family: var(--cjk); font-size: 12px; padding: 4px 14px; cursor: pointer;
+                   background: rgba(30,38,48,0.9); color: var(--ink);
+                   border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
+  .dv-row button:hover { border-color: var(--accent); color: var(--accent); }
+  .dv-row em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .dv-ok { font-size: 12px; color: var(--signal); }
+  .dv-no { font-size: 12px; color: var(--accent); }
+
+  /* ── 背包右键菜单 ──────────────────────────────────── */
+  #invMenu { position: fixed; inset: 0; z-index: 12; display: none; }
+  #invMenu.on { display: block; }
+  .inv-menu { position: absolute; min-width: 150px; padding: 6px;
+              background: rgba(14,19,26,0.97); border: 1px solid var(--line);
+              border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.55); }
+  .inv-menu h6 { margin: 2px 6px 6px; font-size: 11px; color: var(--dim); font-weight: 500; }
+  .inv-menu button { display: block; width: 100%; text-align: left; cursor: pointer;
+                     font-family: var(--cjk); font-size: 12.5px; padding: 5px 9px;
+                     background: none; border: 0; border-radius: 3px; color: var(--ink); }
+  .inv-menu button:hover { background: rgba(228,87,61,0.16); color: var(--accent); }
+  .inv-menu button em { display: block; font-style: normal; font-size: 10.5px; color: var(--dim); }
+
   /* ── 配电箱（37-panel-ui）────────────────────────────
      刻意做得很小：一栋楼几行，一行一个楼层，一个按钮。
      **推一次闸响度 25**，这个界面上的每一次点击都是有代价的决定，
@@ -639,6 +684,8 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="place"></div>
+<div id="device"></div>
 <div id="panel"></div>
 <div id="hotbar"></div>
 <div id="pick"></div>
@@ -1118,6 +1165,10 @@
         charger: 20, beacon: 500
       },
 
+      /* 电器自带的那根电源线有多长。**这是「灶台放哪」这个决定的全部约束** ——
+         1.8 米意味着设备必须放在插座边上那张桌子，而不是房间正中。
+         想放远一点就得去找真的电线（15.4），那是另一笔重量和格子的开销。 */
+      cordMetres: 1.8,
       breakerLoudness: 25,        // 推闸
       tripLoudness: 40,           // 跳闸「啪」的一声
       genSetLoudness: 65,
@@ -2104,9 +2155,13 @@
   const C = (root.Campus = root.Campus || {});
   const { V, M } = C;
 
+  /* 分类只影响**听起来是什么**（13-audio）与声纹图标，
+     不影响传播与衰减 —— 衰减只认响度和路径。 */
   const SoundCategory = {
     Footstep: 'Footstep', Impact: 'Impact', Voice: 'Voice',
-    Gunshot: 'Gunshot', Ambient: 'Ambient', Door: 'Door'
+    Gunshot: 'Gunshot', Ambient: 'Ambient', Door: 'Door',
+    // 烧水：持续的咕嘟声，和水开时那一声尖锐的哨响 —— **两者必须听得出区别**
+    Boil: 'Boil', Whistle: 'Whistle'
   };
 
   // ── 最小二叉堆 ──────────────────────────────────────
@@ -4282,6 +4337,8 @@
     // 插座贴在墙上、离地 0.35m，比容器小得多，给它同样的一点吸附
     for (const o of lv.outlets || []) consider(o.pos, o, 'outlet', 0.4);
     for (const p of lv.panels || []) consider(p.pos, p, 'panel', 0.5);
+    // 玩家自己摆出来的东西：给它最大的吸附，因为那是他刚亲手放下的
+    for (const o of (C.Placement ? C.Placement.list : [])) consider(o.pos, o, 'placed', 0.6);
     return best;
   };
 
@@ -4327,6 +4384,7 @@
           if (t.obj.carry) this.grabBag(t.obj); else this.openContainer(t.obj);
         } else if (t.type === 'outlet') this.useOutlet(t.obj);
         else if (t.type === 'panel') C.EventBus.publish('PanelOpenedEvent', { panel: t.obj });
+        else if (t.type === 'placed') C.EventBus.publish('DeviceOpenedEvent', { placed: t.obj });
         else this.pickUp(t.obj);
       }
     } else {
@@ -4457,6 +4515,14 @@
    * 那个「插上了，什么也没发生」正是教学目标 3 想让玩家撞的墙。
    */
   Player.prototype.useOutlet = function (outlet) {
+    /* 手里正拿着某台设备的电线时，这个插座的含义就变了：
+       **不是「从背包里插一台设备」，是「把手上这根线插进去」。** */
+    if (C.Placement && C.Placement.cable) {
+      const r0 = C.Placement.plugCableInto(outlet);
+      this.lastAction = r0.msg;
+      C.EventBus.publish('OutletUsedEvent', { outlet, ok: r0.ok, msg: r0.msg });
+      return r0;
+    }
     const r = C.Outlets.use(outlet, this);
     this.lastAction = r.msg;
     C.EventBus.publish('OutletUsedEvent', { outlet, ok: r.ok, msg: r.msg });
@@ -5375,6 +5441,29 @@
     return { mesh: m, loose: l };
   };
 
+  /* ── 玩家摆出来的东西 ────────────────────────────────
+     和散落物不同：它们是**立着的实体**，要能一眼认出「那是我放的电水壶」。
+     用一个稍大的暖色盒子，比 18cm 的散落物方块明显。 */
+  Renderer.prototype.addPlaced = function (placed) {
+    if (!this.placedMeshes) this.placedMeshes = [];
+    const def = C.ITEMS[placed.itemId];
+    const s = def.size || [1, 1];
+    const w = Math.min(0.42, 0.14 + s[0] * 0.08), h = Math.min(0.40, 0.16 + s[1] * 0.07);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
+      new THREE.MeshLambertMaterial({ color: 0xC9D3DC }));
+    m.position.set(placed.pos.x, placed.pos.y + h / 2, placed.pos.z);
+    m.rotation.y = placed.yaw || 0;
+    this.scene.add(m);
+    this.placedMeshes.push({ mesh: m, placed });
+  };
+  Renderer.prototype.removePlaced = function (placed) {
+    if (!this.placedMeshes) return;
+    const i = this.placedMeshes.findIndex(r => r.placed === placed);
+    if (i < 0) return;
+    this.scene.remove(this.placedMeshes[i].mesh);
+    this.placedMeshes.splice(i, 1);
+  };
+
   /** 玩家放下一件东西 —— 关卡建好之后才出现的散落物，要补一个网格 */
   Renderer.prototype.addLoose = function (l) {
     if (!this.looseMeshes) this.looseMeshes = [];
@@ -5700,8 +5789,34 @@
         Impact:   { type: 'noise', f: 190, q: 1.2, dur: 0.34, atk: 0.001 },
         Ambient:  { type: 'noise', f: 600, q: 0.7, dur: 0.55, atk: 0.12 },
         Voice:    { type: 'tone',  f: 82,  dur: 0.9,  atk: 0.06 },
-        Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 }
+        Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 },
+        /* 烧水的咕嘟：低频窄带噪声，长而闷。它每 2 秒响一次（见 30-cooking），
+           所以单次不能太短，否则听起来是「滴答」不是「在烧」。 */
+        Boil:     { type: 'noise', f: 240, q: 2.6, dur: 1.6, atk: 0.35 },
+        // 水开的哨响：见下面的专门分支，这里只留一个兜底
+        Whistle:  { type: 'tone',  f: 1500, dur: 1.2, atk: 0.02 }
       }[category] || { type: 'noise', f: 500, q: 1, dur: 0.15, atk: 0.005 };
+
+      /* **水开了要能只靠耳朵判断出来。**
+         所以哨声不走通用分支：升调的正弦 + 一点抖动，和游戏里其它任何声音都不像。
+         这是玩家「人在别的房间，听见水开了」的唯一依据。 */
+      if (category === 'Whistle') {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(900, t);
+        osc.frequency.exponentialRampToValueAtTime(1750, t + 0.35);
+        const vib = this.ctx.createOscillator(), vg = this.ctx.createGain();
+        vib.frequency.value = 7.5; vg.gain.value = 26;
+        vib.connect(vg); vg.connect(osc.frequency);
+        osc.connect(g);
+        osc.start(t); vib.start(t);
+        osc.stop(t + 1.3); vib.stop(t + 1.3);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(gain, t + 0.05);
+        g.gain.setValueAtTime(gain, t + 0.9);
+        g.gain.exponentialRampToValueAtTime(0.0008, t + 1.25);
+        return;
+      }
 
       if (spec.type === 'noise') {
         const src = this.ctx.createBufferSource();
@@ -5727,10 +5842,23 @@
       g.gain.exponentialRampToValueAtTime(0.0008, t + spec.dur);
     },
 
-    /** 玩家听到别人发出的声音：音量 ∝ margin，声像 ∝ 路径入口方向 */
+    /**
+     * 玩家听到别人发出的声音：音量来自 margin，声像来自路径入口方向。
+     *
+     * `[实测]` 映射曲线从线性改成开方。
+     * 线性 (`margin/45`) 下，margin 5 只有满音量的 11% —— 几乎听不见。
+     * 而 margin 5 在规则层的意思是「**你确实听见了**，只是很轻」：
+     * 站在烧开的水壶边上（咕嘟声 15、阈值 8）算出来就是这个数，
+     * 玩家却什么都听不到，于是以为音效没做。
+     *
+     * 人耳本来就是对数的。开方之后 margin 5 → 33%，margin 45 → 100%，
+     * **「刚好听得见」和「就在耳边」之间才有可用的动态范围** ——
+     * 这对蜷伏者呼吸（12）、远处脚步这些贴着阈值的声音同样重要，
+     * 而它们正是这个游戏最该被听见的东西。
+     */
     onHeard(info, player) {
       if (!this.enabled) return;
-      const gain = Math.min(1, info.margin / 45) * 0.85;
+      const gain = Math.sqrt(Math.min(1, info.margin / 45)) * 0.85;
       const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
       const pan = info.dir.x * right.x + info.dir.z * right.z;
       this.play(info.evt.category, gain, pan);
@@ -5807,7 +5935,9 @@
   }
   // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
   const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
-                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
+                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90',
+                   // 烧水的咕嘟走 Ambient 的青绿；水开的哨声给它自己的暖黄，声纹上一眼能认出来
+                   Boil: '120,200,190', Whistle: '255,196,90', _: '190,210,230' };
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
@@ -5978,7 +6108,20 @@
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
         t.type === 'panel' ? `[F] ${t.obj.name}`
-        : t.type === 'outlet' ? C.Outlets.label(t.obj)
+        : t.type === 'placed' ? `[F] ${C.ITEMS[t.obj.itemId].name}` +
+            (C.Placement.blocker(t.obj) ? `（${C.Placement.blocker(t.obj)}）` : '')
+        : t.type === 'outlet'
+            /* 手里拿着线的时候，插座提示要说「插这根线」，
+               并且**把还差多远写出来** —— 「线不够长」是这一步唯一的失败方式。 */
+            ? (C.Placement.cable
+                ? (() => {
+                    const pl = C.Placement.cable.placed;
+                    const d = C.V.dist(pl.pos, t.obj.pos), len = C.Config.power.cordMetres;
+                    return d > len
+                      ? `[F] 线不够长　还差 ${(d - len).toFixed(1)} 米`
+                      : `[F] 把${C.ITEMS[pl.itemId].name}插在这里　${d.toFixed(1)}/${len} 米`;
+                  })()
+                : C.Outlets.label(t.obj))
         : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);
@@ -7212,11 +7355,28 @@
           '<section class="inv-pane" id="invBagPane"></section>' +
           '<section class="inv-pane" id="invBoxPane"></section>' +
         '</div>' +
-        '<p class="inv-hint">点击容器里的物品拿取 · 点击背包里的物品使用 · ' +
-          '<b>Shift+点击</b>放进快取栏 · <b>右键</b>丢弃 · <kbd>B</kbd>/<kbd>Esc</kbd> 关闭</p>';
+        '<p class="inv-hint"><b>拖动</b>格子搬东西（背包 ↔ 快取栏 ↔ 容器）· ' +
+          '<b>左键</b>使用/拿取 · <b>右键</b>出菜单（放置 / 放到地上 / 使用）· ' +
+          '<kbd>B</kbd>/<kbd>Esc</kbd> 关闭</p>' +
+        '<div id="invMenu"></div>';
       this.bagPane = document.getElementById('invBagPane');
       this.boxPane = document.getElementById('invBoxPane');
+      this.menuEl = document.getElementById('invMenu');
       document.getElementById('btnBag').addEventListener('click', () => this.toggle());
+
+      /* ── 拖放 ────────────────────────────────────────
+         `[实测]` 背包原来只能点，不能拖。搜刮界面（28-loot-ui）早就能拖了，
+         于是**同一个格子，在两个界面里的操作方式不一样** —— 这比两个都不能拖更糟。
+         按下超过 4px 才算拖，否则一次轻微的手抖会把「点击使用」吃掉。 */
+      this.el.addEventListener('pointerdown', (e) => this._down(e));
+      addEventListener('pointermove', (e) => this._move(e));
+      addEventListener('pointerup', (e) => this._up(e));
+      addEventListener('pointercancel', () => this._cancelDrag());
+      this.menuEl.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-mact]');
+        if (b) { this._menuAct(b.dataset.mact); }
+        this._closeMenu();
+      });
     },
 
     toggle(container) {
@@ -7299,8 +7459,13 @@
       if (tidy) tidy.onclick = () => { p.bag.tidy(); this.render(); this.game.msg('整理完毕'); };
 
       this.el.querySelectorAll('.inv-item, .hot-slot b').forEach(el => {
-        el.oncontextmenu = (e) => { e.preventDefault(); this._drop(el.dataset.uid); };
+        // 右键不再是「直接丢掉」——先弹菜单，因为「放置」也在这里
+        el.oncontextmenu = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          this._openMenu(+el.dataset.uid, e.clientX, e.clientY);
+        };
         el.onclick = (e) => {
+          if (this._dragged) return;                 // 刚刚是拖动，不当点击处理
           const uid = +el.dataset.uid;
           const box = this.container;
           const inBox = box && box.grid.items.some(i => i.uid === uid);
@@ -7368,6 +7533,131 @@
       if (r.ok && this.game.renderer) this.game.renderer.addLoose(r.loose);
       this.game.msg(r.msg + '　（走近按 F 捡回来）');
       this.render();
+    },
+
+    /* ── 右键菜单 ────────────────────────────────────
+       「放置」必须在这里，因为它是**从背包出发**的动作：
+       玩家先想到「我要把水壶摆出来」，才会去想摆在哪。 */
+    _openMenu(uid, x, y) {
+      const f = this._findAnywhere(uid);
+      if (!f) return;
+      const inBox = this.container && this.container.grid.items.indexOf(f.it) >= 0;
+      const def = C.ITEMS[f.it.id];
+      this._menuUid = uid;
+      const items = [];
+      if (inBox) items.push(['take', '拿走']);
+      else {
+        if (def.use) items.push(['use', '使用']);
+        if (C.Placement.placeable(f.it.id)) items.push(['place', '放置…', '摆到台面或地上']);
+        items.push(['hot', '放进快取栏']);
+        items.push(['drop', '放到地上', '走近按 F 能捡回来']);
+      }
+      this.menuEl.innerHTML =
+        `<div class="inv-menu" style="left:${x}px;top:${y}px">` +
+        `<h6>${def.name}</h6>` +
+        items.map(([a, label, hint]) =>
+          `<button data-mact="${a}">${label}${hint ? `<em>${hint}</em>` : ''}</button>`).join('') +
+        '</div>';
+      this.menuEl.classList.add('on');
+    },
+    _closeMenu() { this.menuEl.classList.remove('on'); this.menuEl.innerHTML = ''; this._menuUid = null; },
+
+    _menuAct(act) {
+      const uid = this._menuUid;
+      if (uid === null || uid === undefined) return;
+      if (act === 'use') return this._use(uid);
+      if (act === 'take') return this._take(uid);
+      if (act === 'hot') return this._toHotbar(uid);
+      if (act === 'drop') return this._drop(uid);
+      if (act === 'place') {
+        const f = this._findAnywhere(uid);
+        if (!f) return;
+        const r = C.Placement.begin(f.it);
+        this.game.msg(r.msg);
+        // 放置要用准星瞄，所以**必须先把背包收起来**
+        if (r.ok) this.close();
+      }
+    },
+
+    /* ── 拖放 ────────────────────────────────────────
+       三个去处：背包格子、快取位、容器格子。
+       松手时按落点所在的面板决定搬到哪，落在外面 = 什么也不做（不是丢掉）。 */
+    _down(e) {
+      /* `[实测]` 菜单开着时按下鼠标要关掉它 —— **但点在菜单自己身上不算**。
+         不加这个判断的话，pointerdown 会在 click 事件到达按钮之前把菜单关掉，
+         于是菜单里的每一项都点不动，而且没有任何报错。 */
+      if (this.menuEl.classList.contains('on')) {
+        if (!e.target.closest('.inv-menu')) this._closeMenu();
+        return;
+      }
+      if (e.button !== 0) return;
+      const el = e.target.closest('.inv-item, .hot-slot b');
+      if (!el || el.classList.contains('hid')) return;
+      this._drag = { uid: +el.dataset.uid, x0: e.clientX, y0: e.clientY, el, ghost: null };
+      this._dragged = false;
+    },
+    _move(e) {
+      const d = this._drag;
+      if (!d) return;
+      if (!this._dragged) {
+        if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 4) return;   // 手抖不算拖
+        this._dragged = true;
+        const r = d.el.getBoundingClientRect();
+        const g = d.el.cloneNode(true);
+        g.className = 'inv-item loot-ghost';
+        g.style.width = r.width + 'px'; g.style.height = r.height + 'px';
+        document.body.appendChild(g);
+        d.ghost = g; d.ox = e.clientX - r.left; d.oy = e.clientY - r.top;
+        d.el.classList.add('dragging');
+      }
+      d.ghost.style.left = (e.clientX - d.ox) + 'px';
+      d.ghost.style.top = (e.clientY - d.oy) + 'px';
+    },
+    _up(e) {
+      const d = this._drag;
+      if (!d) return;
+      if (this._dragged) {
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        this._drop2(d.uid, under);
+      }
+      this._cancelDrag();
+      // 让紧跟着的那次 click 知道刚才是拖动，别再当成「使用」
+      setTimeout(() => { this._dragged = false; }, 0);
+    },
+    _cancelDrag() {
+      const d = this._drag;
+      if (!d) return;
+      if (d.ghost) d.ghost.remove();
+      if (d.el) d.el.classList.remove('dragging');
+      this._drag = null;
+    },
+
+    /** 松手：按落点在哪块面板，决定搬到哪 */
+    _drop2(uid, under) {
+      if (!under) return;
+      const slot = under.closest('.hot-slot');
+      if (slot) { this._toHotbar(uid); return; }
+      if (under.closest('#invBoxPane')) {
+        // 往容器里放：先从身上拿掉，再塞进容器
+        const p = this.game.player, box = this.container, f = this._findAnywhere(uid);
+        if (!box || !f || box.grid.items.indexOf(f.it) >= 0) return;
+        if (f.from === 'hotbar') p.hotbar[f.slot] = null; else f.from.remove(f.it);
+        if (!box.grid.autoAdd(f.it).ok) { p.acquire(f.it); this.game.msg('容器里放不下'); }
+        this.render();
+        return;
+      }
+      if (under.closest('#invBagPane')) {
+        const p = this.game.player, f = this._findAnywhere(uid);
+        if (!f || !p.bag) return;
+        if (f.from === p.bag) return;                       // 本来就在背包里
+        if (f.from === 'hotbar') p.hotbar[f.slot] = null; else f.from.remove(f.it);
+        if (!p.bag.autoAdd(f.it).ok) {
+          // 放不下就退回原处，**不能把东西弄没**
+          if (f.from === 'hotbar') p.hotbar[f.slot] = f.it; else f.from.autoAdd(f.it);
+          this.game.msg('背包放不下');
+        }
+        this.render();
+      }
     }
   };
 
@@ -8380,6 +8670,15 @@
     canCook(recipe, station, have) {
       if (recipe.lv > this.level()) return { ok: false, why: '还不会做（需要烹饪 ' + recipe.lv + ' 级）' };
 
+      /* 自带水箱的设备（电水壶/电饭煲/电炖锅）**要先往里倒水**。
+         `station.water === null/undefined` = 这台设备不吃这条规则（锅是从背包拿水的）。
+         `[实测]` 通电了还不会自己烧，是这条流程里最后一个「以为坏了」的坑 ——
+         所以这句话必须说出「壶里没水」，而不是笼统的「做不了」。 */
+      if (station.water !== null && station.water !== undefined &&
+          recipe.need && recipe.need.water && station.water < 1) {
+        return { ok: false, why: '壶里没水 —— 先倒一瓶水进去' };
+      }
+
       // 不需要加热的（泡面、咸菜配粥、腌菜、手擀面）
       if (recipe.heater !== 'none') {
         if (!station.heater) return { ok: false, why: '没有加热设备' };
@@ -8517,13 +8816,19 @@
     _onDone(st, recipe, nowHours) {
       const K = C.Config.cooking;
       const H = st.heater ? K.heaters[st.heater] : null;
-      // 结束提示音：**微波炉那声「叮」是全游戏最尴尬的死法之一。这是有意的。**
+      /* 结束提示音：**微波炉那声「叮」是全游戏最尴尬的死法之一。这是有意的。**
+         电水壶烧开是**哨响**（Whistle），和别的提示音听起来完全不一样 ——
+         这是玩家人在别的房间、只靠耳朵判断「水开了」的唯一依据。 */
       if (H && H.done > 0 && !st.debuzzed) {
+        const whistle = st.heater === 'kettle';
         C.SoundSystem.emit({
-          worldPosition: st.pos, loudness: H.done, category: C.SoundCategory.Impact,
-          emitterId: -1, label: H.name + '提示音'
+          worldPosition: st.pos, loudness: H.done,
+          category: whistle ? C.SoundCategory.Whistle : C.SoundCategory.Impact,
+          emitterId: -1, label: whistle ? '水开了' : H.name + '提示音'
         });
       }
+      // 烧完这壶，水箱就空了 —— 下一壶要重新倒
+      if (st.water !== null && st.water !== undefined && recipe.need && recipe.need.water) st.water = 0;
       if (H && H.autoShutoff && H.watt > 0 && st.link) {
         C.Power.setDevice(st.link, st.deviceId, false);
       }
@@ -8688,8 +8993,11 @@
         }
         if (ss.phase === Phase.Overcooked) loud += C.Config.cooking.overcookLoudAdd;
         if (loud <= 0) continue;
+        /* 烧水的过程声单独一类：**它和别的烹饪听起来不一样**，
+           玩家在隔壁房间就该听得出「我那壶水还在烧」。 */
+        const cat = ss.recipeId === 'boilWater' ? C.SoundCategory.Boil : C.SoundCategory.Ambient;
         C.SoundSystem.emit({
-          worldPosition: st.pos, loudness: loud, category: C.SoundCategory.Ambient,
+          worldPosition: st.pos, loudness: loud, category: cat,
           emitterId: -1, label: recipe.name + '（' + ss.phase + '）'
         });
       }
@@ -8708,6 +9016,7 @@
         stations: this.stations.map(st => ({
           id: st.id, pos: st.pos ? C.V.copy(st.pos) : null, surface: st.surface, slots: st.slots,
           heater: st.heater, cookware: st.cookware, deviceId: st.deviceId, debuzzed: !!st.debuzzed,
+          water: st.water === undefined ? null : st.water, placedId: st.placedId || null,
           linkId: st.link ? st.link.id : null,
           session: st.session ? {
             recipeId: st.session.recipeId, startAt: st.session.startAt,
@@ -8730,6 +9039,8 @@
         const st = this.addStation({ pos: r.pos, surface: r.surface, slots: r.slots,
                                      heater: r.heater, cookware: r.cookware, deviceId: r.deviceId });
         st.id = r.id; st.debuzzed = r.debuzzed;
+        st.water = r.water === undefined ? null : r.water;
+        st.placedId = r.placedId || null;
         st.link = C.Power.links.find(l => l.id === r.linkId) || null;
         if (r.session) st.session = Object.assign(Object.create(Session.prototype), r.session);
       }
@@ -10015,6 +10326,445 @@
   C.PanelUI = PanelUI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* ===== src/38-placement.js ===== */
+/*
+ * 38-placement.js —— 把东西从背包里拿出来，放到世界上
+ *
+ * 这是待决策 #18 的答案：**在这之前，灶台只能由代码创建。**
+ * 玩家背着一台电磁炉走了三十天，永远没办法把它放到桌子上。
+ *
+ * 一条完整的链子，每一步都是玩家亲手做的：
+ *
+ *   背包右键 → 放置 → 找个台面按左键放下
+ *        ↓
+ *   对准它按 F → 插电 → **手里多了一根线** → 走到插座前按 F
+ *        ↓
+ *   对准它按 F → 加水（用掉一瓶水）
+ *        ↓
+ *   对准它按 F → 烧水 → 咕嘟咕嘟…… → **哨响**
+ *
+ * **每一步都有独立的失败方式，而且都能听见。**
+ * 线不够长、这层的闸没推、壶里没水 —— 三种「插上了没反应」是三件不同的事。
+ *
+ * 第 4 层。规则在这里，界面在 39-device-ui。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+  const V = C.V;
+
+  /** 能被放到地上/台面上的东西：所有电器 + 锅具 */
+  function placeableKind(itemId) {
+    if (C.Config.power.devices[itemId] !== undefined) return 'device';
+    if (C.Config.cooking.cookware[itemId]) return 'cookware';
+    return null;
+  }
+
+  const Placement = {
+    list: [],            // 已经放在世界上的东西
+    ghost: null,         // 正在放置：{ itemId, uid, pos, ok, why }
+    cable: null,         // 正在拉线：{ placed }
+    _next: 1,
+    game: null,          // 装配层注入，用来拿 world / player
+
+    reset() {
+      this.list = []; this.ghost = null; this.cable = null; this._next = 1;
+      return this;
+    },
+
+    at(id) { return this.list.find(p => p.id === id) || null; },
+    placeable(itemId) { return placeableKind(itemId) !== null; },
+
+    /* ── 放置 ────────────────────────────────────────── */
+
+    /** 从背包里选中一件东西，进入放置模式。**这时候还没有从背包里拿走。** */
+    begin(item) {
+      if (!item) return { ok: false, msg: '没有这件东西' };
+      if (!this.placeable(item.id)) return { ok: false, msg: C.ITEMS[item.id].name + '不能放置' };
+      this.ghost = { itemId: item.id, uid: item.uid, pos: null, ok: false, why: '' };
+      C.EventBus.publish('PlacementBeganEvent', { itemId: item.id });
+      return { ok: true, msg: '找个台面，左键放下（Esc 取消）' };
+    },
+    cancel() {
+      if (!this.ghost) return;
+      this.ghost = null;
+      C.EventBus.publish('PlacementEndedEvent', {});
+    },
+
+    /**
+     * 每帧算一次「如果现在放下，会放在哪」。
+     *
+     * 从眼睛往前逐段采样，取**最后一个**站得住的落点：
+     * 有台面接着、上方有净空、离玩家不太远。
+     * `[实测]` 取「第一个」的话，视线扫过桌沿时预览会跳回脚下 ——
+     * 取最后一个，预览才跟着准星平滑地滑过桌面。
+     */
+    update(player, world) {
+      if (!this.ghost) return;
+      const eye = player.eyePos();
+      const cp = Math.cos(player.pitch);
+      const dir = { x: -Math.sin(player.yaw) * cp, y: Math.sin(player.pitch), z: -Math.cos(player.yaw) * cp };
+      let found = null;
+      for (let d = 0.5; d <= 3.0; d += 0.15) {
+        const p = { x: eye.x + dir.x * d, y: eye.y + dir.y * d, z: eye.z + dir.z * d };
+        const g = world.groundY(p, p.y + 0.05, 0.22);
+        if (g === null) continue;
+        if (p.y - g > 0.55) continue;                    // 悬空太多，说明还没落到台面上
+        if (!world.isClear(p.x, p.z, g, 0.45, 0.22)) continue;
+        found = { x: p.x, y: g + 0.01, z: p.z };
+      }
+      if (!found) { this.ghost.pos = null; this.ghost.ok = false; this.ghost.why = '这里放不下'; return; }
+      // 不许和已经放好的东西叠在一起
+      const clash = this.list.find(o => V.distXZ(o.pos, found) < 0.35 && Math.abs(o.pos.y - found.y) < 0.4);
+      this.ghost.pos = found;
+      this.ghost.ok = !clash;
+      this.ghost.why = clash ? '那里已经有' + C.ITEMS[clash.itemId].name + '了' : '';
+    },
+
+    /** 确认放下。**这一刻才从背包里扣掉。** */
+    confirm(player) {
+      const gh = this.ghost;
+      if (!gh) return { ok: false, msg: '没有在放置' };
+      if (!gh.pos || !gh.ok) return { ok: false, msg: gh.why || '这里放不下' };
+      const item = this._findItem(player, gh.uid) || { id: gh.itemId, count: 1 };
+      const kind = placeableKind(gh.itemId);
+      const placed = {
+        id: 'pl' + (this._next++), itemId: gh.itemId, kind,
+        pos: V.copy(gh.pos), yaw: player.yaw,
+        station: null, outletId: null
+      };
+      /* 加热设备落地就是一个灶台 —— 和插座那边同一条规矩（见 35-outlets）。
+         区别是这里没有电：它得等玩家把线拉过去。 */
+      if (C.Config.cooking.heaters[gh.itemId]) {
+        placed.station = C.Cooking.addStation({
+          pos: V.copy(gh.pos), surface: 'placed', slots: 1, heater: gh.itemId
+        });
+        // 自带水箱的（电水壶/电饭煲/电炖锅）要单独加水，不吃背包里的水
+        placed.station.water = C.Config.cooking.heaters[gh.itemId].needsCookware ? null : 0;
+        placed.station.placedId = placed.id;
+      }
+      if (kind === 'cookware') {
+        // 锅具：放到最近的灶台上，没有灶台就单独摆着
+        const st = this._nearestStation(gh.pos, 0.9);
+        if (st) { st.cookware = gh.itemId; placed.station = st; }
+      }
+      this.list.push(placed);
+      if (item.uid !== undefined) player._removeItem(item);
+      this.ghost = null;
+
+      const L = C.Config.loudness;
+      C.SoundSystem.emit({
+        worldPosition: placed.pos, loudness: L.dropItem + 4, category: C.SoundCategory.Impact,
+        emitterId: player.id, label: '放下' + C.ITEMS[gh.itemId].name
+      });
+      C.EventBus.publish('ItemPlacedEvent', { placed });
+      return { ok: true, msg: '放好了 ' + C.ITEMS[gh.itemId].name, placed };
+    },
+
+    _findItem(player, uid) {
+      for (const it of player.hotbar) if (it && it.uid === uid) return it;
+      if (player.bag) { const it = player.bag.items.find(x => x.uid === uid); if (it) return it; }
+      return null;
+    },
+    _nearestStation(pos, r) {
+      let best = null, bd = r;
+      for (const st of C.Cooking.stations) {
+        if (!st.pos) continue;
+        const d = V.dist(st.pos, pos);
+        if (d < bd) { bd = d; best = st; }
+      }
+      return best;
+    },
+
+    /** 收起来：拔线、拆灶台、回到背包 */
+    takeBack(placed, player) {
+      if (placed.station && placed.station.session) {
+        return { ok: false, msg: '还在做东西，先关火' };
+      }
+      this.unplug(placed);
+      if (placed.station && placed.kind === 'device') {
+        const i = C.Cooking.stations.indexOf(placed.station);
+        if (i >= 0) C.Cooking.stations.splice(i, 1);
+      } else if (placed.kind === 'cookware' && placed.station) {
+        placed.station.cookware = null;
+      }
+      const i2 = this.list.indexOf(placed);
+      if (i2 >= 0) this.list.splice(i2, 1);
+      const back = C.makeItem(placed.itemId, 1);
+      const r = player.acquire(back);
+      if (!r.ok) player.dropItem(back);      // 背包满了就掉在脚边，**不能凭空销毁**
+      C.EventBus.publish('ItemUnplacedEvent', { placed });
+      return { ok: true, msg: '收起 ' + C.ITEMS[placed.itemId].name + (r.ok ? '' : '（背包满了，放在脚边）') };
+    },
+
+    /* ── 拉线 ────────────────────────────────────────── */
+
+    cordMetres(placed) { return C.Config.power.cordMetres; },
+
+    /** 「插电」：手里拿起这台设备自带的那根线 */
+    takeCable(placed) {
+      if (placed.kind !== 'device') return { ok: false, msg: C.ITEMS[placed.itemId].name + '不用电' };
+      if (placed.outletId) return this.unplug(placed);
+      this.cable = { placed };
+      C.EventBus.publish('CableTakenEvent', { placed });
+      return { ok: true, msg: '拿起了' + C.ITEMS[placed.itemId].name + '的电线 —— 去找个插座（线长 ' +
+                             this.cordMetres(placed).toFixed(1) + ' 米）' };
+    },
+    dropCable() {
+      if (!this.cable) return;
+      this.cable = null;
+      C.EventBus.publish('CableDroppedEvent', {});
+    },
+
+    /**
+     * 把手里这根线插进插座。
+     *
+     * **线的长度是这一步唯一的、也是全部的约束。**
+     * 它把「灶台放哪」从一个随手的决定，变成一个要看着插座位置做的决定。
+     */
+    plugCableInto(outlet) {
+      const c = this.cable;
+      if (!c) return { ok: false, msg: '手上没有线' };
+      const placed = c.placed;
+      const dist = V.dist(placed.pos, outlet.pos);
+      const len = this.cordMetres(placed);
+      if (dist > len) {
+        return { ok: false, msg: '线不够长 —— 还差 ' + (dist - len).toFixed(1) + ' 米。把' +
+                                C.ITEMS[placed.itemId].name + '挪近点，或者接一根电线' };
+      }
+      if (C.Outlets.at(outlet)) return { ok: false, msg: '这个插座上已经插着东西了' };
+
+      const src = C.Outlets._sourceFor(outlet);
+      const link = C.Power.createLink(src);
+      link.cables = []; link.wall = true;
+      const deviceId = 'dev-' + outlet.id;
+      link.devices.push({ id: deviceId, watt: C.Config.power.devices[placed.itemId],
+                          on: false, label: C.ITEMS[placed.itemId].name });
+      C.Outlets.plugged[outlet.id] = {
+        link, deviceId, itemId: placed.itemId, outletId: outlet.id,
+        station: placed.station, placedId: placed.id
+      };
+      placed.outletId = outlet.id;
+      if (placed.station) { placed.station.link = link; placed.station.deviceId = deviceId; }
+      this.cable = null;
+
+      const r = C.Power.setDevice(link, deviceId, true);
+      C.EventBus.publish('CablePluggedEvent', { placed, outlet, ok: r.ok });
+      /* 闸没推照样插得上，只是没反应 —— 和 35-outlets 同一条规矩，
+         那句「插上了，什么也没发生」是教学目标 3 的全部内容。 */
+      return { ok: true, msg: r.ok ? '通电了' : '插上了 —— ' + r.msg };
+    },
+
+    unplug(placed) {
+      if (!placed.outletId) return { ok: false, msg: '本来就没插' };
+      const rec = C.Outlets.plugged[placed.outletId];
+      if (rec) {
+        if (placed.station && placed.station.session) C.Cooking.stop(placed.station);
+        const li = C.Power.links.indexOf(rec.link);
+        if (li >= 0) C.Power.links.splice(li, 1);
+        delete C.Outlets.plugged[placed.outletId];
+      }
+      placed.outletId = null;
+      if (placed.station) { placed.station.link = null; placed.station.deviceId = null; }
+      return { ok: true, msg: '拔了' };
+    },
+    powered(placed) {
+      const st = placed.station;
+      if (!st || !st.link) return false;
+      return st.link.source.available(C.Power.env()) > 0 && !st.link.tripped;
+    },
+
+    /* ── 加水 ────────────────────────────────────────── */
+
+    /**
+     * 往自带水箱的设备里倒水。
+     *
+     * **通电了还不会自己烧** —— 空烧一壶是这个流程里最后一个「以为坏了」的坑，
+     * 所以界面上必须永远写着现在缺的是哪一样。
+     */
+    addWater(placed, player) {
+      const st = placed.station;
+      if (!st || st.water === null || st.water === undefined) {
+        return { ok: false, msg: C.ITEMS[placed.itemId].name + '不用单独加水' };
+      }
+      if (st.water >= 1) return { ok: false, msg: '已经是满的' };
+      const src = this._findWater(player);
+      if (!src) return { ok: false, msg: '身上没有水' };
+      st.water = 1;
+      src.count--;
+      if (src.count <= 0) player._removeItem(src);
+      C.SoundSystem.emit({
+        worldPosition: placed.pos, loudness: 10, category: C.SoundCategory.Ambient,
+        emitterId: player.id, label: '倒水'
+      });
+      C.EventBus.publish('WaterAddedEvent', { placed });
+      return { ok: true, msg: '倒进去了' };
+    },
+    _findWater(player) {
+      const isWater = (id) => id === 'water' || id === 'boiled' || id === 'dirtyWater';
+      for (const it of player.hotbar) if (it && isWater(it.id)) return it;
+      if (player.bag) { const it = player.bag.items.find(x => isWater(x.id)); if (it) return it; }
+      return null;
+    },
+
+    /** 现在还差什么 —— 界面直接显示这句话 */
+    blocker(placed) {
+      if (placed.kind !== 'device') return null;
+      if (!placed.outletId) return '没插电';
+      if (!this.powered(placed)) return '插着，但这条回路没电';
+      const st = placed.station;
+      if (st && st.water !== null && st.water !== undefined && st.water < 1) return '壶里没水';
+      return null;
+    },
+
+    serialize() {
+      return this.list.map(p => ({
+        id: p.id, itemId: p.itemId, kind: p.kind, pos: V.copy(p.pos), yaw: p.yaw,
+        outletId: p.outletId, stationId: p.station ? p.station.id : null,
+        water: p.station && p.station.water !== undefined ? p.station.water : null
+      }));
+    },
+    deserialize(list) {
+      this.list = []; this.ghost = null; this.cable = null;
+      for (const r of list || []) {
+        if (!C.ITEMS[r.itemId]) continue;
+        const st = r.stationId !== null && r.stationId !== undefined
+          ? (C.Cooking.stations.find(s => s.id === r.stationId) || null) : null;
+        if (st && r.water !== null) st.water = r.water;
+        this.list.push({ id: r.id, itemId: r.itemId, kind: r.kind, pos: V.copy(r.pos),
+                         yaw: r.yaw, station: st, outletId: r.outletId || null });
+      }
+      this._next = this.list.reduce((n, p) => Math.max(n, parseInt(p.id.slice(2), 10) + 1), 1);
+      return this;
+    }
+  };
+
+  C.Placement = Placement;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/39-device-ui.js ===== */
+/*
+ * 39-device-ui.js —— 放置模式的准星预览 · 放好之后那台设备的操作菜单
+ *
+ * 两块：
+ *   ① 放置预览：屏幕中间一行字 + 一个绿/红的落点框。**不暂停游戏。**
+ *   ② 设备菜单：对准放好的东西按 F 弹出。插电 / 加水 / 烧水 / 收起。
+ *
+ * 菜单上永远写着**现在还差什么**（「没插电」「这条回路没电」「壶里没水」）——
+ * 三种「按了没反应」是三件不同的事，把它们说清楚，玩家就不会以为设备坏了。
+ */
+(function (root) {
+  const C = (root.Campus = root.Campus || {});
+
+  const DeviceUI = {
+    open: false, game: null, placed: null,
+
+    init(game) {
+      this.game = game;
+      this.el = document.getElementById('device');
+      this.el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (b) this._act(b.dataset.act);
+      });
+      C.EventBus.subscribe('DeviceOpenedEvent', (e) => this.toggle(e.placed));
+    },
+
+    toggle(placed) {
+      if (this.open && this.placed === placed) return this.close();
+      this.placed = placed; this.open = true;
+      this.el.classList.add('open');
+      this.game.releaseMouseForPanel();
+      this.render();
+    },
+    close() {
+      if (!this.open) return;
+      this.open = false; this.placed = null;
+      this.el.classList.remove('open');
+      this.game.restoreMouseAfterPanel();
+    },
+    update(player) {
+      if (!this.open || !this.placed) return;
+      if (C.V.dist(player.pos, this.placed.pos) > C.Config.interact.range + 2.0) this.close();
+    },
+
+    _act(act) {
+      const P = C.Placement, pl = this.placed, p = this.game.player;
+      if (act === 'close') return this.close();
+      if (act === 'cable') { this.game.msg(P.takeCable(pl).msg); return this.close(); }
+      if (act === 'unplug') { this.game.msg(P.unplug(pl).msg); return this.render(); }
+      if (act === 'water') { this.game.msg(P.addWater(pl, p).msg); return this.render(); }
+      if (act === 'take') { const r = P.takeBack(pl, p); this.game.msg(r.msg); return r.ok ? this.close() : this.render(); }
+      if (act === 'boil') {
+        const now = this.game.time.totalGameSeconds / 3600;
+        const r = C.Cooking.start('boilWater', pl.station, now, {});
+        this.game.msg(r.msg);
+        return this.render();
+      }
+      if (act === 'kitchen') { this.close(); return C.KitchenUI.toggle(); }
+    },
+
+    render() {
+      if (!this.open || !this.placed) return;
+      const P = C.Placement, pl = this.placed;
+      const name = C.ITEMS[pl.itemId].name;
+      const st = pl.station;
+      const blocker = P.blocker(pl);
+      const rows = [];
+
+      if (pl.kind === 'device') {
+        const watt = C.Config.power.devices[pl.itemId];
+        rows.push(pl.outletId
+          ? `<button data-act="unplug">拔掉电线</button><em>${P.powered(pl) ? '通电中' : '插着，但没电'}　${watt}W</em>`
+          : `<button data-act="cable">插电</button><em>拿起它自带的电线（${C.Config.power.cordMetres} 米）　${watt}W</em>`);
+      }
+      if (st && st.water !== null && st.water !== undefined) {
+        rows.push(st.water >= 1
+          ? '<span class="dv-ok">水是满的</span>'
+          : '<button data-act="water">加水</button><em>用掉身上一瓶水</em>');
+      }
+      if (st && st.heater === 'kettle') {
+        const ss = st.session;
+        if (ss) {
+          rows.push(`<span class="dv-ok">${ss.phase === C.CookPhase.Cooking ? '正在烧……' : '烧好了'}</span>`);
+        } else {
+          const chk = C.Cooking.canCook(C.Config.recipes.find(r => r.id === 'boilWater'), st);
+          rows.push(chk.ok && !blocker
+            ? '<button data-act="boil">烧水</button><em>约 9 分钟，烧开会响</em>'
+            : `<span class="dv-no">${blocker || chk.why}</span>`);
+        }
+      } else if (st && st.heater) {
+        rows.push('<button data-act="kitchen">打开厨房</button><em>选配方（K）</em>');
+      }
+      rows.push('<button data-act="take">收起来</button><em>放回背包</em>');
+
+      this.el.innerHTML =
+        '<div class="dv-panel">' +
+          `<h5>${name}<button class="loot-btn" data-act="close">关闭</button></h5>` +
+          (blocker ? `<p class="dv-block">现在还差：<b>${blocker}</b></p>` : '') +
+          rows.map(r => `<div class="dv-row">${r}</div>`).join('') +
+        '</div>';
+    }
+  };
+
+  /* ── 放置预览 ────────────────────────────────────────
+     屏幕中间一行字 + 落点框。**绿=放得下，红=放不下并说明原因。** */
+  const PlaceUI = {
+    game: null,
+    init(game) { this.game = game; this.el = document.getElementById('place'); },
+    update() {
+      const gh = C.Placement.ghost;
+      if (!gh) { if (this.el.classList.contains('on')) this.el.classList.remove('on'); return; }
+      this.el.classList.add('on');
+      this.el.innerHTML =
+        `<div class="pl-box ${gh.ok ? 'ok' : 'no'}"></div>` +
+        `<div class="pl-tip">${gh.ok ? '左键放下 ' + C.ITEMS[gh.itemId].name : (gh.why || '这里放不下')}` +
+        '<small>Esc 取消</small></div>';
+    }
+  };
+
+  C.DeviceUI = DeviceUI;
+  C.PlaceUI = PlaceUI;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 /* ===== src/20-save.js ===== */
 /*
  * 20-save.js —— 存档（主文档 11.5）
@@ -10067,6 +10817,7 @@
         power: C.Power ? C.Power.serialize() : null,
         cooking: C.Cooking ? C.Cooking.serialize() : null,
         outlets: C.Outlets ? C.Outlets.serialize() : null,
+        placed: C.Placement ? C.Placement.serialize() : null,
         tutorial: C.Tutorial ? C.Tutorial.serialize() : null,
         loadout: C.Loadout ? C.Loadout.serialize() : null,
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
@@ -10127,6 +10878,13 @@
       if (d.power && C.Power) C.Power.deserialize(d.power);
       if (d.cooking && C.Cooking) C.Cooking.deserialize(d.cooking, C.Power);
       if (d.outlets && C.Outlets) C.Outlets.deserialize(d.outlets, game.level);
+      if (d.placed && C.Placement) {
+        C.Placement.deserialize(d.placed);
+        // 关卡里没有它们的网格，读档要补上
+        if (game.renderer && game.renderer.addPlaced) {
+          for (const pl of C.Placement.list) game.renderer.addPlaced(pl);
+        }
+      }
       if (d.tutorial && C.Tutorial) C.Tutorial.deserialize(d.tutorial);
       /* 角色与特性**不重新挂管线** —— restart() 已经挂过一遍了，
          再 apply 一次会把每一条修正叠成两份。`restoreSelection` 只还原选择本身。
@@ -10484,6 +11242,7 @@
       C.Power.reset(this.level);
       C.Cooking.reset();
       C.Outlets.reset();
+      C.Placement.reset(); C.Placement.game = this;
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -10510,9 +11269,12 @@
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
         C.HotbarUI.init(this); C.PanelUI.init(this);
+        C.DeviceUI.init(this); C.PlaceUI.init(this);
         this._noteReady = true;
       }
       C.PanelUI.game = this; C.PanelUI.close();
+      C.DeviceUI.game = this; C.DeviceUI.close();
+      C.PlaceUI.game = this;
       C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
@@ -10531,6 +11293,9 @@
       });
       /* 翻找走轻量的搜刮界面（28-loot-ui），不是全屏背包总览 ——
          翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
+      // 摆出来 / 收起来 → 渲染层跟着加/删一个盒子
+      C.EventBus.subscribe('ItemPlacedEvent', (e) => this.renderer.addPlaced(e.placed));
+      C.EventBus.subscribe('ItemUnplacedEvent', (e) => this.renderer.removePlaced(e.placed));
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
       C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
       /* 跳闸/停电会**报废正在做的东西** —— 电力层只管断电，
@@ -10642,7 +11407,16 @@
             if (C.LootUI.rotate()) { C.LootUI.render(); break; }
             if (!this.player.alive) this.restart();
             break;
-          case 'Escape': C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close(); break;
+          case 'Escape':
+            /* `[实测]` 这个 switch 里原来有**两条 `case 'Escape'`** ——
+               第二条永远执行不到（JS 的 switch 取第一条匹配）。合成一条。
+               顺序有讲究：**先取消正在进行的动作，再关面板** ——
+               正在放置时按 Esc，玩家要的是「别放了」，不是「关背包」。 */
+            if (C.Placement.ghost) { C.Placement.cancel(); this.msg('取消放置'); break; }
+            if (C.Placement.cable) { C.Placement.dropCable(); this.msg('放下了电线'); break; }
+            C.DeviceUI.close(); C.PanelUI.close();
+            C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close();
+            break;
           case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
           case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
           case 'BracketRight': this.debug.floor = Math.min(this.level.bounds.floors - 1, this.debug.floor + 1); this.debug.followPlayer = false; break;
@@ -10654,7 +11428,6 @@
             break;
           case 'KeyU': this._toggleSleep(); break;   // 睡觉（K 让给厨房）
           case 'KeyB': C.InventoryUI.toggle(); break;
-          case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
           case 'Digit1': case 'Digit2': case 'Digit3':
           case 'Digit4': case 'Digit5': case 'Digit6':
@@ -10691,9 +11464,12 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot, #pick')) return;
+        if (e.target && e.target.closest &&
+            e.target.closest('#inv, #note, #tuner, #loot, #pick, #kitchen, #panel, #device, #invMenu')) return;
         // 面板开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
         if (this._panelOpen()) return;
+        // 放置模式下这一次点击是「放下」，mousedown 已经处理过了
+        if (C.Placement.ghost) return;
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
@@ -10731,11 +11507,20 @@
       this.rmb = false;
       addEventListener('mousedown', (e) => {
         if (e.button === 2) this.rmb = true;
+        /* 放置模式下左键 = 放下。**要在指针锁定那段逻辑之前拦掉** ——
+           否则第一次点击会被当成「点击画面开始」，东西放不下去。 */
+        if (e.button === 0 && C.Placement.ghost && !this._panelOpen()) {
+          const r = C.Placement.confirm(this.player);
+          this.msg(r.msg);
+          if (r.ok) C.EventBus.publish('DeviceOpenedEvent', { placed: r.placed });
+          e.preventDefault();
+          return;
+        }
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
             !(e.target && e.target.closest &&
-              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel'))) {
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel, #device'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -10767,7 +11552,8 @@
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
       return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
-             (C.PanelUI && C.PanelUI.open) || (C.LoadoutUI && C.LoadoutUI.open);
+             (C.PanelUI && C.PanelUI.open) || (C.DeviceUI && C.DeviceUI.open) ||
+             (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -10933,6 +11719,11 @@
       C.TutorialUI.update(dt);
       C.HotbarUI.update();
       C.PanelUI.update(this.player);
+      C.DeviceUI.update(this.player);
+      /* 放置模式：每帧算一次落点。**它要在玩家移动之后算**，
+         否则预览框会比画面慢一帧，看起来像在拖影。 */
+      C.Placement.update(this.player, this.world);
+      C.PlaceUI.update();
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};

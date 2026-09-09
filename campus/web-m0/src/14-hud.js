@@ -58,7 +58,9 @@
   }
   // 类别配色：脚步青、撞击黄、低吼红、门灰蓝、环境淡青
   const COLORS = { Footstep: '111,211,232', Impact: '255,212,121', Voice: '228,87,61',
-                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90', _: '190,210,230' };
+                   Door: '150,175,200', Ambient: '120,200,190', Gunshot: '255,120,90',
+                   // 烧水的咕嘟走 Ambient 的青绿；水开的哨声给它自己的暖黄，声纹上一眼能认出来
+                   Boil: '120,200,190', Whistle: '255,196,90', _: '190,210,230' };
 
   function Hud(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.showWatch = false; }
 
@@ -229,7 +231,20 @@
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,227,235,0.92)'; ctx.font = '13px ' + SANS;
       ctx.fillText(
         t.type === 'panel' ? `[F] ${t.obj.name}`
-        : t.type === 'outlet' ? C.Outlets.label(t.obj)
+        : t.type === 'placed' ? `[F] ${C.ITEMS[t.obj.itemId].name}` +
+            (C.Placement.blocker(t.obj) ? `（${C.Placement.blocker(t.obj)}）` : '')
+        : t.type === 'outlet'
+            /* 手里拿着线的时候，插座提示要说「插这根线」，
+               并且**把还差多远写出来** —— 「线不够长」是这一步唯一的失败方式。 */
+            ? (C.Placement.cable
+                ? (() => {
+                    const pl = C.Placement.cable.placed;
+                    const d = C.V.dist(pl.pos, t.obj.pos), len = C.Config.power.cordMetres;
+                    return d > len
+                      ? `[F] 线不够长　还差 ${(d - len).toFixed(1)} 米`
+                      : `[F] 把${C.ITEMS[pl.itemId].name}插在这里　${d.toFixed(1)}/${len} 米`;
+                  })()
+                : C.Outlets.label(t.obj))
         : t.type === 'loose' ? `[F] 拾取 ${C.ITEMS[t.obj.item.id].name} ×${t.obj.item.count}`
         : t.obj.carry ? `[F] 轻点=翻找 ${t.obj.name}（响度 40）　按住=整个拎走（响度 18）`
         : `[F] 翻找 ${t.obj.name}（响度 40）`, cx, cy + 46);

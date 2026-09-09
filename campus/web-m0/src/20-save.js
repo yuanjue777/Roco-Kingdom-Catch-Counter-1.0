@@ -49,6 +49,7 @@
         power: C.Power ? C.Power.serialize() : null,
         cooking: C.Cooking ? C.Cooking.serialize() : null,
         outlets: C.Outlets ? C.Outlets.serialize() : null,
+        placed: C.Placement ? C.Placement.serialize() : null,
         tutorial: C.Tutorial ? C.Tutorial.serialize() : null,
         loadout: C.Loadout ? C.Loadout.serialize() : null,
         skills: JSON.parse(JSON.stringify(C.Config.skills)),
@@ -109,6 +110,13 @@
       if (d.power && C.Power) C.Power.deserialize(d.power);
       if (d.cooking && C.Cooking) C.Cooking.deserialize(d.cooking, C.Power);
       if (d.outlets && C.Outlets) C.Outlets.deserialize(d.outlets, game.level);
+      if (d.placed && C.Placement) {
+        C.Placement.deserialize(d.placed);
+        // 关卡里没有它们的网格，读档要补上
+        if (game.renderer && game.renderer.addPlaced) {
+          for (const pl of C.Placement.list) game.renderer.addPlaced(pl);
+        }
+      }
       if (d.tutorial && C.Tutorial) C.Tutorial.deserialize(d.tutorial);
       /* 角色与特性**不重新挂管线** —— restart() 已经挂过一遍了，
          再 apply 一次会把每一条修正叠成两份。`restoreSelection` 只还原选择本身。

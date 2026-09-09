@@ -217,6 +217,29 @@
     return { mesh: m, loose: l };
   };
 
+  /* ── 玩家摆出来的东西 ────────────────────────────────
+     和散落物不同：它们是**立着的实体**，要能一眼认出「那是我放的电水壶」。
+     用一个稍大的暖色盒子，比 18cm 的散落物方块明显。 */
+  Renderer.prototype.addPlaced = function (placed) {
+    if (!this.placedMeshes) this.placedMeshes = [];
+    const def = C.ITEMS[placed.itemId];
+    const s = def.size || [1, 1];
+    const w = Math.min(0.42, 0.14 + s[0] * 0.08), h = Math.min(0.40, 0.16 + s[1] * 0.07);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
+      new THREE.MeshLambertMaterial({ color: 0xC9D3DC }));
+    m.position.set(placed.pos.x, placed.pos.y + h / 2, placed.pos.z);
+    m.rotation.y = placed.yaw || 0;
+    this.scene.add(m);
+    this.placedMeshes.push({ mesh: m, placed });
+  };
+  Renderer.prototype.removePlaced = function (placed) {
+    if (!this.placedMeshes) return;
+    const i = this.placedMeshes.findIndex(r => r.placed === placed);
+    if (i < 0) return;
+    this.scene.remove(this.placedMeshes[i].mesh);
+    this.placedMeshes.splice(i, 1);
+  };
+
   /** 玩家放下一件东西 —— 关卡建好之后才出现的散落物，要补一个网格 */
   Renderer.prototype.addLoose = function (l) {
     if (!this.looseMeshes) this.looseMeshes = [];

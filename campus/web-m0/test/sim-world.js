@@ -14,14 +14,14 @@ for (const f of ['03-math', '00-config', '01-eventbus', '02-modifiers', '04-soun
                  '18-needs', '21-items', '22-loot', '10-player', '11-zombie',
                  '24-campus', '25-streaming', '26-notebook',
                  '29-power', '30-cooking', '31-tutorial', '33-traits', '35-outlets',
-                 '19-sleep', '20-save']) require(path.join(SRC, f + '.js'));
+                 '19-sleep', '20-save', '38-placement']) require(path.join(SRC, f + '.js'));
 const C = globalThis.Campus;
 
 let pass = 0, fail = 0;
 const ok = (n, c, e) => { if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); } else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '  → ' + e : '')); } };
 const section = t => console.log('\n\x1b[1m' + t + '\x1b[0m');
 
-function world() {
+function world_() {
   C.SoundSystem.reset(); C.ZombieManager.reset(); C.ModifierPipeline.clear(); C.EventBus.clear();
   C.Loadout.reset().selectCharacter('student'); C.Loadout.apply();
   const level = C.buildCampus({ spawn: C.Loadout.spawn(), tutorial: true });
@@ -30,13 +30,14 @@ function world() {
   const time = new C.TimeSystem();
   C.SoundSystem.init(level.graph, time, (a, b) => w.lineOfSight(a, b));
   C.Streaming.reset(level); C.Power.reset(level); C.Cooking.reset(); C.Outlets.reset();
+  C.Placement.reset();
   const player = new C.Player(level, w);
   return { level, world: w, time, player };
 }
 
 section('1. 楼里真的有插座');
 {
-  const { level } = world();
+  const { level } = world_();
   ok('插座不是空的', (level.outlets || []).length > 0, String((level.outlets || []).length));
 
   /* **每一栋楼、每一层都要有。** 只在一楼放的话，
@@ -67,7 +68,7 @@ section('1. 楼里真的有插座');
 
 section('2. 插座没电 = 闸没推（教学目标 3 的全部内容）');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   const o = level.outlets.find(x => /男402/.test(x.id));
   ok('出生那一层的闸是断的，所以这个插座没电', C.Outlets.powered(o) === false);
 
@@ -95,7 +96,7 @@ section('2. 插座没电 = 闸没推（教学目标 3 的全部内容）');
 
 section('3. 插上加热设备就地变成灶台');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   C.Power.setBreaker('circuit-dormM-3', true, null, -1);
   const o = level.outlets.find(x => /男402/.test(x.id));
   ok('插之前一个灶台也没有', C.Cooking.stations.length === 0);
@@ -121,7 +122,7 @@ section('3. 插上加热设备就地变成灶台');
 
 section('4. 放下的东西必须能再捡起来');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   const it = player.hotbar.find(Boolean);
   const id = it.id, n0 = (level.looseItems || []).length;
 
@@ -157,7 +158,7 @@ section('4. 放下的东西必须能再捡起来');
 
 section('5. 捡放不会把物品变没或变多');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   const count = () => {
     let n = player.hotbar.filter(Boolean).length;
     if (player.bag) n += player.bag.items.length;
@@ -173,7 +174,7 @@ section('5. 捡放不会把物品变没或变多');
 
 section('6. 快取栏的内容界面层读得到');
 {
-  const { player } = world();
+  const { player } = world_();
   ok('六格', player.hotbar.length === 6);
   const shown = player.hotbar.map(it => it ? C.ITEMS[it.id].name : null).filter(Boolean);
   ok('学生开局手上有东西', shown.length > 0, shown.join(','));
@@ -183,7 +184,7 @@ section('6. 快取栏的内容界面层读得到');
 
 section('7. 插座进出存档');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   C.Power.setBreaker('circuit-dormM-3', true, null, -1);
   const o = level.outlets.find(x => /男402/.test(x.id));
   player.useOutlet(o);
@@ -199,7 +200,7 @@ section('7. 插座进出存档');
 
 section('8. 配电箱：玩家真的走得到、按得动');
 {
-  const { level, player } = world();
+  const { level, player } = world_();
   ok('每栋楼一个配电箱', level.panels.length === level.buildings.length,
      level.panels.length + ' / ' + level.buildings.length);
   const panel = level.panels.find(p => p.buildingKey === 'dormM');
@@ -235,7 +236,7 @@ section('8. 配电箱：玩家真的走得到、按得动');
 
 section('9. 存档 v3：把 M3 的状态一起带走');
 {
-  const { level, player, time } = world();
+  const { level, player, time } = world_();
   const game = { player, time, level };
   // 造一点状态出来：推一层闸、插上水壶、放一件东西在地上
   C.Power.setBreaker('circuit-dormM-3', true, null, -1);
@@ -258,7 +259,7 @@ section('9. 存档 v3：把 M3 的状态一起带走');
      raw.dropped[0].item.id === dropped.loose.item.id, JSON.stringify(raw.dropped));
 
   // 读回一个全新的世界
-  const s2 = world();
+  const s2 = world_();
   const game2 = { player: s2.player, time: s2.time, level: s2.level };
   C.Save.apply(game2, raw);
   ok('读档还原了那一层的闸', C.Power.circuits.get('circuit-dormM-3').breakerOn === true);
@@ -273,6 +274,138 @@ section('9. 存档 v3：把 M3 的状态一起带走');
   ok('放在地上的东西回来了',
      (s2.level.looseItems || []).some(l => l.dropped && !l.taken), '');
   ok('角色还原', C.Loadout.characterId === 'student');
+}
+
+section('10. 从背包摆出来 → 拉线 → 插电 → 加水 → 烧开');
+{
+  /* **这条链子上的每一步都是玩家亲手做的，每一步都有独立的失败方式。**
+     「线不够长」「这层的闸没推」「壶里没水」是三件不同的事 ——
+     三种「按了没反应」如果长成一个样，玩家只会以为设备坏了。 */
+  const { level, world, player, time } = world_();
+  const P = C.Placement;
+  const kettle = player.hotbar.find(x => x && x.id === 'kettle');
+  ok('学生开局身上有电水壶', !!kettle);
+
+  // ① 放置
+  ok('电水壶可以放置', P.placeable('kettle') === true);
+  ok('石头不能放置（它不是电器也不是锅）', P.placeable('stone') === false);
+  ok('进入放置模式', P.begin(kettle).ok === true);
+  // 站在房间中央、平视，往前应该能找到落点
+  player.pitch = -0.5;
+  P.update(player, world);
+  ok('准星前方算得出落点', P.ghost.pos !== null, JSON.stringify(P.ghost));
+  const before = player.hotbar.filter(Boolean).length;
+  const put = P.confirm(player);
+  ok('放下了', put.ok === true, put.msg);
+  ok('**这一刻才从背包里扣掉**', player.hotbar.filter(Boolean).length === before - 1);
+  ok('世界上多了一件', P.list.length === 1);
+  const pl = put.placed;
+  ok('加热设备落地就是一个灶台', !!pl.station && pl.station.heater === 'kettle');
+  ok('自带水箱的设备水是空的', pl.station.water === 0);
+
+  // ② 拉线
+  ok('还没插电', P.blocker(pl) === '没插电', String(P.blocker(pl)));
+  ok('拿起它自带的线', P.takeCable(pl).ok === true);
+  ok('手上确实拿着线', P.cable && P.cable.placed === pl);
+
+  /* 线长 1.8 米：**这是「灶台放哪」这个决定的全部约束。**
+     它把「随手一摆」变成「要看着插座摆」。 */
+  const far = level.outlets.find(o => C.V.dist(o.pos, pl.pos) > 5);
+  const rFar = P.plugCableInto(far);
+  ok('够不着的插座插不上', rFar.ok === false && /线不够长/.test(rFar.msg), rFar.msg);
+  ok('还差多少米要说出来', /还差 [\d.]+ 米/.test(rFar.msg), rFar.msg);
+  ok('插不上的时候线还在手里', P.cable !== null);
+
+  // 把水壶挪到 402 的插座边上重放
+  const o = level.outlets.find(x => /男402/.test(x.id));
+  P.dropCable();
+  P.takeBack(pl, player);
+  const k2 = player.hotbar.find(x => x && x.id === 'kettle') ||
+             (player.bag && player.bag.items.find(x => x.id === 'kettle'));
+  P.begin(k2);
+  P.ghost.pos = { x: o.pos.x + 0.6, y: o.pos.y - 0.3, z: o.pos.z + 0.4 };
+  P.ghost.ok = true;
+  const pl2 = P.confirm(player).placed;
+  P.takeCable(pl2);
+  const rOk = P.plugCableInto(o);
+  ok('够得着就插得上', rOk.ok === true, rOk.msg);
+  /* **闸没推照样插得上，只是没反应** —— 和 35-outlets 同一条规矩。 */
+  ok('但这一层的闸没推，所以没电', /没电/.test(rOk.msg), rOk.msg);
+  ok('插完线就不在手上了', P.cable === null);
+  ok('现在缺的是电，不是别的', P.blocker(pl2) === '插着，但这条回路没电', String(P.blocker(pl2)));
+
+  // ③ 推闸
+  C.Power.setBreaker('circuit-dormM-3', true, null, -1);
+  C.Power.setDevice(pl2.station.link, pl2.station.deviceId, true);
+  ok('推上闸就通电了', P.powered(pl2) === true);
+  /* **通电了还不会自己烧。** 这是这条流程里最后一个「以为坏了」的坑。 */
+  ok('现在缺的是水', P.blocker(pl2) === '壶里没水', String(P.blocker(pl2)));
+  const boilR = C.Config.recipes.find(r => r.id === 'boilWater');
+  const chk = C.Cooking.canCook(boilR, pl2.station);
+  ok('没水就烧不了，而且说得出为什么', chk.ok === false && /没水/.test(chk.why), chk.why);
+
+  // ④ 加水
+  const water = player.hotbar.find(x => x && x.id === 'water') ||
+                (player.bag && player.bag.items.find(x => x.id === 'water'));
+  ok('身上有水', !!water);
+  ok('倒进去', P.addWater(pl2, player).ok === true);
+  ok('水满了', pl2.station.water === 1);
+  ok('再倒一次没意义', P.addWater(pl2, player).ok === false);
+  ok('现在什么也不缺了', P.blocker(pl2) === null, String(P.blocker(pl2)));
+  ok('可以烧了', C.Cooking.canCook(boilR, pl2.station).ok === true);
+
+  // ⑤ 烧开 —— 全程要听得见
+  const heard = [];
+  C.EventBus.subscribe(C.Events.SoundEmitted, (e) => heard.push(e));
+  const now = 9.0;
+  ok('开烧', C.Cooking.start('boilWater', pl2.station, now, {}).ok === true);
+  C.Cooking.emitProcessNoise(3);
+  const boiling = heard.filter(e => e.category === C.SoundCategory.Boil);
+  /* **烧水的过程声单独一类**：玩家在隔壁房间就该听得出「我那壶水还在烧」。 */
+  ok('烧的过程有咕嘟声，且是 Boil 这一类', boiling.length === 1, String(boiling.length));
+  ok('咕嘟声从水壶那个位置发出去', C.V.dist(boiling[0].worldPosition, pl2.station.pos) < 0.01);
+
+  heard.length = 0;
+  C.Cooking.update(now + 0.5, 0.5, level);
+  const whistle = heard.filter(e => e.category === C.SoundCategory.Whistle);
+  /* **水开了要能只靠耳朵判断出来。** 哨声是玩家人在别的房间时唯一的依据，
+     所以它必须和游戏里其它任何声音都不一样（见 13-audio 的专门分支）。 */
+  ok('水开了有一声哨响', whistle.length === 1, JSON.stringify(heard.map(h => h.category)));
+  ok('哨响的响度就是电水壶的提示音 35',
+     whistle[0].loudness === C.Config.cooking.heaters.kettle.done, String(whistle[0].loudness));
+  ok('标签就写着「水开了」', whistle[0].label === '水开了', whistle[0].label);
+  ok('烧完水箱空了 —— 下一壶要重新倒', pl2.station.water === 0, String(pl2.station.water));
+  ok('电水壶自动断电了', pl2.station.link.devices[0].on === false);
+}
+
+section('11. 摆出来的东西进存档');
+{
+  const { level, world, player, time } = world_();
+  const P = C.Placement;
+  const o = level.outlets.find(x => /男402/.test(x.id));
+  const kettle = player.hotbar.find(x => x && x.id === 'kettle');
+  P.begin(kettle);
+  P.ghost.pos = { x: o.pos.x + 0.5, y: o.pos.y - 0.3, z: o.pos.z + 0.3 };
+  P.ghost.ok = true;
+  const pl = P.confirm(player).placed;
+  P.takeCable(pl); P.plugCableInto(o);
+  C.Power.setBreaker('circuit-dormM-3', true, null, -1);
+  P.addWater(pl, player);
+
+  const game = { player, time, level };
+  const raw = JSON.parse(JSON.stringify(C.Save.build(game)));
+  ok('摆出来的东西进存档', raw.placed.length === 1 && raw.placed[0].itemId === 'kettle',
+     JSON.stringify(raw.placed));
+  ok('水位也存了', raw.placed[0].water === 1);
+  ok('插在哪个插座上也存了', raw.placed[0].outletId === o.id);
+
+  const s2 = world_();
+  C.Save.apply({ player: s2.player, time: s2.time, level: s2.level }, raw);
+  ok('读档后东西还在世界上', C.Placement.list.length === 1);
+  ok('灶台没翻倍', C.Cooking.stations.length === 1, String(C.Cooking.stations.length));
+  ok('链路没翻倍', C.Power.links.length === 1, String(C.Power.links.length));
+  ok('水位还原', C.Placement.list[0].station.water === 1);
+  ok('还插在那个插座上', C.Placement.list[0].outletId === o.id);
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + `${pass} 通过 / ${fail} 失败\x1b[0m\n`);

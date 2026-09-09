@@ -254,6 +254,51 @@
                       border: 1px solid var(--line); border-radius: 3px; }
   .kit-panel button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── 放置预览（39-device-ui）──────────────────────────
+     准星中间一个落点框：绿=放得下，红=放不下并说明原因。**不暂停游戏。** */
+  #place { position: fixed; inset: 0; z-index: 5; display: none; pointer-events: none; }
+  #place.on { display: block; }
+  .pl-box { position: absolute; left: 50%; top: 50%; width: 56px; height: 34px;
+            transform: translate(-50%, -50%) perspective(90px) rotateX(52deg);
+            border: 2px solid var(--signal); background: rgba(111,211,232,0.14); border-radius: 3px; }
+  .pl-box.no { border-color: var(--accent); background: rgba(228,87,61,0.16); }
+  .pl-tip { position: absolute; left: 0; right: 0; top: calc(50% + 46px); text-align: center;
+            font-size: 13px; color: var(--ink); text-shadow: 0 1px 4px #000; }
+  .pl-tip small { display: block; margin-top: 3px; font-size: 11px; color: var(--dim); }
+
+  /* ── 设备菜单（对准放好的东西按 F）──────────────────── */
+  #device { position: fixed; inset: 0; z-index: 8; display: none;
+            align-items: center; justify-content: center; pointer-events: none; }
+  #device.open { display: flex; }
+  .dv-panel { pointer-events: auto; width: min(330px, 88vw);
+              background: rgba(12,16,22,0.93); border: 1px solid var(--line);
+              border-radius: 6px; padding: 12px 14px 14px; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
+  .dv-panel h5 { margin: 0 0 8px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .dv-block { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .dv-block b { color: var(--accent); }
+  .dv-row { display: flex; align-items: center; gap: 9px; padding: 6px 2px;
+            border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; }
+  .dv-row button { font-family: var(--cjk); font-size: 12px; padding: 4px 14px; cursor: pointer;
+                   background: rgba(30,38,48,0.9); color: var(--ink);
+                   border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
+  .dv-row button:hover { border-color: var(--accent); color: var(--accent); }
+  .dv-row em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .dv-ok { font-size: 12px; color: var(--signal); }
+  .dv-no { font-size: 12px; color: var(--accent); }
+
+  /* ── 背包右键菜单 ──────────────────────────────────── */
+  #invMenu { position: fixed; inset: 0; z-index: 12; display: none; }
+  #invMenu.on { display: block; }
+  .inv-menu { position: absolute; min-width: 150px; padding: 6px;
+              background: rgba(14,19,26,0.97); border: 1px solid var(--line);
+              border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.55); }
+  .inv-menu h6 { margin: 2px 6px 6px; font-size: 11px; color: var(--dim); font-weight: 500; }
+  .inv-menu button { display: block; width: 100%; text-align: left; cursor: pointer;
+                     font-family: var(--cjk); font-size: 12.5px; padding: 5px 9px;
+                     background: none; border: 0; border-radius: 3px; color: var(--ink); }
+  .inv-menu button:hover { background: rgba(228,87,61,0.16); color: var(--accent); }
+  .inv-menu button em { display: block; font-style: normal; font-size: 10.5px; color: var(--dim); }
+
   /* ── 配电箱（37-panel-ui）────────────────────────────
      刻意做得很小：一栋楼几行，一行一个楼层，一个按钮。
      **推一次闸响度 25**，这个界面上的每一次点击都是有代价的决定，
@@ -642,6 +687,8 @@
   </div>
   <div id="rotateHint" hidden>建 议 横 屏</div>
 </div>
+<div id="place"></div>
+<div id="device"></div>
 <div id="panel"></div>
 <div id="hotbar"></div>
 <div id="pick"></div>
@@ -720,6 +767,8 @@
 <script src="src/35-outlets.js"></script>
 <script src="src/36-hotbar-ui.js"></script>
 <script src="src/37-panel-ui.js"></script>
+<script src="src/38-placement.js"></script>
+<script src="src/39-device-ui.js"></script>
 <script src="src/20-save.js"></script>
 <script src="src/17-touch.js"></script>
 <script src="src/16-main.js"></script>

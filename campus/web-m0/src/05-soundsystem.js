@@ -10,9 +10,13 @@
   const C = (root.Campus = root.Campus || {});
   const { V, M } = C;
 
+  /* 分类只影响**听起来是什么**（13-audio）与声纹图标，
+     不影响传播与衰减 —— 衰减只认响度和路径。 */
   const SoundCategory = {
     Footstep: 'Footstep', Impact: 'Impact', Voice: 'Voice',
-    Gunshot: 'Gunshot', Ambient: 'Ambient', Door: 'Door'
+    Gunshot: 'Gunshot', Ambient: 'Ambient', Door: 'Door',
+    // 烧水：持续的咕嘟声，和水开时那一声尖锐的哨响 —— **两者必须听得出区别**
+    Boil: 'Boil', Whistle: 'Whistle'
   };
 
   // ── 最小二叉堆 ──────────────────────────────────────

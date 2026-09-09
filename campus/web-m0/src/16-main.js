@@ -79,6 +79,7 @@
       C.Power.reset(this.level);
       C.Cooking.reset();
       C.Outlets.reset();
+      C.Placement.reset(); C.Placement.game = this;
       /* **教学只支持「睡过头的学生」**（角色规格 5.2 风险四）。
          教学流程完全绑定宿舍楼 —— 让保安在正门口听「配电间在一楼」是荒谬的。
          不给另外五个角色各做一套教学：那是五倍工作量换微小收益。 */
@@ -105,9 +106,12 @@
         C.NotebookUI.init(this); C.LootUI.init(this);
         C.KitchenUI.init(this); C.TutorialUI.init(this);
         C.HotbarUI.init(this); C.PanelUI.init(this);
+        C.DeviceUI.init(this); C.PlaceUI.init(this);
         this._noteReady = true;
       }
       C.PanelUI.game = this; C.PanelUI.close();
+      C.DeviceUI.game = this; C.DeviceUI.close();
+      C.PlaceUI.game = this;
       C.HotbarUI.game = this; C.HotbarUI.render(true);
       C.KitchenUI.game = this; C.KitchenUI.close();
       C.TutorialUI.game = this;
@@ -126,6 +130,9 @@
       });
       /* 翻找走轻量的搜刮界面（28-loot-ui），不是全屏背包总览 ——
          翻找时游戏不暂停，玩家必须还能看见身后的走廊 */
+      // 摆出来 / 收起来 → 渲染层跟着加/删一个盒子
+      C.EventBus.subscribe('ItemPlacedEvent', (e) => this.renderer.addPlaced(e.placed));
+      C.EventBus.subscribe('ItemUnplacedEvent', (e) => this.renderer.removePlaced(e.placed));
       C.EventBus.subscribe('ContainerOpenedEvent', (e) => C.LootUI.toggle(e.box));
       C.EventBus.subscribe('ContainerClosedEvent', () => C.LootUI.close());
       /* 跳闸/停电会**报废正在做的东西** —— 电力层只管断电，
@@ -237,7 +244,16 @@
             if (C.LootUI.rotate()) { C.LootUI.render(); break; }
             if (!this.player.alive) this.restart();
             break;
-          case 'Escape': C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close(); break;
+          case 'Escape':
+            /* `[实测]` 这个 switch 里原来有**两条 `case 'Escape'`** ——
+               第二条永远执行不到（JS 的 switch 取第一条匹配）。合成一条。
+               顺序有讲究：**先取消正在进行的动作，再关面板** ——
+               正在放置时按 Esc，玩家要的是「别放了」，不是「关背包」。 */
+            if (C.Placement.ghost) { C.Placement.cancel(); this.msg('取消放置'); break; }
+            if (C.Placement.cable) { C.Placement.dropCable(); this.msg('放下了电线'); break; }
+            C.DeviceUI.close(); C.PanelUI.close();
+            C.NotebookUI.close(); C.LootUI.close(); C.InventoryUI.close();
+            break;
           case 'KeyL': this.player.flashlight = !this.player.flashlight; break;
           case 'BracketLeft': this.debug.floor = Math.max(0, this.debug.floor - 1); this.debug.followPlayer = false; break;
           case 'BracketRight': this.debug.floor = Math.min(this.level.bounds.floors - 1, this.debug.floor + 1); this.debug.followPlayer = false; break;
@@ -249,7 +265,6 @@
             break;
           case 'KeyU': this._toggleSleep(); break;   // 睡觉（K 让给厨房）
           case 'KeyB': C.InventoryUI.toggle(); break;
-          case 'Escape': C.InventoryUI.close(); break;
           case 'F5': { const r = C.Save.save(this); this.msg(r.ok ? '已保存' : '保存失败：' + r.msg); break; }
           case 'Digit1': case 'Digit2': case 'Digit3':
           case 'Digit4': case 'Digit5': case 'Digit6':
@@ -286,9 +301,12 @@
         C.Audio.init(); C.Audio.resume();
         // 背包 / 笔记本开着的时候，点击是在用界面，不能顺手把指针锁回去 ——
         // 锁上之后鼠标就没了，地图上的标记再也点不中
-        if (e.target && e.target.closest && e.target.closest('#inv, #note, #tuner, #loot, #pick')) return;
+        if (e.target && e.target.closest &&
+            e.target.closest('#inv, #note, #tuner, #loot, #pick, #kitchen, #panel, #device, #invMenu')) return;
         // 面板开着时点空白处也不能锁 —— 一锁鼠标就没了，格子拖不动
         if (this._panelOpen()) return;
+        // 放置模式下这一次点击是「放下」，mousedown 已经处理过了
+        if (C.Placement.ghost) return;
         if (C.Touch.enabled) {
           // 手机没有指针锁定，点一下就是开始。顺手进全屏 ——
           // 地址栏一收起来，「转视角把窗口拖下来」这件事就从根上没有了。
@@ -326,11 +344,20 @@
       this.rmb = false;
       addEventListener('mousedown', (e) => {
         if (e.button === 2) this.rmb = true;
+        /* 放置模式下左键 = 放下。**要在指针锁定那段逻辑之前拦掉** ——
+           否则第一次点击会被当成「点击画面开始」，东西放不下去。 */
+        if (e.button === 0 && C.Placement.ghost && !this._panelOpen()) {
+          const r = C.Placement.confirm(this.player);
+          this.msg(r.msg);
+          if (r.ok) C.EventBus.publish('DeviceOpenedEvent', { placed: r.placed });
+          e.preventDefault();
+          return;
+        }
         // 拖动模式：左键按下即开始拖视角（面板上的拖动不算）
         // 面板名单要和 `_panelOpen()` 对得上，漏一个就是「在这个界面上能转视角」
         if (e.button === 0 && this.lookMode === 'drag' && !C.Touch.enabled && !this._panelOpen() &&
             !(e.target && e.target.closest &&
-              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel'))) {
+              e.target.closest('#inv, #note, #tuner, #loot, #kitchen, #pick, #hotbar, #panel, #device'))) {
           this.drag.on = true; this.drag.x = e.clientX; this.drag.y = e.clientY;
           e.preventDefault();
         }
@@ -362,7 +389,8 @@
     /** 有没有面板开着（背包 / 笔记本 / 搜刮）。这些面板都会主动解除指针锁定。 */
     _panelOpen() {
       return C.LootUI.open || C.NotebookUI.open || C.InventoryUI.open || C.KitchenUI.open ||
-             (C.PanelUI && C.PanelUI.open) || (C.LoadoutUI && C.LoadoutUI.open);
+             (C.PanelUI && C.PanelUI.open) || (C.DeviceUI && C.DeviceUI.open) ||
+             (C.LoadoutUI && C.LoadoutUI.open);
     },
 
     /* 面板借走鼠标 / 还回鼠标。
@@ -528,6 +556,11 @@
       C.TutorialUI.update(dt);
       C.HotbarUI.update();
       C.PanelUI.update(this.player);
+      C.DeviceUI.update(this.player);
+      /* 放置模式：每帧算一次落点。**它要在玩家移动之后算**，
+         否则预览框会比画面慢一帧，看起来像在拖影。 */
+      C.Placement.update(this.player, this.world);
+      C.PlaceUI.update();
       this._tickKitchen(dt, dtHours);
       this._tickTutorial(dt);
       this.tapped = {};

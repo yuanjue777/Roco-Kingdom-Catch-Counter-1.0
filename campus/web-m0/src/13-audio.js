@@ -47,8 +47,34 @@
         Impact:   { type: 'noise', f: 190, q: 1.2, dur: 0.34, atk: 0.001 },
         Ambient:  { type: 'noise', f: 600, q: 0.7, dur: 0.55, atk: 0.12 },
         Voice:    { type: 'tone',  f: 82,  dur: 0.9,  atk: 0.06 },
-        Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 }
+        Gunshot:  { type: 'noise', f: 1600, q: 0.6, dur: 0.4, atk: 0.001 },
+        /* 烧水的咕嘟：低频窄带噪声，长而闷。它每 2 秒响一次（见 30-cooking），
+           所以单次不能太短，否则听起来是「滴答」不是「在烧」。 */
+        Boil:     { type: 'noise', f: 240, q: 2.6, dur: 1.6, atk: 0.35 },
+        // 水开的哨响：见下面的专门分支，这里只留一个兜底
+        Whistle:  { type: 'tone',  f: 1500, dur: 1.2, atk: 0.02 }
       }[category] || { type: 'noise', f: 500, q: 1, dur: 0.15, atk: 0.005 };
+
+      /* **水开了要能只靠耳朵判断出来。**
+         所以哨声不走通用分支：升调的正弦 + 一点抖动，和游戏里其它任何声音都不像。
+         这是玩家「人在别的房间，听见水开了」的唯一依据。 */
+      if (category === 'Whistle') {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(900, t);
+        osc.frequency.exponentialRampToValueAtTime(1750, t + 0.35);
+        const vib = this.ctx.createOscillator(), vg = this.ctx.createGain();
+        vib.frequency.value = 7.5; vg.gain.value = 26;
+        vib.connect(vg); vg.connect(osc.frequency);
+        osc.connect(g);
+        osc.start(t); vib.start(t);
+        osc.stop(t + 1.3); vib.stop(t + 1.3);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(gain, t + 0.05);
+        g.gain.setValueAtTime(gain, t + 0.9);
+        g.gain.exponentialRampToValueAtTime(0.0008, t + 1.25);
+        return;
+      }
 
       if (spec.type === 'noise') {
         const src = this.ctx.createBufferSource();
@@ -74,10 +100,23 @@
       g.gain.exponentialRampToValueAtTime(0.0008, t + spec.dur);
     },
 
-    /** 玩家听到别人发出的声音：音量 ∝ margin，声像 ∝ 路径入口方向 */
+    /**
+     * 玩家听到别人发出的声音：音量来自 margin，声像来自路径入口方向。
+     *
+     * `[实测]` 映射曲线从线性改成开方。
+     * 线性 (`margin/45`) 下，margin 5 只有满音量的 11% —— 几乎听不见。
+     * 而 margin 5 在规则层的意思是「**你确实听见了**，只是很轻」：
+     * 站在烧开的水壶边上（咕嘟声 15、阈值 8）算出来就是这个数，
+     * 玩家却什么都听不到，于是以为音效没做。
+     *
+     * 人耳本来就是对数的。开方之后 margin 5 → 33%，margin 45 → 100%，
+     * **「刚好听得见」和「就在耳边」之间才有可用的动态范围** ——
+     * 这对蜷伏者呼吸（12）、远处脚步这些贴着阈值的声音同样重要，
+     * 而它们正是这个游戏最该被听见的东西。
+     */
     onHeard(info, player) {
       if (!this.enabled) return;
-      const gain = Math.min(1, info.margin / 45) * 0.85;
+      const gain = Math.sqrt(Math.min(1, info.margin / 45)) * 0.85;
       const right = { x: Math.cos(player.yaw), z: -Math.sin(player.yaw) };
       const pan = info.dir.x * right.x + info.dir.z * right.z;
       this.play(info.evt.category, gain, pan);
