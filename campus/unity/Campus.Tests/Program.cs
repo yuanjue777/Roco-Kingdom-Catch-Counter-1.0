@@ -192,7 +192,140 @@ static class Program {
       Ok("到期后清掉", hc.FinalThreshold() == Config.Hearing.Zombie);
     }
 
-    Section("10. 硬约束：Campus.Core 里零 UnityEngine 引用");
+    Section("10. 需求：逐步对拍（顺序错了才是移植真正会踩的坑）");
+    {
+      /* 对拍的不是「跑 8 小时后口渴是多少」，而是**每一步之后的全部字段**。
+         腹泻倍率在扣 diarrheaHours 之前还是之后、精力充沛先乘再扣还是先扣再乘、
+         stamina.max 是先被困乏挤占再过管线还是反过来 ——
+         这些顺序问题算出来的差别很小，小到肉眼看不出来，但会一路漂到别的系统里。 */
+      ModifierPipeline.Clear();
+      const int owner = 7;
+      int nbad = 0, steps = 0, ti = 0; string firstBad = null;
+      foreach (var trace in g["needsTraces"].Items) {
+        ti++;
+        ModifierPipeline.Clear();
+        var nrng = new Rng(ti == 1 ? 4242u : 99u);
+        var n = new Needs(owner);
+        int si = 0;
+        foreach (var step in trace.Items) {
+          var op = step["op"];
+          switch (op[0].AsString()) {
+            case "update":        n.Update(op[1].AsDouble(), op[2].AsBool()); break;
+            case "consume":       n.Consume(op[1].AsString(), nrng); break;
+            case "damage":        n.Damage(op[1].AsDouble(), op[2].AsString()); break;
+            case "heal":          n.Heal(op[1].AsDouble()); break;
+            case "grantRested":   n.GrantRested(); break;
+            case "staminaMod":    ModifierPipeline.Add("stamina.max", "iron", 40, owner); break;
+            case "staminaMulMod": ModifierPipeline.Mul("stamina.max", "orderPin", 1.5, owner); break;
+            case "thirstMod":     ModifierPipeline.Mul("need.thirst_rate", "needsWater", 1.3, owner); break;
+            case "fatigueMod":    ModifierPipeline.Mul("need.fatigue_rate", "sleepyHead", 1.35, owner); break;
+            case "clearMods":     ModifierPipeline.Clear(); break;
+          }
+          var w = step["state"];
+          string why = null;
+          if (!Near(n.Hunger, w["hunger"].AsDouble())) why = "hunger";
+          else if (!Near(n.Thirst, w["thirst"].AsDouble())) why = "thirst";
+          else if (!Near(n.Fatigue, w["fatigue"].AsDouble())) why = "fatigue";
+          else if (!Near(n.Health, w["health"].AsDouble())) why = "health";
+          else if (!Near(n.HealthMax(), w["healthMax"].AsDouble())) why = "healthMax";
+          else if (!Near(n.StaminaMax(), w["staminaMax"].AsDouble())) why = "staminaMax";
+          else if (!Near(n.DiarrheaHours, w["diarrheaHours"].AsDouble())) why = "diarrheaHours";
+          else if (!Near(n.RestedHours, w["restedHours"].AsDouble())) why = "restedHours";
+          else if (n.Dead != w["dead"].AsBool()) why = "dead";
+          else if (n.Cause != w["cause"].AsString("")) why = "cause";
+          si++; steps++;
+          if (why != null && firstBad == null)
+            firstBad = "第 " + ti + " 条轨迹第 " + si + " 步 " + op[0].AsString() + " 的 " + why;
+          if (why != null) nbad++;
+        }
+      }
+      Ok(steps + " 步操作后的 10 个字段全部一致（误差 < 1e-9）", nbad == 0, firstBad);
+      ModifierPipeline.Clear();
+
+      // 单独点名几条最容易被移植丢掉的规则
+      var m = new Needs(1);
+      Ok("开局口渴 = " + Config.Needs.StartThirst + "，不是 0", m.Thirst == Config.Needs.StartThirst);
+      Ok("开局可用生命上限已经被口渴挤掉一块", m.HealthMax() == Config.Needs.BarLength - Config.Needs.StartThirst);
+      m.Damage(50);
+      m.Consume("water");
+      Ok("喝水解除挤占，但**不回血**", m.Health == 50 && m.HealthMax() > 50);
+      var dead = new Needs(2);
+      dead.Update(200, false);
+      Ok("一路挤占到 0 = 死，死因分得清渴死/饿死", dead.Dead && dead.Cause == "渴死", dead.Cause);
+    }
+
+    Section("11. 睡眠状态机：中断一次，整晚白睡");
+    {
+      var t3 = new TimeSystem();
+      var sl = new Sleep();
+      int nbad = 0, steps = 0; string firstBad = null;
+      foreach (var step in g["sleepTrace"].Items) {
+        var op = step["op"];
+        string ret = "";
+        switch (op[0].AsString()) {
+          case "begin":     t3.Hour = op[1].AsDouble(); sl.Begin(t3, op[2].AsDouble()); break;
+          case "update":    ret = sl.Update(op[1].AsDouble(), t3); break;
+          case "interrupt": sl.Interrupt(t3, op[1].AsString()); break;
+          case "reset":     sl.Reset(); break;
+        }
+        var w = step["state"];
+        string why = null;
+        if (ret != step["ret"].AsString("")) why = "返回值";
+        else if (sl.Active != w["active"].AsBool()) why = "active";
+        else if (!Near(sl.Slept, w["slept"].AsDouble())) why = "slept";
+        else if (!Near(sl.Target, w["target"].AsDouble())) why = "target";
+        else if (!Near(sl.StartHour, w["startHour"].AsDouble())) why = "startHour";
+        else if (sl.Interrupted != w["interrupted"].AsBool()) why = "interrupted";
+        else if (sl.WokeReason != w["wokeReason"].AsString("")) why = "wokeReason";
+        else if (sl.GrantsRested() != w["grantsRested"].AsBool()) why = "grantsRested";
+        else if (!Near(t3.TimeScale, w["timeScale"].AsDouble())) why = "timeScale";
+        steps++;
+        if (why != null && firstBad == null) firstBad = "第 " + steps + " 步 " + op[0].AsString() + " 的 " + why;
+        if (why != null) nbad++;
+      }
+      Ok(steps + " 步睡眠操作全部一致（含 timeScale 与 grantsRested）", nbad == 0, firstBad);
+
+      // 惊醒阈值走管线：「睡得沉」set 35、「浅眠」set 6
+      ModifierPipeline.Clear();
+      int wbad = 0;
+      foreach (var w in g["wakeThresholds"].Items) {
+        string id = w["id"].AsString();
+        if (id == "deepSleeper") ModifierPipeline.Set("sleep.interrupt_threshold", id, 35, 0);
+        if (id == "lightSleeper") {
+          ModifierPipeline.Unregister("sleep.interrupt_threshold", "deepSleeper");
+          ModifierPipeline.Set("sleep.interrupt_threshold", id, 6, 0);
+        }
+        if (!Near(Sleep.WakeThreshold(0), w["v"].AsDouble())) wbad++;
+      }
+      Ok("惊醒阈值 15 / 睡得沉 35 / 浅眠 6，全部来自管线", wbad == 0);
+      ModifierPipeline.Clear();
+    }
+
+    Section("12. 安全睡点：门 / 隔壁丧尸 / 床，三条各自独立");
+    {
+      /* 逐条给出原因，**UI 直接照着显示** —— 玩家不用猜为什么睡不了。
+         所以对拍的不只是 ok，还有那几句话本身和它们的顺序。 */
+      var g3 = BuildGraph(g["graph"]);
+      int nbad = 0; string firstBad = null;
+      foreach (var c in g["sleepChecks"].Items) {
+        int nodeId = (int)c["nodeId"].AsDouble();
+        string st = c["portalState"].AsString();
+        foreach (var pid in g3.GetNode(nodeId).Portals) g3.GetPortal(pid).State = st;
+        var zs = new List<int>();
+        foreach (var z in c["zombieNodes"].Items) zs.Add((int)z.AsDouble());
+        var r = Sleep.Check(g3, nodeId, zs, c["hasBed"].AsBool());
+        string why = null;
+        if (r.Ok != c["ok"].AsBool()) why = "ok";
+        else if (r.Reasons.Count != c["reasons"].Count) why = "原因条数";
+        else for (int i = 0; i < r.Reasons.Count; i++)
+          if (r.Reasons[i] != c["reasons"][i].AsString()) { why = "第 " + (i + 1) + " 条原因"; break; }
+        if (why != null && firstBad == null) firstBad = c["label"].AsString() + " 的 " + why;
+        if (why != null) nbad++;
+      }
+      Ok(g["sleepChecks"].Count + " 种组合的判定与原因文字全部一致", nbad == 0, firstBad);
+    }
+
+    Section("13. 硬约束：Campus.Core 里零 UnityEngine 引用");
     {
       var asm = typeof(SoundSystem).Assembly;
       bool clean = true; string offender = null;
