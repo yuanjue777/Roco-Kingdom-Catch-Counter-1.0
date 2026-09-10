@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Campus.Tests</RootNamespace>
+    <!-- 零 NuGet 依赖：用 NUnit 会给 Unity 那边多一层版本冲突的风险，
+         而这套断言本来就是 JS 版那种「ok(名字, 条件)」的形状，自己跑更直接。 -->
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Campus.Core/Campus.Core.csproj" /></ItemGroup>
+  <ItemGroup><None Update="goldens.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

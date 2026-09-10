@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- netstandard2.1 = Unity 2021+ / Unity 6 能直接引用的预编译 DLL 目标。
+         **不要升到 net8.0** —— Unity 的 Mono/IL2CPP 运行时读不了。 -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Campus.Core</AssemblyName>
+    <RootNamespace>Campus</RootNamespace>
+    <!-- 硬约束：这个程序集里【零 UnityEngine 引用】。
+         第 1–3 层必须能脱离渲染引擎运行，这是整个工程能改数值不回归的唯一保证。 -->
+  </PropertyGroup>
+</Project>
