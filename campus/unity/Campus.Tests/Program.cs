@@ -325,7 +325,51 @@ static class Program {
       Ok(g["sleepChecks"].Count + " 种组合的判定与原因文字全部一致", nbad == 0, firstBad);
     }
 
-    Section("13. 硬约束：Campus.Core 里零 UnityEngine 引用");
+    Section("13. 自检场景：CampusSelfTest.cs 在 Unity 里会打出的数");
+    {
+      /* 对面在编辑器里按下播放，第一眼看到的就是这几个数。
+         **如果它们是错的，人家会认为整个移植是坏的。**
+         这里和 UnityGlue 里那个 MonoBehaviour 搭的是同一个场景、同一个顺序。 */
+      var sg = new SoundGraph();
+      var room = sg.AddNode("402", AABB.Make(0, 0, 0, 4, 3, 6));
+      var corr = sg.AddNode("4F走廊", AABB.Make(4, 0, 0, 6, 3, 20), false, 0, 4, "corridor");
+      var door = sg.AddPortal(room.Id, corr.Id, new V3(4, 0, 3), PortalType.WoodDoor, PortalState.Closed);
+      var clk = new TimeSystem();
+      var ss = new SoundSystem();
+      ss.Init(sg, clk, (a, b) => true);
+      Heard last = null;
+      var ears = new HearingComponent(1, Config.Hearing.Zombie) {
+        Sound = ss, Node = corr.Id, Pos = new V3(5, 0, 3), OnHeard = h => last = h
+      };
+      ss.AddListener(ears);
+      var w = g["selfTest"];
+      Ok("可听半径 " + ears.AudibleRange(Config.Loudness.Run) + " m",
+         Near(ears.AudibleRange(Config.Loudness.Run), w["audibleRange"].AsDouble()));
+
+      Func<Json, string, bool> shout = (want, label) => {
+        last = null;
+        ss.Emit(new V3(2, 0, 3), Config.Loudness.Run, SoundCategory.Footstep, 99, 0, "跑步");
+        return last != null && Near(last.Arrival, want["arrival"].AsDouble())
+               && Near(last.Margin, want["margin"].AsDouble())
+               && Near(last.PathLen, want["pathLen"].AsDouble());
+      };
+      Ok("关着木门：到达 " + w["closed"]["arrival"].AsDouble() + "，余量 " + w["closed"]["margin"].AsDouble(),
+         shout(w["closed"], "closed"));
+      sg.SetPortalState(door, PortalState.Open);
+      Ok("门开着：到达 " + w["open"]["arrival"].AsDouble() + "，余量 " + w["open"]["margin"].AsDouble(),
+         shout(w["open"], "open"));
+
+      var n3 = new Needs(1);
+      Ok("开局口渴 " + n3.Thirst + "，生命上限 " + n3.HealthMax(),
+         Near(n3.Thirst, w["startThirst"].AsDouble()) && Near(n3.HealthMax(), w["startHealthMax"].AsDouble()));
+      n3.Update(8, false);
+      var a8 = w["after8h"];
+      Ok("醒着过 8 小时的四个数与 JS 一致",
+         Near(n3.Thirst, a8["thirst"].AsDouble()) && Near(n3.Hunger, a8["hunger"].AsDouble())
+         && Near(n3.Fatigue, a8["fatigue"].AsDouble()) && Near(n3.HealthMax(), a8["healthMax"].AsDouble()));
+    }
+
+    Section("14. 硬约束：Campus.Core 里零 UnityEngine 引用");
     {
       var asm = typeof(SoundSystem).Assembly;
       bool clean = true; string offender = null;

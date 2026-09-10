@@ -12,22 +12,24 @@
 | 声图 / Dijkstra 传播 / 听觉 / 气味 / 时钟 | ✅ 已移植，**72 个用例逐个对拍，误差 < 1e-9** |
 | 需求（饥饿 / 口渴 / 困乏 / 生命）| ✅ 已移植，**68 步操作逐字段对拍** |
 | 睡眠与安全睡点 | ✅ 已移植（找床归几何层，见下） |
-| Unity 接缝（时钟 / 声音 / 听觉 / 门 / 节点 / 音频） | ✅ `UnityGlue/`，等你在编辑器里接 |
+| Unity 接缝（时钟 / 声音 / 听觉 / 门 / 节点 / 音频） | ✅ `UnityGlue/`，**一条命令装进工程**，带自检场景 |
 | 玩家控制器 / 丧尸 AI / 供电 / 烹饪 / 战斗 / 教学 | ⏳ 还在 JS 里，按同样的方式往下搬 |
 
-**48 条对拍断言全绿。**
+**53 条对拍断言全绿。**
 
-## 三条命令
+## 一条命令
 
 ```bash
 export DOTNET_ROOT=/path/to/dotnet && export PATH=$DOTNET_ROOT:$PATH
+./verify.sh                      # 下面四步一次跑完
 
 node tools/export-config.js      # 00-config.js  → Campus.Core/Config.g.cs
 node tools/export-goldens.js     # JS 引擎跑一遍 → Campus.Tests/goldens.json（标准答案）
-dotnet run --project Campus.Tests
+dotnet run --project Campus.Tests # 对拍
+dotnet build Campus.Glue.Check    # 接缝层拿假 UnityEngine 桩编译一遍
 ```
 
-**改了 `00-config.js` 之后这三条都要重跑。** 前两条是生成，第三条是验证。
+**改了 `00-config.js` 之后整条链都要重跑。** 前两步是生成，后两步是验证。
 
 ## 为什么是「对拍」而不是「重写断言」
 
@@ -68,31 +70,64 @@ JS 引擎实际算出来的到达响度、路径长度、入口 Portal、夜间�
 
 ## 在 Unity 6 里怎么接
 
-### 1. 放文件
+### 一条命令
 
-```
-你的Unity工程/
-  Assets/
-    Plugins/Campus.Core/        ← 把 Campus.Core/*.cs 整个复制进来
-    Scripts/Bridge/             ← 把 UnityGlue/*.cs 复制进来
+```bash
+./install-to-unity.sh ~/你的Unity工程        # 那一层要能看到 Assets/ 和 ProjectSettings/
 ```
 
-**用源码而不是 DLL**：Unity 的热重载和调试体验好得多，
-而且 `Config.g.cs` 是生成的，重新生成后直接就生效了。
+它装两份东西，去两个地方：
 
-如果坚持用 DLL：`dotnet build Campus.Core -c Release`，
-把 `bin/Release/netstandard2.1/Campus.Core.dll` 放进 `Assets/Plugins/`。
-**目标框架必须是 netstandard2.1** —— Unity 的 Mono/IL2CPP 读不了 net8.0。
+| 装什么 | 去哪 | 什么性质 |
+|---|---|---|
+| `Campus.Core/*.cs` | `Assets/Plugins/Campus.Core/` | 规则层，**零 UnityEngine 引用** |
+| `UnityGlue/*.cs` + `CampusSelfTest.cs` | `Assets/Scripts/CampusBridge/` | 接缝层，**唯一 using UnityEngine 的地方** |
 
-### 2. 建 Assembly Definition（强烈建议）
+两个 `.asmdef` 一起装。`Campus.Core` 那个的 `noEngineReferences` 是 `true`，
+所以**顺手在规则层里 `using UnityEngine` 会当场编译失败** ——
+而不是三个月后才发现规则层再也没法在命令行里测了。
+这条和 `Campus.Tests` 第 14 节的断言是同一件事的两道锁。
 
-在 `Assets/Plugins/Campus.Core/` 放一个 `Campus.Core.asmdef`，
-**不勾选任何 Unity 引用**。这样「顺手 `using UnityEngine` 一下」会直接编译失败，
-而不是等到三个月后你发现规则层再也没法在命令行里测了。
+**用源码不用 DLL**：Unity 的热重载和调试体验好得多，
+而且 `Config.g.cs` 是生成的，改完 `00-config.js` 重新生成，编辑器里直接就生效。
+如果坚持要 DLL：`dotnet build Campus.Core -c Release`，
+目标框架**必须是 netstandard2.1**，Unity 的 Mono/IL2CPP 读不了 net8.0。
 
-这条和 `Campus.Tests` 里的第 10 节断言是同一件事的两道锁。
+### 装完先按播放
 
-### 3. 场景里怎么搭
+场景里建一个空物体，挂上 `CampusSelfTest`，按播放。它不依赖场景里任何东西：
+自己搭两个房间和一扇木门，喊一声，再让一个人饿八个小时。Console 应该出现：
+
+```
+关着木门：到达 14.00  余量 4.00  路径 3.00 m
+门开着：  到达 34.00  余量 24.00 路径 3.00 m
+开局口渴 30  可用生命上限 70
+醒着过 8 小时：口渴 58.6  饥饿 16.0  困乏 40.0  生命上限 25.4
+```
+
+**这几个数不是我编的**，是 JS 引擎算出来存在 `goldens.json` 里的，
+`Campus.Tests` 第 13 节每次都对一遍。对上了，就说明配置、声图、传播、需求
+四件事在编辑器里都是活的 —— 接下来才轮到建模和音效。
+
+一扇关着的木门把 45 分贝的跑步声压到余量 4，
+**丧尸勉强听得见**；门一开变成 24，站在走廊那头也躲不掉。
+这就是这个游戏的全部玩法，它现在在 Unity 里跑着。
+
+### 接缝层没有 Unity 也能编译
+
+`Campus.Glue.Check/` 是个不会进 Unity 的工程，里面有一套**假的 UnityEngine 桩**
+（`MonoBehaviour`、`Vector3`、`AudioLowPassFilter`… 只声明用到的那些，签名对齐 Unity 6）。
+
+为什么值得：接缝层是唯一 `using UnityEngine` 的地方，
+也就是唯一 `Campus.Tests` 覆盖不到的地方。一个手滑，
+代价是对面在编辑器里对着一屏红字排查。现在 `verify.sh` 第 4 步 3 秒就告诉你。
+
+> `[实测]` 这套桩第一次跑就抓到两个：`FindObjectOfType` 在 Unity 6 里已经过时
+> （新名字是 `FindFirstObjectByType`），以及 `CampusSound.I` 原本在 `Awake` 里赋值，
+> 而 `CampusNode.Awake` 就要用它 —— **Unity 不保证谁先跑**，
+> 换台机器、改一下脚本执行顺序就可能空引用。现在改成懒查找，顺序问题不存在了。
+
+### 场景里怎么搭
 
 | 组件 | 挂在哪 | 作用 |
 |---|---|---|

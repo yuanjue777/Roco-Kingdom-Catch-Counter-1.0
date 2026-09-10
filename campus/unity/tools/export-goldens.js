@@ -257,7 +257,45 @@ const sleepChecks = [];
   doorPortal.state = 'Open';
 }
 
-const out = { graph, cases, snapshot, nightCurve, rngSeq, needsTraces, sleepTrace, wakeThresholds, sleepChecks,
+/* ── 自检场景：CampusSelfTest.cs 在 Unity 里打到 Console 的那几个数 ──
+   对面在编辑器里按下播放，第一眼看到的就是这几行。
+   **如果它们是错的，人家会认为整个移植是坏的** —— 所以这里也对拍。
+   场景是手搭的两个房间加一扇木门，不依赖宿舍楼，Unity 里没有场景也能跑。 */
+const selfTest = {};
+{
+  const g2 = new C.SoundGraph();
+  const room = g2.addNode({ name: '402', bounds: C.AABB.make(0, 0, 0, 4, 3, 6) });
+  const corr = g2.addNode({ name: '4F走廊', bounds: C.AABB.make(4, 0, 0, 6, 3, 20), floor: 4, kind: 'corridor' });
+  const door = g2.addPortal({ nodeA: room.id, nodeB: corr.id, position: { x: 4, y: 0, z: 3 },
+                              type: 'WoodDoor', state: 'Closed' });
+  const t2 = new C.TimeSystem();
+  C.SoundSystem.init(g2, t2, () => true);
+  let last = null;
+  const ears = new C.HearingComponent({ ownerId: 1, baseThreshold: C.Config.hearing.zombie,
+                                        position: { x: 5, y: 0, z: 3 }, onHeard: h => (last = h) });
+  ears.nodeId = corr.id;
+  C.SoundSystem.registerListener(ears);
+  const shout = () => {
+    last = null;
+    C.SoundSystem.emit({ worldPosition: { x: 2, y: 0, z: 3 }, loudness: C.Config.loudness.run,
+                         category: 'Footstep', emitterId: 99, label: '跑步' });
+    return last ? { arrival: last.arrival, margin: last.margin, pathLen: last.pathLen } : null;
+  };
+  selfTest.audibleRange = ears.audibleRange(C.Config.loudness.run);
+  selfTest.closed = shout();
+  g2.setPortalState(door, 'Open');
+  selfTest.open = shout();
+  const n2 = new C.Needs(1);
+  selfTest.startThirst = n2.thirst;
+  selfTest.startHealthMax = n2.healthMax();
+  n2.update(8, false);
+  selfTest.after8h = { thirst: n2.thirst, hunger: n2.hunger, fatigue: n2.fatigue, healthMax: n2.healthMax() };
+  // 别把全局声音系统留在这张临时图上
+  C.SoundSystem.reset();
+  C.SoundSystem.init(lv.graph, time);
+}
+
+const out = { graph, cases, snapshot, nightCurve, rngSeq, needsTraces, selfTest, sleepTrace, wakeThresholds, sleepChecks,
               meta: { nodes: graph.nodes.length, portals: graph.portals.length, cases: cases.length, needsTraces: needsTraces.map(t => t.length), sleepTrace: sleepTrace.length } };
 const file = path.join(__dirname, '..', 'Campus.Tests', 'goldens.json');
 fs.writeFileSync(file, JSON.stringify(out));

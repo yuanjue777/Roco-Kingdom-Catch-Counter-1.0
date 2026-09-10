@@ -1,0 +1,16 @@
+{
+    "name": "Campus.Bridge",
+    "rootNamespace": "CampusGame",
+    "references": [
+        "Campus.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

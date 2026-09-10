@@ -6,9 +6,14 @@ cd "$(dirname "$0")"
 : "${DOTNET_ROOT:=/tmp/dotnet}"
 export DOTNET_ROOT PATH="$DOTNET_ROOT:$PATH" DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-echo "1/3  从 00-config.js 生成 C# 配置"
+echo "1/4  从 00-config.js 生成 C# 配置"
 node tools/export-config.js
-echo "2/3  用 JS 引擎导出标准答案"
+echo "2/4  用 JS 引擎导出标准答案"
 node tools/export-goldens.js
-echo "3/3  C# 对拍"
+echo "3/4  C# 对拍"
 dotnet run --project Campus.Tests -v q --nologo
+
+# 接缝层是唯一 using UnityEngine 的地方，也就是唯一 Campus.Tests 覆盖不到的地方。
+# 拿一套假的 UnityEngine 桩编译一遍，把手滑挡在打开编辑器之前。
+echo "4/4  接缝层编译检查（假 UnityEngine 桩）"
+dotnet build Campus.Glue.Check -v q --nologo

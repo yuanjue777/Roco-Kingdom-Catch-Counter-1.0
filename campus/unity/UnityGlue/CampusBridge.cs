@@ -35,15 +35,20 @@ namespace CampusGame {
 
   /// <summary>声音系统的 Unity 外壳。</summary>
   public class CampusSound : MonoBehaviour {
-    public static CampusSound I { get; private set; }
+    /* **懒查找，不是在 Awake 里赋值。**
+       CampusNode.Awake 里就要往图里加节点，而 Unity 不保证 CampusSound 的
+       Awake 先跑 —— 谁先谁后取决于脚本执行顺序设置，换台机器都可能不一样。
+       写成属性之后，第一个用到它的人负责把它找出来，顺序问题就不存在了。 */
+    static CampusSound _i;
+    public static CampusSound I => _i != null ? _i : (_i = FindFirstObjectByType<CampusSound>());
     public SoundSystem Core = new SoundSystem();
     public SoundGraph Graph = new SoundGraph();
     [Tooltip("室外遮挡判定用的层。声音系统只拿到一个纯函数，不认识 Unity。")]
     public LayerMask OcclusionMask = ~0;
 
     void Awake() {
-      I = this;
-      var clock = FindObjectOfType<CampusClock>();
+      _i = this;
+      var clock = FindFirstObjectByType<CampusClock>();
       Core.Init(Graph, clock, (a, b) => {
         var pa = a.ToUnity(); var pb = b.ToUnity();
         var d = pb - pa;

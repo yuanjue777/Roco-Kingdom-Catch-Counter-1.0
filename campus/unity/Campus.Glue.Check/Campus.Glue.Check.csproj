@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- **这个工程不会进 Unity。**
+       它的唯一作用是：在命令行里编译一遍 UnityGlue/，
+       用一套假的 UnityEngine 桩把接缝层的拼写/签名错误挡在打开编辑器之前。
+
+       为什么值得：接缝层是唯一 using UnityEngine 的地方，
+       所以它是唯一不能被 Campus.Tests 覆盖到的地方 ——
+       一个手滑，代价是对面在编辑器里对着一屏红字排查。 -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <AssemblyName>Campus.Glue.Check</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityStubs.cs" />
+    <Compile Include="../UnityGlue/*.cs" />
+    <Compile Include="../UnityProject/Assets/Scripts/CampusBridge/*.cs" />
+    <ProjectReference Include="../Campus.Core/Campus.Core.csproj" />
+  </ItemGroup>
+</Project>
